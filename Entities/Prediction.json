@@ -1,0 +1,47 @@
+{
+  "name": "Prediction",
+  "type": "object",
+  "properties": {
+    "market_id": {
+      "type": "string",
+      "description": "ID of the market"
+    },
+    "outcome_id": {
+      "type": "string",
+      "description": "ID of the predicted outcome"
+    },
+    "stake_amount": {
+      "type": "number",
+      "description": "Amount staked on this prediction"
+    },
+    "odds_at_prediction": {
+      "type": "number",
+      "description": "Probability at time of prediction"
+    },
+    "potential_return": {
+      "type": "number",
+      "description": "Potential return if prediction is correct"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "active",
+        "won",
+        "lost"
+      ],
+      "default": "active",
+      "description": "Status of the prediction"
+    },
+    "actual_return": {
+      "type": "number",
+      "default": 0,
+      "description": "Actual return when resolved"
+    }
+  },
+  "required": [
+    "market_id",
+    "outcome_id",
+    "stake_amount",
+    "odds_at_prediction"
+  ]
+}

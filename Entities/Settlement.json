@@ -1,0 +1,56 @@
+{
+  "name": "Settlement",
+  "type": "object",
+  "description": "Represents a payout settlement for a resolved market",
+  "properties": {
+    "id": {
+      "type": "string",
+      "description": "Unique settlement identifier"
+    },
+    "marketId": {
+      "type": "string",
+      "description": "Reference to the resolved market"
+    },
+    "userId": {
+      "type": "string",
+      "description": "User receiving the payout"
+    },
+    "winningOutcome": {
+      "type": "number",
+      "description": "Index of the winning outcome"
+    },
+    "winningOutcomeName": {
+      "type": "string",
+      "description": "Name of the winning outcome"
+    },
+    "winningShares": {
+      "type": "number",
+      "description": "Number of winning shares held"
+    },
+    "amount": {
+      "type": "number",
+      "description": "Payout amount"
+    },
+    "invested": {
+      "type": "number",
+      "description": "Total amount originally invested"
+    },
+    "profit": {
+      "type": "number",
+      "description": "Net profit/loss (amount - invested)"
+    },
+    "status": {
+      "type": "string",
+      "enum": ["pending", "processed", "failed"],
+      "default": "pending",
+      "description": "Settlement processing status"
+    },
+    "settlementDate": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When the settlement was processed"
+    }
+  },
+  "required": ["marketId", "userId", "amount", "status"]
+}
+

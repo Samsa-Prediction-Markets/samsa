@@ -1,0 +1,59 @@
+{
+  "name": "Trade",
+  "type": "object",
+  "description": "Represents a single trade transaction in a prediction market",
+  "properties": {
+    "id": {
+      "type": "string",
+      "description": "Unique trade identifier"
+    },
+    "userId": {
+      "type": "string",
+      "description": "User who made the trade"
+    },
+    "marketId": {
+      "type": "string",
+      "description": "Market where the trade occurred"
+    },
+    "outcomeIndex": {
+      "type": "number",
+      "description": "Index of the outcome being traded"
+    },
+    "outcomeName": {
+      "type": "string",
+      "description": "Name of the outcome being traded"
+    },
+    "type": {
+      "type": "string",
+      "enum": ["buy", "sell"],
+      "description": "Type of trade"
+    },
+    "shares": {
+      "type": "number",
+      "description": "Number of shares traded"
+    },
+    "pricePerShare": {
+      "type": "number",
+      "description": "Average price per share for this trade"
+    },
+    "totalCost": {
+      "type": "number",
+      "description": "Total cost of the trade"
+    },
+    "preBuyPrice": {
+      "type": "number",
+      "description": "Market price before the trade"
+    },
+    "postBuyPrice": {
+      "type": "number",
+      "description": "Market price after the trade"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When the trade was executed"
+    }
+  },
+  "required": ["userId", "marketId", "outcomeIndex", "type", "shares", "totalCost", "timestamp"]
+}
+

@@ -1,0 +1,1154 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Samsa</title>
+  <link rel="icon" type="image/png" sizes="32x32" href="Logo.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link
+    href="https://fonts.googleapis.com/css2?family=DM+Serif+Text:ital@0;1&family=Jost:ital,wght@0,100..900;1,100..900&display=swap"
+    rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="css/styles.css?v=3">
+</head>
+
+<body class="min-h-screen" style="background: rgb(2, 6, 23);">
+  <!-- Sidebar -->
+  <div class="sidebar">
+    <div class="sidebar-content">
+      <nav class="sidebar-nav">
+        <a href="#" class="sidebar-item" onclick="navigateTo('markets'); return false;">
+          <div class="sidebar-item-icon">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round"
+                d="M12 21a9.004 9.004 0 008.716-6.747M12 21a9.004 9.004 0 01-8.716-6.747M12 21c2.485 0 4.5-4.03 4.5-9S14.485 3 12 3m0 18c-2.485 0-4.5-4.03-4.5-9S9.515 3 12 3m0 0a8.997 8.997 0 017.843 4.582M12 3a8.997 8.997 0 00-7.843 4.582m15.686 0A11.953 11.953 0 0112 10.5c-2.998 0-5.74-1.1-7.843-2.918m15.686 0A8.959 8.959 0 0121 12c0 .778-.099 1.533-.284 2.253m0 0A17.919 17.919 0 0112 16.5c-3.162 0-6.133-.815-8.716-2.247m0 0A9.015 9.015 0 013 12c0-1.605.42-3.113 1.157-4.418" />
+            </svg>
+          </div>
+          <span class="sidebar-item-text">Explore</span>
+        </a>
+        <a href="#" class="sidebar-item" onclick="navigateTo('interests'); return false;">
+          <div class="sidebar-item-icon">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round"
+                d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
+            </svg>
+          </div>
+          <span class="sidebar-item-text">Interests</span>
+        </a>
+        <a href="#" class="sidebar-item" onclick="navigateTo('portfolio'); return false;">
+          <div class="sidebar-item-icon">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round"
+                d="M20.25 14.15v4.25c0 1.094-.787 2.036-1.872 2.18-2.087.277-4.216.42-6.378.42s-4.291-.143-6.378-.42c-1.085-.144-1.872-1.086-1.872-2.18v-4.25m16.5 0a2.18 2.18 0 00.75-1.661V8.706c0-1.081-.768-2.015-1.837-2.175a48.114 48.114 0 00-3.413-.387m4.5 8.006c-.194.165-.42.295-.673.38A23.978 23.978 0 0112 15.75c-2.648 0-5.195-.429-7.577-1.22a2.016 2.016 0 01-.673-.38m0 0A2.18 2.18 0 013 12.489V8.706c0-1.081.768-2.015 1.837-2.175a48.111 48.111 0 013.413-.387m7.5 0V5.25A2.25 2.25 0 0013.5 3h-3a2.25 2.25 0 00-2.25 2.25v.894m7.5 0a48.667 48.667 0 00-7.5 0M12 12.75h.008v.008H12v-.008z" />
+            </svg>
+          </div>
+          <span class="sidebar-item-text">Portfolio</span>
+        </a>
+        <a href="#" class="sidebar-item" onclick="navigateTo('leaderboard'); return false;">
+          <div class="sidebar-item-icon">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round"
+                d="M16.5 18.75h-9m9 0a3 3 0 013 3h-15a3 3 0 013-3m9 0v-3.375c0-.621-.503-1.125-1.125-1.125h-.871M7.5 18.75v-3.375c0-.621.504-1.125 1.125-1.125h.872m5.007 0H9.497m5.007 0a7.454 7.454 0 01-.982-3.172M9.497 14.25a7.454 7.454 0 00.981-3.172M5.25 4.236c-.982.143-1.954.317-2.916.52A6.003 6.003 0 007.73 9.728M5.25 4.236V4.5c0 2.108.966 3.99 2.48 5.228M5.25 4.236V2.721C7.456 2.41 9.71 2.25 12 2.25c2.291 0 4.545.16 6.75.47v1.516M7.73 9.728a6.726 6.726 0 002.748 1.35m8.272-6.842V4.5c0 2.108-.966 3.99-2.48 5.228m2.48-5.492a46.32 46.32 0 012.916.52 6.003 6.003 0 01-5.395 4.972m0 0a6.726 6.726 0 01-2.749 1.35m0 0a6.772 6.772 0 01-3.044 0" />
+            </svg>
+          </div>
+          <span class="sidebar-item-text">Leaderboard</span>
+        </a>
+      </nav>
+      <div class="sidebar-footer">
+        <a href="#" class="sidebar-item relative" id="notificationButton"
+          onclick="toggleNotificationsDropdown(event); return false;">
+          <div class="sidebar-item-icon relative">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round"
+                d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75v-.7V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0" />
+            </svg>
+            <span id="notificationBadge"
+              class="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">3</span>
+          </div>
+          <span class="sidebar-item-text">Notifications</span>
+        </a>
+        <a href="#" class="sidebar-item" onclick="navigateTo('settings'); return false;">
+          <div class="sidebar-item-icon">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round"
+                d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.24-.438.613-.431.992a6.759 6.759 0 010 .255c-.007.378.138.75.43.99l1.005.828c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.992a6.932 6.932 0 010-.255c.007-.378-.138-.75-.43-.99l-1.004-.828a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.281z" />
+              <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+            </svg>
+          </div>
+          <span class="sidebar-item-text">Settings</span>
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <!-- Notifications Sidebar Panel (Instagram-style) -->
+  <div id="notificationsSidebar"
+    class="fixed left-0 top-0 h-full w-[400px] bg-slate-950 shadow-2xl transform -translate-x-full transition-transform duration-300 ease-in-out"
+    style="z-index: 1200;">
+    <!-- Header -->
+    <div class="px-6 py-5 border-b border-slate-800 flex items-center justify-between">
+      <h2 class="text-xl font-bold text-white">Notifications</h2>
+      <button onclick="closeNotificationsSidebar()"
+        class="w-10 h-10 rounded-full hover:bg-slate-800 flex items-center justify-center transition-colors">
+        <svg class="w-6 h-6 text-slate-400 hover:text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+        </svg>
+      </button>
+    </div>
+
+    <!-- Mark all read -->
+    <div class="px-6 py-3 border-b border-slate-800 flex items-center justify-between">
+      <span class="text-sm text-slate-400">Recent activity</span>
+      <button onclick="markAllNotificationsRead()"
+        class="text-sm text-yellow-400 hover:text-yellow-300 transition-colors font-medium">
+        Mark all as read
+      </button>
+    </div>
+
+    <!-- Notifications List -->
+    <div class="overflow-y-auto h-[calc(100%-130px)]">
+      <!-- Today Section -->
+      <div class="px-6 py-3">
+        <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Today</p>
+      </div>
+      <div class="px-4">
+        <div
+          class="notification-item unread p-4 hover:bg-slate-800/50 rounded-xl cursor-pointer transition-colors mb-2">
+          <div class="flex items-start gap-4">
+            <div class="w-12 h-12 rounded-full bg-green-500/20 flex items-center justify-center flex-shrink-0">
+              <svg class="w-6 h-6" style="color: rgb(212, 175, 55);" fill="none" stroke="currentColor"
+                stroke-width="1.5" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round"
+                  d="M12 6v12m-3-2.818l.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </div>
+            <div class="flex-1 min-w-0">
+              <div class="flex items-start justify-between gap-2">
+                <p class="text-white text-base font-medium">You won your prediction!</p>
+                <span class="w-2.5 h-2.5 bg-yellow-500 rounded-full flex-shrink-0 mt-1.5"></span>
+              </div>
+              <p class="text-slate-400 text-sm mt-1">Bitcoin to $100k · +$250</p>
+              <p class="text-slate-500 text-xs mt-2">2 hours ago</p>
+            </div>
+          </div>
+        </div>
+
+        <div
+          class="notification-item unread p-4 hover:bg-slate-800/50 rounded-xl cursor-pointer transition-colors mb-2">
+          <div class="flex items-start gap-4">
+            <div class="w-12 h-12 rounded-full bg-blue-500/20 flex items-center justify-center flex-shrink-0">
+              <svg class="w-6 h-6" style="color: rgb(212, 175, 55);" fill="none" stroke="currentColor"
+                stroke-width="1.5" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round"
+                  d="M2.25 18L9 11.25l4.306 4.307a11.95 11.95 0 015.814-5.519l2.74-1.22m0 0l-5.94-2.28m5.94 2.28l-2.28 5.941" />
+              </svg>
+            </div>
+            <div class="flex-1 min-w-0">
+              <div class="flex items-start justify-between gap-2">
+                <p class="text-white text-base font-medium">Market odds shifted</p>
+                <span class="w-2.5 h-2.5 bg-yellow-500 rounded-full flex-shrink-0 mt-1.5"></span>
+              </div>
+              <p class="text-slate-400 text-sm mt-1">Lakers vs Celtics - Lakers now at 35%</p>
+              <p class="text-slate-500 text-xs mt-2">5 hours ago</p>
+            </div>
+          </div>
+        </div>
+
+        <div
+          class="notification-item unread p-4 hover:bg-slate-800/50 rounded-xl cursor-pointer transition-colors mb-2">
+          <div class="flex items-start gap-4">
+            <div class="w-12 h-12 rounded-full bg-purple-500/20 flex items-center justify-center flex-shrink-0">
+              <svg class="w-6 h-6" style="color: rgb(212, 175, 55);" fill="none" stroke="currentColor"
+                stroke-width="1.5" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round"
+                  d="M12 9v6m3-3H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </div>
+            <div class="flex-1 min-w-0">
+              <div class="flex items-start justify-between gap-2">
+                <p class="text-white text-base font-medium">New market available</p>
+                <span class="w-2.5 h-2.5 bg-yellow-500 rounded-full flex-shrink-0 mt-1.5"></span>
+              </div>
+              <p class="text-slate-400 text-sm mt-1">Super Bowl LIX predictions are now open!</p>
+              <p class="text-slate-500 text-xs mt-2">8 hours ago</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- This Week Section -->
+      <div class="px-6 py-3 mt-4">
+        <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider">This Week</p>
+      </div>
+      <div class="px-4">
+        <div
+          class="notification-item p-4 hover:bg-slate-800/50 rounded-xl cursor-pointer transition-colors mb-2 opacity-60">
+          <div class="flex items-start gap-4">
+            <div class="w-12 h-12 rounded-full bg-orange-500/20 flex items-center justify-center flex-shrink-0">
+              <svg class="w-6 h-6" style="color: rgb(212, 175, 55);" fill="none" stroke="currentColor"
+                stroke-width="1.5" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round"
+                  d="M15.362 5.214A8.252 8.252 0 0112 21 8.25 8.25 0 016.038 7.048 8.287 8.287 0 009 9.6a8.983 8.983 0 013.361-6.867 8.21 8.21 0 003 2.48z" />
+                <path stroke-linecap="round" stroke-linejoin="round"
+                  d="M12 18a3.75 3.75 0 00.495-7.467 5.99 5.99 0 00-1.925 3.546 5.974 5.974 0 01-2.133-1A3.75 3.75 0 0012 18z" />
+              </svg>
+            </div>
+            <div class="flex-1 min-w-0">
+              <p class="text-white text-base font-medium">Trending market alert</p>
+              <p class="text-slate-400 text-sm mt-1">Federal Reserve rate decision gaining attention</p>
+              <p class="text-slate-500 text-xs mt-2">2 days ago</p>
+            </div>
+          </div>
+        </div>
+
+        <div
+          class="notification-item p-4 hover:bg-slate-800/50 rounded-xl cursor-pointer transition-colors mb-2 opacity-60">
+          <div class="flex items-start gap-4">
+            <div class="w-12 h-12 rounded-full bg-cyan-500/20 flex items-center justify-center flex-shrink-0">
+              <svg class="w-6 h-6" style="color: rgb(212, 175, 55);" fill="none" stroke="currentColor"
+                stroke-width="1.5" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round"
+                  d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 00-2.456 2.456zM16.894 20.567L16.5 21.75l-.394-1.183a2.25 2.25 0 00-1.423-1.423L13.5 18.75l1.183-.394a2.25 2.25 0 001.423-1.423l.394-1.183.394 1.183a2.25 2.25 0 001.423 1.423l1.183.394-1.183.394a2.25 2.25 0 00-1.423 1.423z" />
+              </svg>
+            </div>
+            <div class="flex-1 min-w-0">
+              <p class="text-white text-base font-medium">Achievement unlocked!</p>
+              <p class="text-slate-400 text-sm mt-1">You made your 10th prediction</p>
+              <p class="text-slate-500 text-xs mt-2">3 days ago</p>
+            </div>
+          </div>
+        </div>
+
+        <div
+          class="notification-item p-4 hover:bg-slate-800/50 rounded-xl cursor-pointer transition-colors mb-2 opacity-60">
+          <div class="flex items-start gap-4">
+            <div class="w-12 h-12 rounded-full bg-slate-700/50 flex items-center justify-center flex-shrink-0">
+              <svg class="w-6 h-6" style="color: rgb(212, 175, 55);" fill="none" stroke="currentColor"
+                stroke-width="1.5" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round"
+                  d="M12 8.25v-1.5m0 1.5c-1.355 0-2.697.056-4.024.166C6.845 8.51 6 9.473 6 10.608v2.513m6-4.87c1.355 0 2.697.055 4.024.165C17.155 8.51 18 9.473 18 10.608v2.513m-3-4.87v-1.5m-6 1.5v-1.5m12 9.75l-1.5.75a3.354 3.354 0 01-3 0 3.354 3.354 0 00-3 0 3.354 3.354 0 01-3 0 3.354 3.354 0 00-3 0 3.354 3.354 0 01-3 0L3 16.5m15-3.38a48.474 48.474 0 00-6-.37c-2.032 0-4.034.125-6 .37m12 0c.39.049.777.102 1.163.16 1.07.16 1.837 1.094 1.837 2.175v5.17c0 .62-.504 1.124-1.125 1.124H4.125A1.125 1.125 0 013 20.625v-5.17c0-1.08.768-2.014 1.837-2.174A47.78 47.78 0 016 13.12M12.265 3.11a.375.375 0 11-.53 0L12 2.845l.265.265zm-3 0a.375.375 0 11-.53 0L9 2.845l.265.265zm6 0a.375.375 0 11-.53 0L15 2.845l.265.265z" />
+              </svg>
+            </div>
+            <div class="flex-1 min-w-0">
+              <p class="text-white text-base font-medium">Welcome to Samsa!</p>
+              <p class="text-slate-400 text-sm mt-1">Start exploring prediction markets today</p>
+              <p class="text-slate-500 text-xs mt-2">5 days ago</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Overlay for notifications sidebar -->
+  <div id="notificationsOverlay"
+    class="fixed inset-0 bg-black/50 opacity-0 pointer-events-none transition-opacity duration-300"
+    style="z-index: 1150;" onclick="closeNotificationsSidebar()">
+  </div>
+
+  <!-- Main Content -->
+  <div class="main-content">
+    <!-- Markets List View -->
+    <div id="marketsView" class="hidden max-w-7xl mx-auto p-6 lg:p-8">
+      <div class="mb-12">
+        <div class="flex items-center justify-between mb-8">
+          <div class="cursor-pointer" onclick="navigateTo('dashboard')" title="Go to Dashboard">
+            <img src="Logo-Title.png" alt="Samsa Prediction Markets" class="h-16" />
+          </div>
+          <div class="flex items-center" style="gap: 10px;">
+            <div class="relative search-container">
+              <input type="text" id="searchInput" placeholder="Search markets..."
+                class="search-input pl-12 pr-4 py-3 bg-slate-900/50 border border-slate-800 text-white placeholder:text-slate-500 rounded-xl focus:outline-none focus:ring-2 focus:ring-yellow-500/20" />
+              <span class="absolute left-4 top-1/2 transform -translate-y-1/2" style="color: rgb(212, 175, 55);"><svg
+                  class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round"
+                    d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
+                </svg></span>
+              <div id="searchDropdown"></div>
+            </div>
+            <div class="relative category-dropdown-container">
+              <button id="categoryDropdownBtn"
+                class="px-4 py-3 bg-gradient-to-r from-yellow-500 to-yellow-600 text-slate-950 font-semibold rounded-xl hover:brightness-110 transition flex items-center gap-2 whitespace-nowrap">
+                <span id="selectedCategory">All Markets</span>
+                <span class="text-sm">▼</span>
+              </button>
+              <div id="categoryDropdown"
+                class="absolute right-0 w-48 bg-slate-900 border border-slate-800 rounded-xl shadow-xl z-10">
+                <button class="category-option w-full text-left px-4 py-3 text-white hover:bg-slate-800 transition"
+                  data-category="all">All Markets</button>
+                <button class="category-option w-full text-left px-4 py-3 text-slate-300 hover:bg-slate-800 transition"
+                  data-category="politics">Politics</button>
+                <button class="category-option w-full text-left px-4 py-3 text-slate-300 hover:bg-slate-800 transition"
+                  data-category="international">International</button>
+                <button class="category-option w-full text-left px-4 py-3 text-slate-300 hover:bg-slate-800 transition"
+                  data-category="environment">Environment</button>
+                <button class="category-option w-full text-left px-4 py-3 text-slate-300 hover:bg-slate-800 transition"
+                  data-category="climate">Climate</button>
+                <button class="category-option w-full text-left px-4 py-3 text-slate-300 hover:bg-slate-800 transition"
+                  data-category="science">Science</button>
+                <button class="category-option w-full text-left px-4 py-3 text-slate-300 hover:bg-slate-800 transition"
+                  data-category="health">Health</button>
+                <button class="category-option w-full text-left px-4 py-3 text-slate-300 hover:bg-slate-800 transition"
+                  data-category="finance">Finance</button>
+                <button class="category-option w-full text-left px-4 py-3 text-slate-300 hover:bg-slate-800 transition"
+                  data-category="crypto">Crypto</button>
+                <button class="category-option w-full text-left px-4 py-3 text-slate-300 hover:bg-slate-800 transition"
+                  data-category="technology">Technology</button>
+                <button class="category-option w-full text-left px-4 py-3 text-slate-300 hover:bg-slate-800 transition"
+                  data-category="entertainment">Entertainment</button>
+                <button class="category-option w-full text-left px-4 py-3 text-slate-300 hover:bg-slate-800 transition"
+                  data-category="sports">Sports</button>
+                <button class="category-option w-full text-left px-4 py-3 text-slate-300 hover:bg-slate-800 transition"
+                  data-category="arts_and_culture">Arts and Culture</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Trending Markets Slideshow -->
+      <div class="mb-10">
+        <div class="flex items-center justify-between mb-4">
+          <h2 class="text-2xl font-bold text-white flex items-center gap-2">
+            <span style="color: rgb(212, 175, 55);"><svg class="w-6 h-6" fill="none" stroke="currentColor"
+                stroke-width="1.5" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round"
+                  d="M15.362 5.214A8.252 8.252 0 0112 21 8.25 8.25 0 016.038 7.048 8.287 8.287 0 009 9.6a8.983 8.983 0 013.361-6.867 8.21 8.21 0 003 2.48z" />
+                <path stroke-linecap="round" stroke-linejoin="round"
+                  d="M12 18a3.75 3.75 0 00.495-7.467 5.99 5.99 0 00-1.925 3.546 5.974 5.974 0 01-2.133-1A3.75 3.75 0 0012 18z" />
+              </svg></span> Trending
+          </h2>
+          <div class="flex items-center gap-3">
+            <!-- Slide indicators -->
+            <div id="trendingDots" class="flex gap-2">
+              <!-- Dots populated by JS -->
+            </div>
+            <!-- Navigation buttons -->
+            <button onclick="prevTrendingSlide()"
+              class="w-10 h-10 bg-slate-800/80 border border-slate-700 rounded-full flex items-center justify-center text-white hover:bg-slate-700 hover:border-yellow-500/50 transition-all">
+              ←
+            </button>
+            <button onclick="nextTrendingSlide()"
+              class="w-10 h-10 bg-slate-800/80 border border-slate-700 rounded-full flex items-center justify-center text-white hover:bg-slate-700 hover:border-yellow-500/50 transition-all">
+              →
+            </button>
+          </div>
+        </div>
+
+        <!-- Slideshow Container -->
+        <div id="trendingSlideshow"
+          class="relative overflow-hidden rounded-2xl bg-slate-900/50 backdrop-blur-xl border border-slate-800 min-h-[320px]">
+          <!-- Slides populated by JS -->
+        </div>
+      </div>
+
+      <!-- All Markets Section -->
+      <div class="mb-6">
+        <h2 class="text-2xl font-bold text-white flex items-center gap-2">
+          <span style="color: rgb(212, 175, 55);"><svg class="w-6 h-6" fill="none" stroke="currentColor"
+              stroke-width="1.5" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round"
+                d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z" />
+            </svg></span> All Markets
+        </h2>
+      </div>
+      <div id="marketsGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 items-start"></div>
+
+      <!-- Suggested Interests Section -->
+      <div class="mt-12 mb-8">
+        <div class="flex items-center justify-between mb-6">
+          <h2 class="text-2xl font-bold text-white flex items-center gap-2">
+            <span style="color: rgb(212, 175, 55);"><svg class="w-6 h-6" fill="none" stroke="currentColor"
+                stroke-width="1.5" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round"
+                  d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 00-2.456 2.456zM16.894 20.567L16.5 21.75l-.394-1.183a2.25 2.25 0 00-1.423-1.423L13.5 18.75l1.183-.394a2.25 2.25 0 001.423-1.423l.394-1.183.394 1.183a2.25 2.25 0 001.423 1.423l1.183.394-1.183.394a2.25 2.25 0 00-1.423 1.423z" />
+              </svg></span> Discover Interests
+          </h2>
+          <button onclick="navigateTo('interests')"
+            class="text-yellow-400 hover:text-yellow-300 transition-colors text-sm font-medium flex items-center gap-1">
+            Browse all <span>→</span>
+          </button>
+        </div>
+        <p class="text-slate-400 mb-6">Follow interests to get personalized market recommendations</p>
+        <div id="suggestedInterests" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+          <!-- Populated by JS -->
+        </div>
+      </div>
+    </div>
+
+    <!-- Market Detail View -->
+    <div id="detailView" class="hidden max-w-7xl mx-auto p-6 lg:p-8">
+      <button onclick="showMarkets()"
+        class="mb-6 text-slate-300 hover:text-white hover:bg-slate-800/50 px-4 py-2 rounded-lg transition-colors inline-flex items-center gap-2">←
+        Back to Markets</button>
+      <div id="detailContent"></div>
+    </div>
+
+    <!-- Dashboard/Portfolio View (Combined - Robinhood Style) -->
+    <div id="dashboardView" class="hidden max-w-7xl mx-auto p-6 lg:p-8">
+      <!-- Logo Header - Same as other pages -->
+      <div class="mb-8">
+        <div class="cursor-pointer" onclick="navigateTo('dashboard')" title="Go to Dashboard">
+          <img src="Logo-Title.png" alt="Samsa Prediction Markets" class="h-16" />
+        </div>
+      </div>
+
+      <div class="flex flex-col lg:flex-row gap-8">
+        <!-- Main Content (Left Side) -->
+        <div class="flex-1">
+          <!-- Account Selector & Value -->
+          <div class="mb-2">
+            <button
+              class="flex items-center gap-2 text-white hover:bg-slate-800/50 px-3 py-2 rounded-lg transition-colors -ml-3">
+              <span class="text-2xl font-semibold">Portfolio</span>
+              <span class="text-slate-400">▾</span>
+            </button>
+          </div>
+
+          <!-- Portfolio Value -->
+          <div class="mb-1">
+            <h1 id="portfolioValue" class="text-5xl font-bold text-white">$0.00</h1>
+          </div>
+          <div class="flex items-center gap-2 mb-8">
+            <span class="text-green-400 font-medium">▲ $0.00 (0.00%)</span>
+            <span class="text-slate-400">Today</span>
+          </div>
+
+          <!-- Portfolio Chart -->
+          <div class="mb-6">
+            <div class="h-64 relative">
+              <!-- Chart Line (SVG) -->
+              <svg class="w-full h-full" viewBox="0 0 800 200" preserveAspectRatio="none">
+                <defs>
+                  <linearGradient id="chartGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+                    <stop offset="0%" style="stop-color:#22c55e;stop-opacity:0.3" />
+                    <stop offset="100%" style="stop-color:#22c55e;stop-opacity:0" />
+                  </linearGradient>
+                </defs>
+                <!-- Area fill -->
+                <path
+                  d="M0,180 L50,175 L100,170 L150,165 L200,160 L250,140 L300,145 L350,130 L400,100 L450,110 L500,80 L550,90 L600,60 L650,50 L700,70 L750,40 L800,30 L800,200 L0,200 Z"
+                  fill="url(#chartGradient)" />
+                <!-- Line -->
+                <path
+                  d="M0,180 L50,175 L100,170 L150,165 L200,160 L250,140 L300,145 L350,130 L400,100 L450,110 L500,80 L550,90 L600,60 L650,50 L700,70 L750,40 L800,30"
+                  fill="none" stroke="#22c55e" stroke-width="2" />
+              </svg>
+              <!-- Reference line -->
+              <div class="absolute top-1/2 left-0 right-0 border-t border-dashed border-slate-700"></div>
+            </div>
+          </div>
+
+          <!-- Time Range Selector -->
+          <div class="flex items-center justify-between mb-8 border-b border-slate-800 pb-4">
+            <div class="flex gap-1">
+              <button
+                class="chart-range-btn px-4 py-2 text-sm font-medium text-green-400 border-b-2 border-green-400">1D</button>
+              <button
+                class="chart-range-btn px-4 py-2 text-sm font-medium text-slate-400 hover:text-white transition-colors">1W</button>
+              <button
+                class="chart-range-btn px-4 py-2 text-sm font-medium text-slate-400 hover:text-white transition-colors">1M</button>
+              <button
+                class="chart-range-btn px-4 py-2 text-sm font-medium text-slate-400 hover:text-white transition-colors">3M</button>
+              <button
+                class="chart-range-btn px-4 py-2 text-sm font-medium text-slate-400 hover:text-white transition-colors">YTD</button>
+              <button
+                class="chart-range-btn px-4 py-2 text-sm font-medium text-slate-400 hover:text-white transition-colors">1Y</button>
+              <button
+                class="chart-range-btn px-4 py-2 text-sm font-medium text-slate-400 hover:text-white transition-colors">ALL</button>
+            </div>
+            <button class="p-2 hover:bg-slate-800 rounded-lg transition-colors" style="color: rgb(212, 175, 55);">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round"
+                  d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.24-.438.613-.431.992a6.759 6.759 0 010 .255c-.007.378.138.75.43.99l1.005.828c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.992a6.932 6.932 0 010-.255c.007-.378-.138-.75-.43-.99l-1.004-.828a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.281z" />
+                <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+            </button>
+          </div>
+
+          <!-- Buying Power / Wallet -->
+          <div class="bg-slate-900/50 border border-slate-800 rounded-xl p-4 mb-8">
+            <div class="flex items-center justify-between mb-4">
+              <div class="flex items-center gap-2">
+                <span style="color: rgb(212, 175, 55);">
+                  <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round"
+                      d="M21 12a2.25 2.25 0 00-2.25-2.25H15a3 3 0 11-6 0H5.25A2.25 2.25 0 003 12m18 0v6a2.25 2.25 0 01-2.25 2.25H5.25A2.25 2.25 0 013 18v-6m18 0V9M3 12V9m18 0a2.25 2.25 0 00-2.25-2.25H5.25A2.25 2.25 0 003 9m18 0V6a2.25 2.25 0 00-2.25-2.25H5.25A2.25 2.25 0 003 6v3" />
+                  </svg>
+                </span>
+                <span class="text-white font-medium">Buying Power</span>
+                <span class="text-slate-500 cursor-help text-sm" title="Available funds for trading">ⓘ</span>
+              </div>
+              <span id="buyingPowerAmount" class="text-2xl font-bold text-yellow-400">$0.00</span>
+            </div>
+            <div class="flex gap-3">
+              <button onclick="openDepositModal()"
+                class="flex-1 bg-gradient-to-r from-yellow-500 to-yellow-600 hover:from-yellow-600 hover:to-yellow-700 text-slate-950 font-semibold py-2.5 rounded-lg transition-all flex items-center justify-center gap-2">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v12m6-6H6" />
+                </svg>
+                Deposit
+              </button>
+              <button onclick="openWithdrawModal()"
+                class="flex-1 bg-slate-800 border border-slate-700 hover:border-slate-600 text-white font-semibold py-2.5 rounded-lg transition-all flex items-center justify-center gap-2">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round"
+                    d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
+                </svg>
+                Withdraw
+              </button>
+            </div>
+          </div>
+
+          <!-- Get More Section -->
+          <div class="mb-8">
+            <h2 class="text-xl font-semibold text-white mb-4">Get more out of Samsa</h2>
+            <div class="bg-slate-900/50 border border-slate-800 rounded-xl p-5 flex items-start gap-4">
+              <div
+                class="w-16 h-16 bg-gradient-to-br from-yellow-400 to-amber-500 rounded-xl flex items-center justify-center flex-shrink-0">
+                <svg class="w-8 h-8 text-slate-900" fill="none" stroke="currentColor" stroke-width="1.5"
+                  viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round"
+                    d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z" />
+                </svg>
+              </div>
+              <div class="flex-1">
+                <div class="flex items-start justify-between">
+                  <div>
+                    <p class="text-slate-400 text-sm mb-1">Did you know?</p>
+                    <p class="text-white">You can explore trending markets and make predictions on events you care
+                      about.</p>
+                  </div>
+                  <button class="text-slate-500 hover:text-white p-1">✕</button>
+                </div>
+                <button onclick="navigateTo('markets')"
+                  class="text-yellow-400 hover:text-yellow-300 text-sm font-medium mt-3 transition-colors">
+                  Explore markets
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Recent Activity with Filters -->
+          <div>
+            <div class="flex items-center justify-between mb-4">
+              <h2 class="text-xl font-semibold text-white">Recent Activity</h2>
+              <div class="flex gap-1">
+                <button class="activity-filter-btn px-3 py-1 text-xs font-medium rounded-full bg-slate-800 text-white"
+                  data-filter="all">All</button>
+                <button
+                  class="activity-filter-btn px-3 py-1 text-xs font-medium rounded-full text-slate-400 hover:bg-slate-800/50"
+                  data-filter="trade">Trades</button>
+                <button
+                  class="activity-filter-btn px-3 py-1 text-xs font-medium rounded-full text-slate-400 hover:bg-slate-800/50"
+                  data-filter="resolution">Resolutions</button>
+              </div>
+            </div>
+            <div id="activityList" class="space-y-3">
+              <div class="flex items-center justify-between py-3 border-b border-slate-800" data-type="resolution">
+                <div class="flex items-center gap-3">
+                  <div class="w-8 h-8 bg-green-500/20 rounded-full flex items-center justify-center text-green-400">✓
+                  </div>
+                  <div>
+                    <p class="text-white text-sm">Won prediction on Bitcoin to $100k</p>
+                    <p class="text-slate-500 text-xs">2 hours ago</p>
+                  </div>
+                </div>
+                <span class="text-green-400 font-medium">+$250</span>
+              </div>
+              <div class="flex items-center justify-between py-3 border-b border-slate-800" data-type="trade">
+                <div class="flex items-center gap-3">
+                  <div class="w-8 h-8 bg-yellow-500/20 rounded-full flex items-center justify-center text-yellow-400">◐
+                  </div>
+                  <div>
+                    <p class="text-white text-sm">Placed prediction on Lakers Championship</p>
+                    <p class="text-slate-500 text-xs">1 day ago</p>
+                  </div>
+                </div>
+                <span class="text-slate-400 font-medium">$300</span>
+              </div>
+              <div class="flex items-center justify-between py-3 border-b border-slate-800" data-type="resolution">
+                <div class="flex items-center gap-3">
+                  <div class="w-8 h-8 bg-red-500/20 rounded-full flex items-center justify-center text-red-400">✗</div>
+                  <div>
+                    <p class="text-white text-sm">Lost prediction on AI Coding Benchmark</p>
+                    <p class="text-slate-500 text-xs">3 days ago</p>
+                  </div>
+                </div>
+                <span class="text-red-400 font-medium">-$50</span>
+              </div>
+              <div class="flex items-center justify-between py-3 border-b border-slate-800" data-type="trade">
+                <div class="flex items-center gap-3">
+                  <div class="w-8 h-8 bg-blue-500/20 rounded-full flex items-center justify-center text-blue-400">+
+                  </div>
+                  <div>
+                    <p class="text-white text-sm">Placed prediction on Fed Rate Cut</p>
+                    <p class="text-slate-500 text-xs">5 days ago</p>
+                  </div>
+                </div>
+                <span class="text-slate-400 font-medium">$200</span>
+              </div>
+              <div class="flex items-center justify-between py-3" data-type="trade">
+                <div class="flex items-center gap-3">
+                  <div class="w-8 h-8 bg-blue-500/20 rounded-full flex items-center justify-center text-blue-400">+
+                  </div>
+                  <div>
+                    <p class="text-white text-sm">Placed prediction on Super Bowl LIX</p>
+                    <p class="text-slate-500 text-xs">1 week ago</p>
+                  </div>
+                </div>
+                <span class="text-slate-400 font-medium">$150</span>
+              </div>
+            </div>
+            <button class="w-full mt-4 py-2 text-sm text-slate-400 hover:text-white transition-colors">
+              View all activity →
+            </button>
+          </div>
+        </div>
+
+        <!-- Right Sidebar -->
+        <div class="w-full lg:w-80 lg:border-l border-slate-800 lg:pl-8">
+          <!-- Positions Section -->
+          <div class="mb-8">
+            <h3 class="text-white font-medium mb-4">Positions</h3>
+            <div class="space-y-1">
+              <!-- Position Item -->
+              <div
+                class="flex items-center justify-between py-3 hover:bg-slate-800/30 px-2 -mx-2 rounded-lg cursor-pointer transition-colors">
+                <div class="flex-1">
+                  <p class="text-white text-sm font-medium">BTC $100k</p>
+                  <p class="text-slate-500 text-xs">$500 stake</p>
+                </div>
+                <div class="w-16 h-8 mx-3">
+                  <svg viewBox="0 0 60 24" class="w-full h-full">
+                    <path d="M0,20 L10,18 L20,15 L30,12 L40,8 L50,10 L60,4" fill="none" stroke="#22c55e"
+                      stroke-width="1.5" />
+                  </svg>
+                </div>
+                <div class="text-right">
+                  <p class="text-white text-sm">+$250</p>
+                  <p class="text-green-400 text-xs">Won</p>
+                </div>
+              </div>
+              <!-- Position Item -->
+              <div
+                class="flex items-center justify-between py-3 hover:bg-slate-800/30 px-2 -mx-2 rounded-lg cursor-pointer transition-colors">
+                <div class="flex-1">
+                  <p class="text-white text-sm font-medium">Lakers</p>
+                  <p class="text-slate-500 text-xs">$300 stake</p>
+                </div>
+                <div class="w-16 h-8 mx-3">
+                  <svg viewBox="0 0 60 24" class="w-full h-full">
+                    <path d="M0,12 L10,14 L20,10 L30,16 L40,12 L50,14 L60,10" fill="none" stroke="#eab308"
+                      stroke-width="1.5" />
+                  </svg>
+                </div>
+                <div class="text-right">
+                  <p class="text-white text-sm">30%</p>
+                  <p class="text-yellow-400 text-xs">Pending</p>
+                </div>
+              </div>
+              <!-- Position Item -->
+              <div
+                class="flex items-center justify-between py-3 hover:bg-slate-800/30 px-2 -mx-2 rounded-lg cursor-pointer transition-colors">
+                <div class="flex-1">
+                  <p class="text-white text-sm font-medium">AI Coding</p>
+                  <p class="text-slate-500 text-xs">$100 stake</p>
+                </div>
+                <div class="w-16 h-8 mx-3">
+                  <svg viewBox="0 0 60 24" class="w-full h-full">
+                    <path d="M0,8 L10,10 L20,14 L30,12 L40,18 L50,16 L60,20" fill="none" stroke="#ef4444"
+                      stroke-width="1.5" />
+                  </svg>
+                </div>
+                <div class="text-right">
+                  <p class="text-white text-sm">-$50</p>
+                  <p class="text-red-400 text-xs">Lost</p>
+                </div>
+              </div>
+              <!-- Position Item -->
+              <div
+                class="flex items-center justify-between py-3 hover:bg-slate-800/30 px-2 -mx-2 rounded-lg cursor-pointer transition-colors">
+                <div class="flex-1">
+                  <p class="text-white text-sm font-medium">Fed Rates</p>
+                  <p class="text-slate-500 text-xs">$200 stake</p>
+                </div>
+                <div class="w-16 h-8 mx-3">
+                  <svg viewBox="0 0 60 24" class="w-full h-full">
+                    <path d="M0,16 L10,14 L20,12 L30,10 L40,8 L50,6 L60,4" fill="none" stroke="#22c55e"
+                      stroke-width="1.5" />
+                  </svg>
+                </div>
+                <div class="text-right">
+                  <p class="text-white text-sm">72%</p>
+                  <p class="text-green-400 text-xs">+12%</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Lists Section -->
+          <div>
+            <div class="flex items-center justify-between mb-4">
+              <h3 class="text-white font-medium">Lists</h3>
+              <button class="text-slate-400 hover:text-white transition-colors text-xl">+</button>
+            </div>
+            <div class="space-y-1">
+              <!-- Watchlist Item -->
+              <button
+                class="w-full flex items-center justify-between py-3 hover:bg-slate-800/30 px-2 -mx-2 rounded-lg transition-colors">
+                <div class="flex items-center gap-3">
+                  <span class="text-slate-400">👁️</span>
+                  <span class="text-white text-sm">Watchlist</span>
+                </div>
+                <span class="text-slate-400">▾</span>
+              </button>
+              <!-- Expanded Watchlist -->
+              <div class="pl-8 space-y-1">
+                <div
+                  class="flex items-center justify-between py-2 hover:bg-slate-800/30 px-2 -mx-2 rounded-lg cursor-pointer transition-colors">
+                  <div class="flex-1">
+                    <p class="text-white text-sm">ETH $10k</p>
+                  </div>
+                  <div class="w-12 h-6 mx-2">
+                    <svg viewBox="0 0 48 20" class="w-full h-full">
+                      <path d="M0,14 L8,12 L16,10 L24,8 L32,10 L40,6 L48,4" fill="none" stroke="#22c55e"
+                        stroke-width="1.5" />
+                    </svg>
+                  </div>
+                  <div class="text-right">
+                    <p class="text-white text-xs">40%</p>
+                    <p class="text-green-400 text-xs">+2%</p>
+                  </div>
+                </div>
+                <div
+                  class="flex items-center justify-between py-2 hover:bg-slate-800/30 px-2 -mx-2 rounded-lg cursor-pointer transition-colors">
+                  <div class="flex-1">
+                    <p class="text-white text-sm">Super Bowl</p>
+                  </div>
+                  <div class="w-12 h-6 mx-2">
+                    <svg viewBox="0 0 48 20" class="w-full h-full">
+                      <path d="M0,10 L8,8 L16,12 L24,10 L32,6 L40,8 L48,4" fill="none" stroke="#22c55e"
+                        stroke-width="1.5" />
+                    </svg>
+                  </div>
+                  <div class="text-right">
+                    <p class="text-white text-xs">28%</p>
+                    <p class="text-green-400 text-xs">+5%</p>
+                  </div>
+                </div>
+                <div
+                  class="flex items-center justify-between py-2 hover:bg-slate-800/30 px-2 -mx-2 rounded-lg cursor-pointer transition-colors">
+                  <div class="flex-1">
+                    <p class="text-white text-sm">Climate 2025</p>
+                  </div>
+                  <div class="w-12 h-6 mx-2">
+                    <svg viewBox="0 0 48 20" class="w-full h-full">
+                      <path d="M0,6 L8,8 L16,6 L24,10 L32,8 L40,12 L48,10" fill="none" stroke="#ef4444"
+                        stroke-width="1.5" />
+                    </svg>
+                  </div>
+                  <div class="text-right">
+                    <p class="text-white text-xs">68%</p>
+                    <p class="text-red-400 text-xs">-3%</p>
+                  </div>
+                </div>
+              </div>
+              <!-- Trending List -->
+              <button
+                class="w-full flex items-center justify-between py-3 hover:bg-slate-800/30 px-2 -mx-2 rounded-lg transition-colors">
+                <div class="flex items-center gap-3">
+                  <span class="text-yellow-400">⚡</span>
+                  <span class="text-white text-sm">Trending</span>
+                </div>
+                <span class="text-slate-400">▸</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Portfolio View (now redirects to dashboard) -->
+    <div id="portfolioView" class="hidden"></div>
+
+    <!-- Activity View (now redirects to dashboard) -->
+    <div id="activityView" class="hidden"></div>
+
+    <!-- Leaderboard View -->
+    <div id="leaderboardView" class="hidden max-w-7xl mx-auto p-6 lg:p-8">
+      <div class="mb-8">
+        <div class="cursor-pointer" onclick="navigateTo('dashboard')" title="Go to Dashboard">
+          <img src="Logo-Title.png" alt="Samsa Prediction Markets" class="h-16" />
+        </div>
+      </div>
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div class="bg-slate-900/50 backdrop-blur-xl border border-slate-800 rounded-2xl p-6">
+          <h3 class="text-xl font-semibold text-white mb-4 flex items-center gap-2"><span
+              style="color: rgb(212, 175, 55);"><svg class="w-5 h-5" fill="none" stroke="currentColor"
+                stroke-width="1.5" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round"
+                  d="M2.25 18L9 11.25l4.306 4.307a11.95 11.95 0 015.814-5.519l2.74-1.22m0 0l-5.94-2.28m5.94 2.28l-2.28 5.941" />
+              </svg></span> Top Markets</h3>
+          <div id="lbMarkets" class="space-y-3">
+            <p class="text-slate-400">Coming soon...</p>
+          </div>
+        </div>
+        <div class="bg-slate-900/50 backdrop-blur-xl border border-slate-800 rounded-2xl p-6">
+          <h3 class="text-xl font-semibold text-white mb-4 flex items-center gap-2"><span
+              style="color: rgb(212, 175, 55);"><svg class="w-5 h-5" fill="none" stroke="currentColor"
+                stroke-width="1.5" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round"
+                  d="M9.568 3H5.25A2.25 2.25 0 003 5.25v4.318c0 .597.237 1.17.659 1.591l9.581 9.581c.699.699 1.78.872 2.607.33a18.095 18.095 0 005.223-5.223c.542-.827.369-1.908-.33-2.607L11.16 3.66A2.25 2.25 0 009.568 3z" />
+                <path stroke-linecap="round" stroke-linejoin="round" d="M6 6h.008v.008H6V6z" />
+              </svg></span> Top Categories</h3>
+          <div id="lbCategories" class="space-y-3">
+            <p class="text-slate-400">Coming soon...</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Interests View -->
+    <div id="interestsView" class="hidden max-w-7xl mx-auto p-6 lg:p-8">
+      <div class="mb-12">
+        <div class="flex items-center justify-between mb-8">
+          <div class="cursor-pointer" onclick="navigateTo('dashboard')" title="Go to Dashboard">
+            <img src="Logo-Title.png" alt="Samsa Prediction Markets" class="h-16" />
+          </div>
+          <div class="flex items-center" style="gap: 10px;">
+            <div class="relative search-container">
+              <input type="text" id="interestsSearchInput" placeholder="Search interests..."
+                class="search-input pl-12 pr-4 py-3 bg-slate-900/50 border border-slate-800 text-white placeholder:text-slate-500 rounded-xl focus:outline-none focus:ring-2 focus:ring-yellow-500/20" />
+              <span class="absolute left-4 top-1/2 transform -translate-y-1/2" style="color: rgb(212, 175, 55);"><svg
+                  class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round"
+                    d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
+                </svg></span>
+              <div id="interestsSearchDropdown"></div>
+            </div>
+            <div class="relative category-dropdown-container">
+              <button
+                class="px-4 py-3 bg-gradient-to-r from-yellow-500 to-yellow-600 text-slate-950 font-semibold rounded-xl hover:brightness-110 transition flex items-center gap-2 whitespace-nowrap">
+                <span>All Interests</span>
+                <span class="text-sm">▼</span>
+              </button>
+              <div class="absolute right-0 w-48 bg-slate-900 border border-slate-800 rounded-xl shadow-xl z-10"
+                id="interestsCategoryDropdown">
+                <button
+                  class="interests-category-btn w-full text-left px-4 py-3 text-white hover:bg-slate-800 transition"
+                  onclick="filterInterestsByCategory('all')">All Interests</button>
+                <button
+                  class="interests-category-btn w-full text-left px-4 py-3 text-slate-300 hover:bg-slate-800 transition"
+                  onclick="filterInterestsByCategory('politics')">Politics</button>
+                <button
+                  class="interests-category-btn w-full text-left px-4 py-3 text-slate-300 hover:bg-slate-800 transition"
+                  onclick="filterInterestsByCategory('international')">International</button>
+                <button
+                  class="interests-category-btn w-full text-left px-4 py-3 text-slate-300 hover:bg-slate-800 transition"
+                  onclick="filterInterestsByCategory('environment')">Environment</button>
+                <button
+                  class="interests-category-btn w-full text-left px-4 py-3 text-slate-300 hover:bg-slate-800 transition"
+                  onclick="filterInterestsByCategory('climate')">Climate</button>
+                <button
+                  class="interests-category-btn w-full text-left px-4 py-3 text-slate-300 hover:bg-slate-800 transition"
+                  onclick="filterInterestsByCategory('science')">Science</button>
+                <button
+                  class="interests-category-btn w-full text-left px-4 py-3 text-slate-300 hover:bg-slate-800 transition"
+                  onclick="filterInterestsByCategory('technology')">Technology</button>
+                <button
+                  class="interests-category-btn w-full text-left px-4 py-3 text-slate-300 hover:bg-slate-800 transition"
+                  onclick="filterInterestsByCategory('health')">Health</button>
+                <button
+                  class="interests-category-btn w-full text-left px-4 py-3 text-slate-300 hover:bg-slate-800 transition"
+                  onclick="filterInterestsByCategory('finance')">Finance</button>
+                <button
+                  class="interests-category-btn w-full text-left px-4 py-3 text-slate-300 hover:bg-slate-800 transition"
+                  onclick="filterInterestsByCategory('sports')">Sports</button>
+                <button
+                  class="interests-category-btn w-full text-left px-4 py-3 text-slate-300 hover:bg-slate-800 transition"
+                  onclick="filterInterestsByCategory('social')">Social Issues</button>
+                <button
+                  class="interests-category-btn w-full text-left px-4 py-3 text-slate-300 hover:bg-slate-800 transition"
+                  onclick="filterInterestsByCategory('arts_and_culture')">Arts & Culture</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div id="interestsGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"></div>
+    </div>
+
+    <!-- Subcategory Detail View -->
+    <div id="subcategoryView" class="hidden max-w-7xl mx-auto p-6 lg:p-8">
+      <div class="mb-8">
+        <button onclick="showInterests()"
+          class="mb-6 text-slate-300 hover:text-white hover:bg-slate-800/50 px-4 py-2 rounded-lg transition-colors inline-flex items-center gap-2">←
+          Back to Interests</button>
+        <div id="subcategoryHeader" class="flex items-center gap-4 mb-6">
+          <!-- Dynamic header content -->
+        </div>
+      </div>
+
+      <!-- Subcategory Stats -->
+      <div id="subcategoryStats" class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+        <!-- Dynamic stats -->
+      </div>
+
+      <!-- Subcategory Content -->
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <!-- Main Content -->
+        <div class="lg:col-span-2 space-y-6">
+          <!-- About Section -->
+          <div class="bg-slate-900/50 backdrop-blur-xl border border-slate-800 rounded-2xl p-6">
+            <h3 class="text-xl font-bold text-white mb-4">About</h3>
+            <p id="subcategoryAbout" class="text-slate-300">Loading...</p>
+          </div>
+
+          <!-- Active Markets Section -->
+          <div class="bg-slate-900/50 backdrop-blur-xl border border-slate-800 rounded-2xl p-6">
+            <h3 class="text-xl font-bold text-white mb-4">Active Markets</h3>
+            <div id="subcategoryMarkets" class="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <!-- Dynamic markets list -->
+            </div>
+          </div>
+        </div>
+
+        <!-- Sidebar -->
+        <div class="space-y-6">
+          <!-- News Section -->
+          <div class="bg-slate-900/50 backdrop-blur-xl border border-slate-800 rounded-2xl p-6">
+            <h3 class="text-lg font-bold text-white mb-4 flex items-center gap-2">📰 Latest News</h3>
+            <div id="subcategoryNews" class="space-y-3">
+              <!-- Dynamic news items -->
+            </div>
+          </div>
+
+          <!-- Quick Stats -->
+          <div class="bg-slate-900/50 backdrop-blur-xl border border-slate-800 rounded-2xl p-6">
+            <h3 class="text-lg font-bold text-white mb-4">Quick Stats</h3>
+            <div id="subcategoryQuickStats" class="space-y-3">
+              <!-- Dynamic quick stats -->
+            </div>
+          </div>
+
+          <!-- Related Competitions -->
+          <div class="bg-slate-900/50 backdrop-blur-xl border border-slate-800 rounded-2xl p-6">
+            <h3 class="text-lg font-bold text-white mb-4">Related</h3>
+            <div id="subcategoryRelated" class="space-y-3">
+              <!-- Dynamic related items -->
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- League Detail View -->
+    <div id="leagueDetailView" class="hidden max-w-7xl mx-auto p-6 lg:p-8">
+      <div class="mb-8">
+        <button onclick="goBackFromLeague()"
+          class="mb-6 text-slate-300 hover:text-white hover:bg-slate-800/50 px-4 py-2 rounded-lg transition-colors inline-flex items-center gap-2">←
+          Back</button>
+        <div id="leagueHeader" class="flex items-center gap-4 mb-6">
+          <!-- Dynamic header content -->
+        </div>
+      </div>
+
+      <!-- League Stats -->
+      <div id="leagueStats" class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+        <!-- Dynamic stats -->
+      </div>
+
+      <!-- League Content -->
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <!-- Main Content -->
+        <div class="lg:col-span-2 space-y-6">
+          <!-- About Section -->
+          <div class="bg-slate-900/50 backdrop-blur-xl border border-slate-800 rounded-2xl p-6">
+            <h3 class="text-xl font-bold text-white mb-4">About</h3>
+            <p id="leagueAbout" class="text-slate-300">Loading...</p>
+          </div>
+
+          <!-- Active Markets Section -->
+          <div class="bg-slate-900/50 backdrop-blur-xl border border-slate-800 rounded-2xl p-6">
+            <h3 class="text-xl font-bold text-white mb-4">Active Markets</h3>
+            <div id="leagueMarkets" class="space-y-4">
+              <!-- Dynamic markets list -->
+            </div>
+          </div>
+
+          <!-- Teams/Participants Section -->
+          <div class="bg-slate-900/50 backdrop-blur-xl border border-slate-800 rounded-2xl p-6">
+            <h3 class="text-xl font-bold text-white mb-4">Teams & Participants</h3>
+            <div id="leagueTeams" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+              <!-- Dynamic teams list -->
+            </div>
+          </div>
+        </div>
+
+        <!-- Sidebar -->
+        <div class="space-y-6">
+          <!-- League Info -->
+          <div class="bg-slate-900/50 backdrop-blur-xl border border-slate-800 rounded-2xl p-6">
+            <h3 class="text-lg font-bold text-white mb-4">League Info</h3>
+            <div id="leagueInfo" class="space-y-3">
+              <!-- Dynamic league info -->
+            </div>
+          </div>
+
+          <!-- News Section -->
+          <div class="bg-slate-900/50 backdrop-blur-xl border border-slate-800 rounded-2xl p-6">
+            <h3 class="text-lg font-bold text-white mb-4 flex items-center gap-2">📰 Latest News</h3>
+            <div id="leagueNews" class="space-y-3">
+              <!-- Dynamic news items -->
+            </div>
+          </div>
+
+          <!-- Related Leagues -->
+          <div class="bg-slate-900/50 backdrop-blur-xl border border-slate-800 rounded-2xl p-6">
+            <h3 class="text-lg font-bold text-white mb-4">Related Leagues</h3>
+            <div id="leagueRelated" class="space-y-3">
+              <!-- Dynamic related items -->
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Notifications View (now uses dropdown) -->
+    <div id="notificationsView" class="hidden"></div>
+
+    <!-- Settings View -->
+    <div id="settingsView" class="hidden max-w-7xl mx-auto p-6 lg:p-8">
+      <div class="mb-8">
+        <div class="cursor-pointer" onclick="navigateTo('dashboard')" title="Go to Dashboard">
+          <img src="Logo-Title.png" alt="Samsa Prediction Markets" class="h-16" />
+        </div>
+      </div>
+
+      <div class="max-w-2xl mx-auto space-y-6">
+        <!-- Account Settings -->
+        <div class="bg-slate-900/50 backdrop-blur-xl border border-slate-800 rounded-2xl p-6">
+          <h2 class="text-xl font-bold text-white mb-6 flex items-center gap-2">
+            <span>👤</span> Account
+          </h2>
+          <div class="space-y-4">
+            <div
+              class="flex items-center justify-between p-4 bg-slate-800/50 rounded-xl hover:bg-slate-800/70 transition-colors cursor-pointer">
+              <div>
+                <span class="text-white font-medium">Email</span>
+                <p class="text-slate-500 text-sm">demo@samsa.com</p>
+              </div>
+              <span class="text-slate-400">→</span>
+            </div>
+            <div
+              class="flex items-center justify-between p-4 bg-slate-800/50 rounded-xl hover:bg-slate-800/70 transition-colors cursor-pointer">
+              <div>
+                <span class="text-white font-medium">Password</span>
+                <p class="text-slate-500 text-sm">••••••••</p>
+              </div>
+              <span class="text-slate-400">→</span>
+            </div>
+            <div
+              class="flex items-center justify-between p-4 bg-slate-800/50 rounded-xl hover:bg-slate-800/70 transition-colors cursor-pointer">
+              <div>
+                <span class="text-white font-medium">Two-Factor Authentication</span>
+                <p class="text-slate-500 text-sm">Add an extra layer of security</p>
+              </div>
+              <span class="text-slate-400">Off</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Preferences -->
+        <div class="bg-slate-900/50 backdrop-blur-xl border border-slate-800 rounded-2xl p-6">
+          <h2 class="text-xl font-bold text-white mb-6 flex items-center gap-2">
+            <span style="color: rgb(212, 175, 55);"><svg class="w-6 h-6" fill="none" stroke="currentColor"
+                stroke-width="1.5" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round"
+                  d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.24-.438.613-.431.992a6.759 6.759 0 010 .255c-.007.378.138.75.43.99l1.005.828c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.992a6.932 6.932 0 010-.255c.007-.378-.138-.75-.43-.99l-1.004-.828a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.281z" />
+                <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg></span> Preferences
+          </h2>
+          <div class="space-y-4">
+            <div class="flex items-center justify-between p-4 bg-slate-800/50 rounded-xl">
+              <div>
+                <span class="text-white font-medium">Dark Mode</span>
+                <p class="text-slate-500 text-sm">Use dark theme</p>
+              </div>
+              <span class="text-yellow-400 font-medium">Enabled</span>
+            </div>
+            <div
+              class="flex items-center justify-between p-4 bg-slate-800/50 rounded-xl hover:bg-slate-800/70 transition-colors cursor-pointer">
+              <div>
+                <span class="text-white font-medium">Notifications</span>
+                <p class="text-slate-500 text-sm">Email and push notifications</p>
+              </div>
+              <span class="text-slate-400">→</span>
+            </div>
+            <div
+              class="flex items-center justify-between p-4 bg-slate-800/50 rounded-xl hover:bg-slate-800/70 transition-colors cursor-pointer">
+              <div>
+                <span class="text-white font-medium">Language</span>
+                <p class="text-slate-500 text-sm">Display language</p>
+              </div>
+              <span class="text-slate-400">English</span>
+            </div>
+            <div
+              class="flex items-center justify-between p-4 bg-slate-800/50 rounded-xl hover:bg-slate-800/70 transition-colors cursor-pointer">
+              <div>
+                <span class="text-white font-medium">Currency</span>
+                <p class="text-slate-500 text-sm">Default currency</p>
+              </div>
+              <span class="text-slate-400">USD</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Danger Zone -->
+        <div class="bg-slate-900/50 backdrop-blur-xl border border-red-900/50 rounded-2xl p-6">
+          <h2 class="text-xl font-bold text-white mb-6 flex items-center gap-2">
+            <span>⚠️</span> Danger Zone
+          </h2>
+          <div class="space-y-4">
+            <div class="flex items-center justify-between p-4 bg-slate-800/50 rounded-xl">
+              <div>
+                <span class="text-white font-medium">Delete Account</span>
+                <p class="text-slate-500 text-sm">Permanently delete your account and all data</p>
+              </div>
+              <button class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm transition-colors">
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- JS Files - Consolidated Architecture v5.0 -->
+
+  <!-- Utils -->
+  <script src="js/utils/icons.js?v=1"></script>
+  <script src="js/core/lmsr-engine.js?v=1"></script>
+
+  <!-- Core: Config, State, Utils, API (combined) -->
+  <script src="js/samsa-core.js?v=2"></script>
+
+  <!-- Features -->
+  <script src="js/features/navigation/navigation-view.js?v=32"></script>
+  <script src="js/features/markets/markets-view.js?v=42"></script>
+  <script src="js/features/trading/predictions-view.js?v=33"></script>
+  <script src="js/features/interests/interests-view.js?v=25"></script>
+  <script src="js/features/interests/subcategories-view.js?v=39"></script>
+  <script src="js/features/portfolio/portfolio-view.js?v=25"></script>
+  <script src="js/features/wallet/wallet-view.js?v=1"></script>
+
+  <!-- App Init -->
+  <script src="js/core/app.js?v=27"></script>
+</body>
+
+</html>

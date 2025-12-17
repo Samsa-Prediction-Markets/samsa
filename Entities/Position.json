@@ -1,0 +1,75 @@
+{
+  "name": "Position",
+  "type": "object",
+  "description": "Represents a user's position (holdings) in a prediction market",
+  "properties": {
+    "userId": {
+      "type": "string",
+      "description": "Unique identifier for the user"
+    },
+    "marketId": {
+      "type": "string",
+      "description": "Reference to the market this position is in"
+    },
+    "outcomes": {
+      "type": "object",
+      "description": "Map of outcome index to position data",
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "shares": {
+            "type": "number",
+            "description": "Number of shares held for this outcome"
+          },
+          "avgCost": {
+            "type": "number",
+            "description": "Average cost per share"
+          }
+        }
+      }
+    },
+    "totalInvested": {
+      "type": "number",
+      "default": 0,
+      "description": "Total amount invested in this market"
+    },
+    "trades": {
+      "type": "array",
+      "description": "History of trades in this position",
+      "items": {
+        "type": "object",
+        "properties": {
+          "outcomeIndex": {
+            "type": "number",
+            "description": "Index of the outcome traded"
+          },
+          "shares": {
+            "type": "number",
+            "description": "Shares bought (positive) or sold (negative)"
+          },
+          "cost": {
+            "type": "number",
+            "description": "Cost of the trade"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time",
+            "description": "When the trade occurred"
+          }
+        }
+      }
+    },
+    "createdAt": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When the position was first created"
+    },
+    "updatedAt": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When the position was last updated"
+    }
+  },
+  "required": ["userId", "marketId", "outcomes", "totalInvested"]
+}
+

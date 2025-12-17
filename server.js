@@ -11,17 +11,19 @@ const PORT = process.env.PORT || 3001;
 const DATA_DIR = path.join(__dirname, 'data');
 const MARKETS_PATH = path.join(DATA_DIR, 'markets.json');
 const PREDICTIONS_PATH = path.join(DATA_DIR, 'predictions.json');
+const USERS_PATH = path.join(DATA_DIR, 'users.json');
+const TRANSACTIONS_PATH = path.join(DATA_DIR, 'transactions.json');
 
 app.use(cors());
 app.use(express.json());
 app.use(morgan('dev'));
 
-// Serve the frontend bundle from /Samsa
-app.use(express.static(path.join(__dirname, 'Samsa')));
+// Serve the frontend bundle from root
+app.use(express.static(__dirname));
 
 // Root route to load the app
 app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'Samsa', 'index.html'));
+  res.sendFile(path.join(__dirname, 'index.html'));
 });
 
 function recomputeMarketStats(market) {
@@ -184,6 +186,163 @@ app.post('/api/markets/:id/resolve', async (req, res) => {
   await writeJson(MARKETS_PATH, markets);
 
   res.json({ ok: true, market });
+});
+
+// ============================================================================
+// WALLET / USER ENDPOINTS
+// ============================================================================
+
+// Get user balance
+app.get('/api/users/:id/balance', async (req, res) => {
+  const users = await readJson(USERS_PATH);
+  const user = users.find((u) => u.id === req.params.id);
+  if (!user) {
+    // Create default user if not found
+    const newUser = {
+      id: req.params.id,
+      username: 'user',
+      email: '',
+      balance: 0,
+      total_deposited: 0,
+      total_withdrawn: 0,
+      created_at: new Date().toISOString()
+    };
+    users.push(newUser);
+    await writeJson(USERS_PATH, users);
+    return res.json({ balance: 0, user: newUser });
+  }
+  res.json({ balance: user.balance, user });
+});
+
+// Deposit funds
+app.post('/api/users/:id/deposit', async (req, res) => {
+  const { amount, payment_method = 'card' } = req.body;
+
+  if (typeof amount !== 'number' || amount <= 0) {
+    return res.status(400).json({ error: 'Invalid deposit amount' });
+  }
+
+  if (amount > 10000) {
+    return res.status(400).json({ error: 'Maximum deposit is $10,000' });
+  }
+
+  const users = await readJson(USERS_PATH);
+  let user = users.find((u) => u.id === req.params.id);
+
+  if (!user) {
+    // Create user if doesn't exist
+    user = {
+      id: req.params.id,
+      username: 'user',
+      email: '',
+      balance: 0,
+      total_deposited: 0,
+      total_withdrawn: 0,
+      created_at: new Date().toISOString()
+    };
+    users.push(user);
+  }
+
+  // Update balance
+  user.balance = (user.balance || 0) + amount;
+  user.total_deposited = (user.total_deposited || 0) + amount;
+
+  // Record transaction
+  let transactions = [];
+  try {
+    transactions = await readJson(TRANSACTIONS_PATH);
+  } catch (e) {
+    transactions = [];
+  }
+
+  const transaction = {
+    id: nanoid(12),
+    user_id: req.params.id,
+    type: 'deposit',
+    amount,
+    payment_method,
+    status: 'completed',
+    balance_after: user.balance,
+    created_at: new Date().toISOString()
+  };
+
+  transactions.push(transaction);
+
+  await writeJson(USERS_PATH, users);
+  await writeJson(TRANSACTIONS_PATH, transactions);
+
+  res.status(201).json({
+    success: true,
+    transaction,
+    new_balance: user.balance
+  });
+});
+
+// Withdraw funds
+app.post('/api/users/:id/withdraw', async (req, res) => {
+  const { amount, withdrawal_method = 'bank' } = req.body;
+
+  if (typeof amount !== 'number' || amount <= 0) {
+    return res.status(400).json({ error: 'Invalid withdrawal amount' });
+  }
+
+  const users = await readJson(USERS_PATH);
+  const user = users.find((u) => u.id === req.params.id);
+
+  if (!user) {
+    return res.status(404).json({ error: 'User not found' });
+  }
+
+  if (user.balance < amount) {
+    return res.status(400).json({ error: 'Insufficient balance' });
+  }
+
+  // Update balance
+  user.balance -= amount;
+  user.total_withdrawn = (user.total_withdrawn || 0) + amount;
+
+  // Record transaction
+  let transactions = [];
+  try {
+    transactions = await readJson(TRANSACTIONS_PATH);
+  } catch (e) {
+    transactions = [];
+  }
+
+  const transaction = {
+    id: nanoid(12),
+    user_id: req.params.id,
+    type: 'withdrawal',
+    amount,
+    withdrawal_method,
+    status: 'pending', // Withdrawals typically need processing
+    balance_after: user.balance,
+    created_at: new Date().toISOString()
+  };
+
+  transactions.push(transaction);
+
+  await writeJson(USERS_PATH, users);
+  await writeJson(TRANSACTIONS_PATH, transactions);
+
+  res.status(201).json({
+    success: true,
+    transaction,
+    new_balance: user.balance
+  });
+});
+
+// Get transaction history
+app.get('/api/users/:id/transactions', async (req, res) => {
+  let transactions = [];
+  try {
+    transactions = await readJson(TRANSACTIONS_PATH);
+  } catch (e) {
+    transactions = [];
+  }
+  
+  const userTransactions = transactions.filter((t) => t.user_id === req.params.id);
+  res.json(userTransactions);
 });
 
 app.listen(PORT, () => {

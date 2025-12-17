@@ -1,29 +1,314 @@
 [
   {
-    "id": "mkt_demo_001",
-    "title": "Will Example Corp beat earnings this quarter?",
-    "description": "Q4 earnings report for Example Corp scheduled next month.",
-    "category": "finance",
+    "id": "mkt_btc_100k",
+    "title": "Will Bitcoin reach $100,000 by end of 2025?",
+    "description": "Predict whether Bitcoin will hit the $100k milestone before December 31, 2025",
+    "category": "crypto",
     "status": "active",
-    "close_date": "2025-12-01T00:00:00.000Z",
+    "close_date": "2025-12-31T00:00:00.000Z",
     "resolution_date": null,
     "outcomes": [
       {
         "id": "yes",
         "title": "Yes",
-        "probability": 100,
-        "total_stake": 1500
+        "probability": 65,
+        "total_stake": 15000
       },
       {
         "id": "no",
         "title": "No",
-        "probability": 0,
-        "total_stake": 0
+        "probability": 35,
+        "total_stake": 8000
       }
     ],
-    "total_volume": 1500,
-    "image_url": "",
+    "total_volume": 23000,
+    "image_url": "https://images.unsplash.com/photo-1518546305927-5a555bb7020d?w=800",
     "winning_outcome_id": null,
-    "search_keywords": "Example Corp earnings"
+    "search_keywords": "bitcoin btc crypto cryptocurrency 100k"
+  },
+  {
+    "id": "mkt_nba_2025",
+    "title": "Who will win the 2025 NBA Championship?",
+    "description": "Predict the winner of the 2025 NBA Finals",
+    "category": "sports",
+    "status": "active",
+    "close_date": "2025-06-01T00:00:00.000Z",
+    "resolution_date": null,
+    "outcomes": [
+      {
+        "id": "lakers",
+        "title": "LA Lakers",
+        "probability": 30,
+        "total_stake": 12000
+      },
+      {
+        "id": "celtics",
+        "title": "Boston Celtics",
+        "probability": 25,
+        "total_stake": 10000
+      },
+      {
+        "id": "warriors",
+        "title": "Golden State Warriors",
+        "probability": 20,
+        "total_stake": 8000
+      },
+      {
+        "id": "other",
+        "title": "Other Team",
+        "probability": 25,
+        "total_stake": 10000
+      }
+    ],
+    "total_volume": 40000,
+    "image_url": "https://images.unsplash.com/photo-1546519638-68e109498ffc?w=800",
+    "winning_outcome_id": null,
+    "search_keywords": "nba basketball championship finals lakers celtics warriors"
+  },
+  {
+    "id": "mkt_ai_coding",
+    "title": "Will AI surpass human performance in coding by 2026?",
+    "description": "Will AI models achieve superhuman performance on standard coding benchmarks?",
+    "category": "technology",
+    "status": "active",
+    "close_date": "2026-01-01T00:00:00.000Z",
+    "resolution_date": null,
+    "outcomes": [
+      {
+        "id": "yes",
+        "title": "Yes",
+        "probability": 56,
+        "total_stake": 18150
+      },
+      {
+        "id": "no",
+        "title": "No",
+        "probability": 44,
+        "total_stake": 14000
+      }
+    ],
+    "total_volume": 32150,
+    "image_url": "https://images.unsplash.com/photo-1677442136019-21780ecad995?w=800",
+    "winning_outcome_id": null,
+    "search_keywords": "ai artificial intelligence coding programming benchmark"
+  },
+  {
+    "id": "mkt_fed_rates",
+    "title": "Will the Fed cut interest rates in Q1 2025?",
+    "description": "Predict whether the Federal Reserve will announce a rate cut in the first quarter of 2025",
+    "category": "finance",
+    "status": "active",
+    "close_date": "2025-03-31T00:00:00.000Z",
+    "resolution_date": null,
+    "outcomes": [
+      {
+        "id": "yes",
+        "title": "Yes",
+        "probability": 72,
+        "total_stake": 28000
+      },
+      {
+        "id": "no",
+        "title": "No",
+        "probability": 28,
+        "total_stake": 11000
+      }
+    ],
+    "total_volume": 39000,
+    "image_url": "https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?w=800",
+    "winning_outcome_id": null,
+    "search_keywords": "fed federal reserve interest rates economy"
+  },
+  {
+    "id": "mkt_us_election",
+    "title": "Who will win the 2028 US Presidential Election?",
+    "description": "Predict the winner of the 2028 United States Presidential Election",
+    "category": "politics",
+    "status": "active",
+    "close_date": "2028-11-05T00:00:00.000Z",
+    "resolution_date": null,
+    "outcomes": [
+      {
+        "id": "democrat",
+        "title": "Democratic Candidate",
+        "probability": 48,
+        "total_stake": 24100
+      },
+      {
+        "id": "republican",
+        "title": "Republican Candidate",
+        "probability": 47,
+        "total_stake": 23500
+      },
+      {
+        "id": "other",
+        "title": "Other/Independent",
+        "probability": 5,
+        "total_stake": 2500
+      }
+    ],
+    "total_volume": 50100,
+    "image_url": "https://images.unsplash.com/photo-1540910419892-4a36d2c3266c?w=800",
+    "winning_outcome_id": null,
+    "search_keywords": "us election president politics democrat republican"
+  },
+  {
+    "id": "mkt_eth_merge",
+    "title": "Will Ethereum hit $10,000 by end of 2025?",
+    "description": "Predict whether Ethereum will reach the $10k price target before December 31, 2025",
+    "category": "crypto",
+    "status": "active",
+    "close_date": "2025-12-31T00:00:00.000Z",
+    "resolution_date": null,
+    "outcomes": [
+      {
+        "id": "yes",
+        "title": "Yes",
+        "probability": 40,
+        "total_stake": 8000
+      },
+      {
+        "id": "no",
+        "title": "No",
+        "probability": 60,
+        "total_stake": 12000
+      }
+    ],
+    "total_volume": 20000,
+    "image_url": "https://images.unsplash.com/photo-1621761191319-c6fb62004040?w=800",
+    "winning_outcome_id": null,
+    "search_keywords": "ethereum eth crypto cryptocurrency 10k"
+  },
+  {
+    "id": "mkt_superbowl",
+    "title": "Who will win Super Bowl LIX?",
+    "description": "Predict the winner of Super Bowl LIX in February 2025",
+    "category": "sports",
+    "status": "active",
+    "close_date": "2025-02-09T00:00:00.000Z",
+    "resolution_date": null,
+    "outcomes": [
+      {
+        "id": "chiefs",
+        "title": "Kansas City Chiefs",
+        "probability": 28,
+        "total_stake": 14000
+      },
+      {
+        "id": "49ers",
+        "title": "San Francisco 49ers",
+        "probability": 22,
+        "total_stake": 11000
+      },
+      {
+        "id": "eagles",
+        "title": "Philadelphia Eagles",
+        "probability": 18,
+        "total_stake": 9150
+      },
+      {
+        "id": "other",
+        "title": "Other Team",
+        "probability": 32,
+        "total_stake": 16000
+      }
+    ],
+    "total_volume": 50150,
+    "image_url": "https://images.unsplash.com/photo-1566577739112-5180d4bf9390?w=800",
+    "winning_outcome_id": null,
+    "search_keywords": "super bowl nfl football chiefs 49ers eagles"
+  },
+  {
+    "id": "mkt_oscar_bestpic",
+    "title": "Which film will win Best Picture at the 2025 Oscars?",
+    "description": "Predict the Best Picture winner at the 97th Academy Awards",
+    "category": "entertainment",
+    "status": "active",
+    "close_date": "2025-03-02T00:00:00.000Z",
+    "resolution_date": null,
+    "outcomes": [
+      {
+        "id": "anora",
+        "title": "Anora",
+        "probability": 35,
+        "total_stake": 7000
+      },
+      {
+        "id": "conclave",
+        "title": "Conclave",
+        "probability": 25,
+        "total_stake": 5000
+      },
+      {
+        "id": "brutalist",
+        "title": "The Brutalist",
+        "probability": 20,
+        "total_stake": 4000
+      },
+      {
+        "id": "other",
+        "title": "Other Film",
+        "probability": 20,
+        "total_stake": 4000
+      }
+    ],
+    "total_volume": 20000,
+    "image_url": "https://images.unsplash.com/photo-1485846234645-a62644f84728?w=800",
+    "winning_outcome_id": null,
+    "search_keywords": "oscars academy awards best picture film movie"
+  },
+  {
+    "id": "mkt_climate",
+    "title": "Will 2025 be the hottest year on record?",
+    "description": "Predict whether 2025 will surpass all previous years in global average temperature",
+    "category": "climate",
+    "status": "active",
+    "close_date": "2026-01-15T00:00:00.000Z",
+    "resolution_date": null,
+    "outcomes": [
+      {
+        "id": "yes",
+        "title": "Yes",
+        "probability": 68,
+        "total_stake": 13600
+      },
+      {
+        "id": "no",
+        "title": "No",
+        "probability": 32,
+        "total_stake": 6400
+      }
+    ],
+    "total_volume": 20000,
+    "image_url": "https://images.unsplash.com/photo-1611273426858-450d8e3c9fce?w=800",
+    "winning_outcome_id": null,
+    "search_keywords": "climate change global warming temperature environment"
+  },
+  {
+    "id": "mkt_spacex_mars",
+    "title": "Will SpaceX launch a crewed mission to Mars by 2030?",
+    "description": "Predict whether SpaceX will successfully launch humans toward Mars before 2030",
+    "category": "science",
+    "status": "active",
+    "close_date": "2030-01-01T00:00:00.000Z",
+    "resolution_date": null,
+    "outcomes": [
+      {
+        "id": "yes",
+        "title": "Yes",
+        "probability": 25,
+        "total_stake": 7500
+      },
+      {
+        "id": "no",
+        "title": "No",
+        "probability": 75,
+        "total_stake": 22500
+      }
+    ],
+    "total_volume": 30000,
+    "image_url": "https://images.unsplash.com/photo-1541185933-ef5d8ed016c2?w=800",
+    "winning_outcome_id": null,
+    "search_keywords": "spacex mars elon musk space rocket"
   }
 ]
