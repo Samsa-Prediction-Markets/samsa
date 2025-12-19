@@ -298,7 +298,7 @@ function formatCloseDate(dateStr) {
 async function renderMarkets() {
   const grid = document.getElementById('marketsGrid');
 
-  // Always try to fetch markets from API
+  // Always try to fetch markets from API first
   try {
     const response = await fetch('http://localhost:3001/api/markets');
     if (response.ok) {
@@ -313,7 +313,23 @@ async function renderMarkets() {
       }
     }
   } catch (error) {
-    console.log('⚠️ API not available, using sample markets:', error.message);
+    console.log('⚠️ API not available, loading from local JSON file:', error.message);
+
+    // Fallback: Load from local JSON file
+    if (markets.length === 0) {
+      try {
+        const localResponse = await fetch('data/markets.json');
+        if (localResponse.ok) {
+          const localMarkets = await localResponse.json();
+          if (localMarkets && localMarkets.length > 0) {
+            markets = localMarkets.map(normalizeMarket);
+            console.log(`✅ Loaded ${localMarkets.length} markets from local JSON`);
+          }
+        }
+      } catch (localError) {
+        console.log('⚠️ Could not load local markets:', localError.message);
+      }
+    }
   }
 
   grid.innerHTML = markets.map(market => createMarketCardHTML(normalizeMarket(market))).join('');
