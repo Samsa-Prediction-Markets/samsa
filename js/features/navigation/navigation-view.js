@@ -226,8 +226,8 @@ function updateActiveNavItem(activePage) {
   const pageToText = {
     'markets': 'Explore',
     'interests': 'Interests',
-    'portfolio': 'Portfolio',
-    'dashboard': 'Portfolio',
+    'portfolio': 'Dashboard',
+    'dashboard': 'Dashboard',
     'leaderboard': 'Leaderboard',
     'notifications': 'Notifications',
     'settings': 'Settings'

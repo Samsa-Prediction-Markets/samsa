@@ -255,7 +255,7 @@ function renderSubcategoryOverview(name, wikidataId, subcategories) {
   const tier2Count = subcategories.filter(s => s.tier === 2).length;
   const countries = [...new Set(subcategories.map(s => s.country.split('/')[0].trim()))];
 
-  // Render Stats
+  // Render Stats - only showing league/team structure info (no market data)
   if (statsEl) {
     statsEl.innerHTML = `
       <div class="bg-slate-900/50 backdrop-blur-xl border border-slate-800 rounded-2xl p-6">
@@ -271,11 +271,6 @@ function renderSubcategoryOverview(name, wikidataId, subcategories) {
         <p class="text-slate-400 text-sm mb-2">Countries</p>
         <p class="text-3xl font-bold text-yellow-400">${countries.length}</p>
         <p class="text-xs text-slate-500 mt-1">Worldwide coverage</p>
-      </div>
-      <div class="bg-slate-900/50 backdrop-blur-xl border border-slate-800 rounded-2xl p-6">
-        <p class="text-slate-400 text-sm mb-2">Active Markets</p>
-        <p class="text-3xl font-bold text-green-400">${Math.floor(Math.random() * 50) + 10}</p>
-        <p class="text-xs text-slate-500 mt-1">Open for predictions</p>
       </div>
     `;
   }
@@ -303,8 +298,7 @@ function renderSubcategoryOverview(name, wikidataId, subcategories) {
               <p class="text-slate-500 text-xs">${league.country}</p>
             </div>
           </div>
-          <div class="flex items-center justify-between">
-            <span class="text-xs text-green-400">● ${Math.floor(Math.random() * 10) + 1} markets</span>
+          <div class="flex items-center justify-end">
             <button onclick="event.stopPropagation(); handleFollowClick('${league.id}', '${league.name.replace(/'/g, "\\'")}', 'league', '${name}', this)"
               class="text-xs px-3 py-1 rounded-lg transition-all ${isFavorited(league.id)
           ? 'bg-yellow-500/20 text-yellow-400'
@@ -331,20 +325,13 @@ function renderSubcategoryOverview(name, wikidataId, subcategories) {
     }
   }
 
-  // Render News (simulated)
+  // Render News - will be populated by backend
   if (newsEl) {
-    const newsItems = [
-      { title: `${name} season updates and predictions`, time: '2h ago' },
-      { title: `Top performers this week in ${name}`, time: '5h ago' },
-      { title: `Market analysis: ${name} betting trends`, time: '1d ago' },
-    ];
-
-    newsEl.innerHTML = newsItems.map(item => `
-      <div class="bg-slate-800/50 rounded-lg p-3 hover:bg-slate-800/70 transition-colors cursor-pointer">
-        <p class="text-white text-sm font-medium mb-1">${item.title}</p>
-        <p class="text-slate-500 text-xs">${item.time}</p>
+    newsEl.innerHTML = `
+      <div class="text-center py-4">
+        <p class="text-slate-500 text-sm">No news available</p>
       </div>
-    `).join('');
+    `;
   }
 
   // Render Quick Stats
@@ -542,32 +529,43 @@ async function loadLeagueDetail(leagueId, leagueName, country, sport, parentSpor
     `;
   }
 
-  // Generate random but consistent stats for this league
+  // Generate consistent teams count for this league
   const seed = leagueName.length + country.length;
   const teamsCount = 10 + (seed % 22);
-  const marketsCount = 5 + (seed % 15);
-  const volume = (50 + (seed % 200)) * 1000;
 
-  // Render Stats
+  // Fetch league stats from backend API (defaults to 0 if not available)
+  let leagueStats = { activeMarkets: 0, totalVolume: 0, predictions: 0 };
+  try {
+    const response = await fetch(`/api/leagues/${leagueId}/stats`);
+    if (response.ok) {
+      const data = await response.json();
+      leagueStats = {
+        activeMarkets: data.active_markets || 0,
+        totalVolume: data.total_volume || 0,
+        predictions: data.predictions || 0
+      };
+    }
+  } catch (err) {
+    // Backend not available, use defaults
+    console.log('League stats API not available, using defaults');
+  }
+
+  // Render Stats - values fetched from backend (defaults to 0)
   if (statsEl) {
     statsEl.innerHTML = `
       <div class="bg-slate-900/50 backdrop-blur-xl border border-slate-800 rounded-2xl p-6">
-        <p class="text-slate-400 text-sm mb-2">Teams/Participants</p>
-        <p class="text-3xl font-bold text-yellow-400">${teamsCount}</p>
-      </div>
-      <div class="bg-slate-900/50 backdrop-blur-xl border border-slate-800 rounded-2xl p-6">
         <p class="text-slate-400 text-sm mb-2">Active Markets</p>
-        <p class="text-3xl font-bold text-green-400">${marketsCount}</p>
+        <p class="text-3xl font-bold text-green-400">${leagueStats.activeMarkets}</p>
         <p class="text-xs text-slate-500 mt-1">Open for predictions</p>
       </div>
       <div class="bg-slate-900/50 backdrop-blur-xl border border-slate-800 rounded-2xl p-6">
         <p class="text-slate-400 text-sm mb-2">Total Volume</p>
-        <p class="text-3xl font-bold text-yellow-400">$${volume.toLocaleString()}</p>
+        <p class="text-3xl font-bold text-yellow-400">$${leagueStats.totalVolume.toLocaleString()}</p>
         <p class="text-xs text-slate-500 mt-1">All time</p>
       </div>
       <div class="bg-slate-900/50 backdrop-blur-xl border border-slate-800 rounded-2xl p-6">
         <p class="text-slate-400 text-sm mb-2">Predictions</p>
-        <p class="text-3xl font-bold text-yellow-400">${Math.floor(volume / 100)}</p>
+        <p class="text-3xl font-bold text-yellow-400">${leagueStats.predictions}</p>
         <p class="text-xs text-slate-500 mt-1">Total placed</p>
       </div>
     `;
@@ -578,11 +576,19 @@ async function loadLeagueDetail(leagueId, leagueName, country, sport, parentSpor
     aboutEl.innerHTML = getLeagueDescription(leagueName, country, sport);
   }
 
-  // Render Active Markets - uses exact same display as main markets page
+  // Markets section - will be populated by backend
   if (marketsEl) {
-    const leagueMarketsData = generateLeagueMarketsData(leagueName, sport, marketsCount, leagueId);
-    // Use the exact same createMarketCardHTML function from markets-view.js
-    marketsEl.innerHTML = leagueMarketsData.map(market => createMarketCardHTML(market)).join('');
+    marketsEl.innerHTML = `
+      <div class="col-span-full text-center py-8">
+        <div class="text-slate-500 mb-2">
+          <svg class="w-12 h-12 mx-auto opacity-50" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z" />
+          </svg>
+        </div>
+        <p class="text-slate-400 text-sm">No markets available yet</p>
+        <p class="text-slate-500 text-xs mt-1">Markets will appear here when created</p>
+      </div>
+    `;
   }
 
   // Render Teams
@@ -596,7 +602,7 @@ async function loadLeagueDetail(leagueId, leagueName, country, sport, parentSpor
     `).join('');
   }
 
-  // Render League Info
+  // Render League Info - only structural info, no market stats
   if (infoEl) {
     infoEl.innerHTML = `
       <div class="flex justify-between items-center py-2 border-b border-slate-800">
@@ -611,31 +617,20 @@ async function loadLeagueDetail(leagueId, leagueName, country, sport, parentSpor
         <span class="text-slate-400 text-sm">Teams</span>
         <span class="text-white font-semibold">${teamsCount}</span>
       </div>
-      <div class="flex justify-between items-center py-2 border-b border-slate-800">
+      <div class="flex justify-between items-center py-2">
         <span class="text-slate-400 text-sm">Season</span>
         <span class="text-white font-semibold">2024-25</span>
-      </div>
-      <div class="flex justify-between items-center py-2">
-        <span class="text-slate-400 text-sm">Status</span>
-        <span class="text-green-400 font-semibold flex items-center gap-1"><span class="w-2 h-2 bg-green-400 rounded-full"></span> Active</span>
       </div>
     `;
   }
 
-  // Render News
+  // Render News - will be populated by backend
   if (newsEl) {
-    const newsItems = [
-      { title: `${leagueName} transfer news and rumors`, time: '1h ago' },
-      { title: `Week ${Math.floor(Math.random() * 20) + 1} preview and predictions`, time: '3h ago' },
-      { title: `Top performers in ${leagueName} this season`, time: '6h ago' },
-      { title: `Injury updates and team news`, time: '1d ago' },
-    ];
-    newsEl.innerHTML = newsItems.map(item => `
-      <div class="bg-slate-800/50 rounded-lg p-3 hover:bg-slate-800/70 transition-colors cursor-pointer">
-        <p class="text-white text-sm font-medium mb-1">${item.title}</p>
-        <p class="text-slate-500 text-xs">${item.time}</p>
+    newsEl.innerHTML = `
+      <div class="text-center py-4">
+        <p class="text-slate-500 text-sm">No news available</p>
       </div>
-    `).join('');
+    `;
   }
 
   // Render Related Leagues
@@ -734,13 +729,19 @@ function generateLeagueMarketsData(leagueName, sport, count, leagueId) {
       description: template.description,
       category: sport.toLowerCase().replace(/\s+/g, '-'),
       closeDate: getRandomFutureDate(),
-      outcomes: template.outcomes.map((name, idx) => ({
-        id: idx + 1,
-        title: name,
-        probability: idx === 0 ? prob1 : prob2,
-        stake: Math.floor(Math.random() * 10000) + 5000,
-        color: idx === 0 ? 'green' : 'red'
-      })),
+      outcomes: template.outcomes.map((name, idx) => {
+        const isYesNo = template.outcomes.length === 2 && 
+          template.outcomes.map(n => n.toLowerCase()).includes('yes') && 
+          template.outcomes.map(n => n.toLowerCase()).includes('no');
+        const colors = isYesNo ? LEAGUE_BINARY_COLORS : LEAGUE_MULTI_COLORS;
+        return {
+          id: idx + 1,
+          title: name,
+          probability: idx === 0 ? prob1 : prob2,
+          stake: Math.floor(Math.random() * 10000) + 5000,
+          color: colors[idx]?.line || LEAGUE_MULTI_COLORS[idx % LEAGUE_MULTI_COLORS.length].line
+        };
+      }),
       volume: volume,
       volume24h: Math.floor(volume * 0.15),
       traders: Math.floor(Math.random() * 500) + 100,
@@ -796,13 +797,55 @@ function getRandomFutureDate() {
 // Cache for league market probability histories
 const leagueMarketHistories = new Map();
 
-// Outcome colors for league markets
-const LEAGUE_OUTCOME_COLORS = [
-  { line: '#22c55e', fill: 'rgba(34, 197, 94, 0.2)' },   // Green
-  { line: '#ef4444', fill: 'rgba(239, 68, 68, 0.2)' },    // Red
-  { line: '#3b82f6', fill: 'rgba(59, 130, 246, 0.2)' },   // Blue
-  { line: '#f59e0b', fill: 'rgba(245, 158, 11, 0.2)' },   // Amber
+// Binary market colors (Yes/No - Green/Red)
+const LEAGUE_BINARY_COLORS = [
+  { line: '#22c55e', fill: 'rgba(34, 197, 94, 0.2)' },   // Green (Yes)
+  { line: '#ef4444', fill: 'rgba(239, 68, 68, 0.2)' },   // Red (No)
 ];
+
+// Multi-option market colors (varied palette)
+const LEAGUE_MULTI_COLORS = [
+  { line: '#3b82f6', fill: 'rgba(59, 130, 246, 0.2)' },   // Blue
+  { line: '#a855f7', fill: 'rgba(168, 85, 247, 0.2)' },   // Purple
+  { line: '#f59e0b', fill: 'rgba(245, 158, 11, 0.2)' },   // Amber
+  { line: '#06b6d4', fill: 'rgba(6, 182, 212, 0.2)' },    // Cyan
+  { line: '#ec4899', fill: 'rgba(236, 72, 153, 0.2)' },   // Pink
+];
+
+// Default colors (fallback)
+const LEAGUE_OUTCOME_COLORS = LEAGUE_MULTI_COLORS;
+
+/**
+ * Normalize outcome name - converts "Yes, Banned" → "Yes", "No, Still Operating" → "No"
+ * @param {string} name - The outcome name
+ * @returns {string} Normalized name
+ */
+function normalizeLeagueOutcomeName(name) {
+  const lower = (name || '').toLowerCase().trim();
+  if (lower === 'yes' || lower.startsWith('yes,') || lower.startsWith('yes ')) {
+    return 'Yes';
+  }
+  if (lower === 'no' || lower.startsWith('no,') || lower.startsWith('no ')) {
+    return 'No';
+  }
+  return name;
+}
+
+/**
+ * Check if league market outcomes are binary (Yes/No style)
+ */
+function isLeagueBinaryMarket(outcomes) {
+  if (outcomes.length !== 2) return false;
+  const names = outcomes.map(o => normalizeLeagueOutcomeName(o.name || o.title || '').toLowerCase());
+  return names.includes('yes') && names.includes('no');
+}
+
+/**
+ * Get appropriate color palette for league market
+ */
+function getLeagueColors(outcomes) {
+  return isLeagueBinaryMarket(outcomes) ? LEAGUE_BINARY_COLORS : LEAGUE_MULTI_COLORS;
+}
 
 /**
  * Generate probability history for league market outcomes
@@ -895,9 +938,11 @@ function generateLeagueAreaPath(data, width, height) {
 /**
  * Create multi-outcome chart for league markets
  * Matches the style of createMiniMultiChart from main markets
+ * Uses binary colors for Yes/No, multi colors otherwise
  */
-function createLeagueMultiChart(marketId, outcomes, width = 280, height = 100) {
+function createLeagueMultiChart(marketId, outcomes, width = 280, height = 70) {
   const histories = generateLeagueMarketHistories(marketId, outcomes);
+  const colorPalette = getLeagueColors(outcomes);
   const gradientDefs = [];
   const areaPaths = [];
   const linePaths = [];
@@ -905,7 +950,7 @@ function createLeagueMultiChart(marketId, outcomes, width = 280, height = 100) {
 
   outcomes.slice(0, 2).forEach((outcome, idx) => {
     const history = histories[idx];
-    const color = LEAGUE_OUTCOME_COLORS[idx] || LEAGUE_OUTCOME_COLORS[0];
+    const color = colorPalette[idx] || colorPalette[0];
     const gradientId = `league-grad-${marketId}-${idx}`;
     const currentY = 4 + (height - 8) - (outcome.odds / 100) * (height - 8);
 
@@ -927,27 +972,27 @@ function createLeagueMultiChart(marketId, outcomes, width = 280, height = 100) {
     const startProb = history[0];
     const endProb = history[history.length - 1];
     const change = endProb - startProb;
-    const color = LEAGUE_OUTCOME_COLORS[idx] || LEAGUE_OUTCOME_COLORS[0];
+    const color = colorPalette[idx] || colorPalette[0];
     const arrow = change >= 0 ? '↑' : '↓';
 
     return `
       <div class="flex items-center gap-1">
         <span class="w-2 h-2 rounded-full" style="background: ${color.line}"></span>
-        <span class="text-xs" style="color: ${color.line}">${outcome.name}</span>
-        <span class="text-xs ${change >= 0 ? 'text-green-400' : 'text-red-400'}">${arrow}${Math.abs(change).toFixed(0)}%</span>
+        <span class="text-xs" style="color: ${color.line}">${normalizeLeagueOutcomeName(outcome.name)}</span>
+        <span class="text-xs ${change >= 0 ? 'text-green-400' : 'text-red-400'}">${arrow}${Math.abs(change).toFixed(0)}¢</span>
       </div>
     `;
   });
 
   return `
-    <div class="mb-4 rounded-xl overflow-hidden bg-slate-800/30 p-2">
-      <div class="flex items-center justify-between mb-1 px-1">
+    <div class="rounded-xl overflow-hidden bg-slate-800/30">
+      <div class="flex items-center justify-between px-3 py-2">
         <span class="text-xs text-slate-500">30d Trend</span>
         <div class="flex gap-3">
           ${legends.join('')}
         </div>
       </div>
-      <svg width="100%" height="${height}" viewBox="0 0 ${width} ${height}" preserveAspectRatio="none">
+      <svg class="w-full" style="aspect-ratio: ${width} / ${height};" viewBox="0 0 ${width} ${height}" preserveAspectRatio="none">
         <defs>${gradientDefs.join('')}</defs>
         <!-- Grid -->
         <line x1="0" y1="${height / 2}" x2="${width}" y2="${height / 2}" stroke="#334155" stroke-width="0.5" stroke-dasharray="2,2" />
@@ -974,24 +1019,35 @@ function createLeagueMarketCard(market, marketId) {
     <div class="market-card group relative overflow-hidden bg-slate-900/50 backdrop-blur-xl border border-slate-800 hover:border-yellow-500/50 transition-all duration-300 hover:shadow-2xl hover:shadow-yellow-500/10 cursor-pointer rounded-2xl"
       onclick="showLeagueMarketDetail('${marketId}', decodeURIComponent('${marketDataStr}'))">
       <div class="absolute inset-0 bg-gradient-to-br from-yellow-500/0 to-yellow-600/0 group-hover:from-yellow-500/5 group-hover:to-yellow-600/5 transition-all duration-300"></div>
-      <div class="relative p-6">
-        <div class="flex items-start justify-between mb-4">
+      <div class="relative p-4 flex flex-col gap-3">
+        <div class="flex items-start justify-between">
           <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-gradient-to-r from-yellow-500 to-amber-600 text-white">Prediction</span>
           <span class="text-xs text-green-400 font-medium">🟢 Live</span>
         </div>
         ${createLeagueMultiChart(marketId, market.outcomes)}
-        <h3 class="text-lg font-bold text-white mb-2 group-hover:text-yellow-400 transition-colors duration-200">${market.title}</h3>
-        <p class="text-sm text-slate-400 mb-3 line-clamp-2">${description}</p>
+        <h3 class="text-lg font-bold text-white group-hover:text-yellow-400 transition-colors duration-200">${market.title}</h3>
+        <p class="text-sm text-slate-400 line-clamp-2">${description}</p>
         <div class="flex gap-2">
-          ${market.outcomes.map((outcome, idx) => `
-            <button class="flex-1 relative overflow-hidden rounded-lg px-3 py-2 transition-all duration-200 border ${idx === 0 ? 'bg-green-500/10 border-green-500/50 hover:border-green-500 hover:bg-green-500/20' : 'bg-red-500/10 border-red-500/50 hover:border-red-500 hover:bg-red-500/20'} active:scale-95"
-              onclick="event.stopPropagation(); openLeaguePredictionForm('${marketId}', ${idx}, '${outcome.name.replace(/'/g, "\\'")}', ${outcome.odds})">
-              <div class="flex flex-col gap-1">
-                <span class="text-white font-medium text-xs text-center">${outcome.name}</span>
-                <span class="text-lg font-bold text-center ${idx === 0 ? 'text-green-400' : 'text-red-400'}">${(outcome.odds / 100).toFixed(2)}</span>
-              </div>
-            </button>
-          `).join('')}
+          ${(() => {
+            const isBinary = isLeagueBinaryMarket(market.outcomes);
+            const colors = isBinary ? LEAGUE_BINARY_COLORS : LEAGUE_MULTI_COLORS;
+            // Button style classes for each color
+            const buttonStyles = isBinary 
+              ? ['bg-green-500/10 border-green-500/50 hover:border-green-500 hover:bg-green-500/20', 'bg-red-500/10 border-red-500/50 hover:border-red-500 hover:bg-red-500/20']
+              : ['bg-blue-500/10 border-blue-500/50 hover:border-blue-500 hover:bg-blue-500/20', 'bg-purple-500/10 border-purple-500/50 hover:border-purple-500 hover:bg-purple-500/20', 'bg-amber-500/10 border-amber-500/50 hover:border-amber-500 hover:bg-amber-500/20', 'bg-cyan-500/10 border-cyan-500/50 hover:border-cyan-500 hover:bg-cyan-500/20'];
+            const textColors = isBinary 
+              ? ['text-green-400', 'text-red-400']
+              : ['text-blue-400', 'text-purple-400', 'text-amber-400', 'text-cyan-400'];
+            return market.outcomes.map((outcome, idx) => `
+              <button class="flex-1 relative overflow-hidden rounded-lg px-3 py-2 transition-all duration-200 border ${buttonStyles[idx % buttonStyles.length]} active:scale-95"
+                onclick="event.stopPropagation(); openLeaguePredictionForm('${marketId}', ${idx}, '${outcome.name.replace(/'/g, "\\'")}', ${outcome.odds})">
+                <div class="flex flex-col gap-1">
+                  <span class="text-white font-medium text-xs text-center">${normalizeLeagueOutcomeName(outcome.name)}</span>
+                  <span class="text-lg font-bold text-center ${textColors[idx % textColors.length]}">${(outcome.odds / 100).toFixed(2)}</span>
+                </div>
+              </button>
+            `).join('');
+          })()}
         </div>
       </div>
     </div>
@@ -1016,6 +1072,7 @@ function showLeagueMarketDetail(marketId, marketDataStr) {
   modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
 
   const histories = generateLeagueMarketHistories(marketId, market.outcomes);
+  const colorPalette = getLeagueColors(market.outcomes);
 
   modal.innerHTML = `
     <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto">
@@ -1038,7 +1095,7 @@ function showLeagueMarketDetail(marketId, marketDataStr) {
       <div class="bg-slate-800/30 rounded-2xl p-4 mb-6">
         <div class="flex items-center justify-between mb-3">
           <h3 class="text-lg font-semibold text-white flex items-center gap-2">
-            <span>📈</span> Probability History
+            <span>📈</span> Price History
           </h3>
           <div class="flex gap-2">
             <button class="px-3 py-1 text-xs rounded-lg bg-slate-700/50 text-slate-300">7D</button>
@@ -1055,7 +1112,7 @@ function showLeagueMarketDetail(marketId, marketDataStr) {
       </h3>
       <div class="space-y-3 mb-6">
         ${market.outcomes.map((outcome, idx) => {
-    const color = LEAGUE_OUTCOME_COLORS[idx] || LEAGUE_OUTCOME_COLORS[0];
+    const color = colorPalette[idx] || colorPalette[0];
     const history = histories[idx];
     const change = history[history.length - 1] - history[0];
     const changeSign = change >= 0 ? '+' : '';
@@ -1067,12 +1124,12 @@ function showLeagueMarketDetail(marketId, marketDataStr) {
                 <div class="flex items-center gap-3">
                   <span class="w-3 h-3 rounded-full" style="background: ${color.line}"></span>
                   <div>
-                    <h4 class="text-white font-semibold">${outcome.name}</h4>
-                    <span class="text-xs ${change >= 0 ? 'text-green-400' : 'text-red-400'}">${changeSign}${change.toFixed(0)}% 30d</span>
+                    <h4 class="text-white font-semibold">${normalizeLeagueOutcomeName(outcome.name)}</h4>
+                    <span class="text-xs ${change >= 0 ? 'text-green-400' : 'text-red-400'}">${changeSign}${change.toFixed(0)}¢ 30d</span>
                   </div>
                 </div>
                 <div class="flex items-center gap-4">
-                  <span class="text-2xl font-bold" style="color: ${color.line}">${(outcome.odds / 100).toFixed(2)}</span>
+                  <span class="text-2xl font-bold" style="color: ${color.line}">${outcome.odds}¢</span>
                   <button onclick="event.stopPropagation(); this.closest('.fixed').remove(); openLeaguePredictionForm('${marketId}', ${idx}, '${outcome.name.replace(/'/g, "\\'")}', ${outcome.odds})"
                     class="bg-gradient-to-r from-yellow-500 to-yellow-600 hover:from-yellow-600 hover:to-yellow-700 text-slate-950 font-semibold px-4 py-2 rounded-lg transition-all">
                     Trade
@@ -1092,16 +1149,16 @@ function showLeagueMarketDetail(marketId, marketDataStr) {
         <h4 class="text-sm font-semibold text-slate-400 mb-3">Outcome Distribution</h4>
         <div class="h-4 rounded-full overflow-hidden flex">
           ${market.outcomes.map((outcome, idx) => {
-    const color = LEAGUE_OUTCOME_COLORS[idx] || LEAGUE_OUTCOME_COLORS[0];
+    const color = colorPalette[idx] || colorPalette[0];
     return `<div class="h-full transition-all relative group" style="width: ${outcome.odds}%; background: ${color.line}">
-              <span class="absolute inset-0 flex items-center justify-center text-[10px] font-bold text-white opacity-0 group-hover:opacity-100">${outcome.odds}%</span>
+              <span class="absolute inset-0 flex items-center justify-center text-[10px] font-bold text-white opacity-0 group-hover:opacity-100">${outcome.odds}¢</span>
             </div>`;
   }).join('')}
         </div>
         <div class="flex justify-between mt-2">
           ${market.outcomes.map((outcome, idx) => {
-    const color = LEAGUE_OUTCOME_COLORS[idx] || LEAGUE_OUTCOME_COLORS[0];
-    return `<span class="text-xs" style="color: ${color.line}">${outcome.name}</span>`;
+    const color = colorPalette[idx] || colorPalette[0];
+    return `<span class="text-xs" style="color: ${color.line}">${normalizeLeagueOutcomeName(outcome.name)}</span>`;
   }).join('')}
         </div>
       </div>
@@ -1113,9 +1170,11 @@ function showLeagueMarketDetail(marketId, marketDataStr) {
 
 /**
  * Create larger chart for detail view
+ * Uses binary colors for Yes/No, multi colors otherwise
  */
 function createLeagueDetailChart(marketId, outcomes, width, height) {
   const histories = generateLeagueMarketHistories(marketId, outcomes);
+  const colorPalette = getLeagueColors(outcomes);
   const gradientDefs = [];
   const areaPaths = [];
   const linePaths = [];
@@ -1124,7 +1183,7 @@ function createLeagueDetailChart(marketId, outcomes, width, height) {
 
   outcomes.forEach((outcome, idx) => {
     const history = histories[idx];
-    const color = LEAGUE_OUTCOME_COLORS[idx] || LEAGUE_OUTCOME_COLORS[0];
+    const color = colorPalette[idx] || colorPalette[0];
     const gradientId = `detail-grad-${marketId}-${idx}`;
     const currentY = 4 + (height - 8) - (outcome.odds / 100) * (height - 8);
 
@@ -1154,8 +1213,8 @@ function createLeagueDetailChart(marketId, outcomes, width, height) {
     legend.push(`
       <div class="flex items-center gap-2">
         <span class="w-3 h-3 rounded-full" style="background: ${color.line}"></span>
-        <span class="text-xs text-white font-medium">${outcome.name}</span>
-        <span class="text-xs font-bold" style="color: ${color.line}">${outcome.odds}%</span>
+        <span class="text-xs text-white font-medium">${normalizeLeagueOutcomeName(outcome.name)}</span>
+        <span class="text-xs font-bold" style="color: ${color.line}">${outcome.odds}¢</span>
         <span class="text-xs ${change >= 0 ? 'text-green-400' : 'text-red-400'}">${changeSign}${change.toFixed(0)}</span>
       </div>
     `);
@@ -1201,8 +1260,8 @@ function openLeaguePredictionForm(marketId, outcomeIdx, outcomeName, probability
         <p class="text-white font-semibold text-lg">${outcomeName}</p>
         <div class="flex items-center gap-4 mt-3">
           <div>
-            <p class="text-slate-500 text-xs">Probability</p>
-            <p class="text-yellow-400 text-2xl font-bold">${probability}%</p>
+            <p class="text-slate-500 text-xs">Price</p>
+            <p class="text-yellow-400 text-2xl font-bold">${probability}¢</p>
           </div>
           <div>
             <p class="text-slate-500 text-xs">Platform Fee</p>

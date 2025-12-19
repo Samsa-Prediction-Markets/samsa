@@ -40,6 +40,157 @@ app.get('/api/health', (req, res) => {
   res.json({ ok: true, service: 'samsa-api' });
 });
 
+// ============================================================================
+// LEAGUE STATS
+// ============================================================================
+
+// Get stats for a specific league (active markets, volume, predictions)
+app.get('/api/leagues/:leagueId/stats', async (req, res) => {
+  const { leagueId } = req.params;
+  const markets = await readJson(MARKETS_PATH);
+  const predictions = await readJson(PREDICTIONS_PATH);
+  
+  // Filter markets that belong to this league (by matching league ID in market data)
+  // For now, markets don't have league_id, so we return aggregated defaults
+  // When markets have league associations, filter by: m.league_id === leagueId
+  const leagueMarkets = markets.filter(m => m.league_id === leagueId && m.status === 'active');
+  
+  // Calculate stats
+  const activeMarkets = leagueMarkets.length;
+  const totalVolume = leagueMarkets.reduce((sum, m) => sum + (m.total_volume || 0), 0);
+  
+  // Count predictions for league markets
+  const leagueMarketIds = leagueMarkets.map(m => m.id);
+  const leaguePredictions = predictions.filter(p => leagueMarketIds.includes(p.market_id)).length;
+  
+  res.json({
+    league_id: leagueId,
+    active_markets: activeMarkets,
+    total_volume: totalVolume,
+    predictions: leaguePredictions
+  });
+});
+
+// ============================================================================
+// CURRENT EVENTS / TRENDING MARKETS
+// ============================================================================
+
+// Get markets based on current events (closing soon, high volume, trending topics)
+app.get('/api/markets/current-events', async (req, res) => {
+  const markets = await readJson(MARKETS_PATH);
+  const now = new Date();
+  const sixMonthsFromNow = new Date(now.getTime() + 180 * 24 * 60 * 60 * 1000);
+  
+  // Filter markets that are:
+  // 1. Active
+  // 2. Closing within the next 6 months (timely)
+  // 3. Have significant volume or are newly created
+  const currentEventMarkets = markets
+    .filter(m => m.status === 'active')
+    .filter(m => {
+      if (!m.close_date) return true;
+      const closeDate = new Date(m.close_date);
+      return closeDate <= sixMonthsFromNow && closeDate > now;
+    })
+    .sort((a, b) => {
+      // Sort by a combination of volume and how soon they close
+      const aClose = new Date(a.close_date || '2099-12-31');
+      const bClose = new Date(b.close_date || '2099-12-31');
+      const aUrgency = (aClose - now) / (1000 * 60 * 60 * 24); // days until close
+      const bUrgency = (bClose - now) / (1000 * 60 * 60 * 24);
+      
+      // Score: higher volume + sooner closing = higher score
+      const aScore = (a.total_volume || 0) / 1000 - aUrgency / 10;
+      const bScore = (b.total_volume || 0) / 1000 - bUrgency / 10;
+      return bScore - aScore;
+    });
+  
+  res.json(currentEventMarkets);
+});
+
+// Get trending markets (highest 24h volume)
+app.get('/api/markets/trending', async (req, res) => {
+  const markets = await readJson(MARKETS_PATH);
+  const limit = parseInt(req.query.limit) || 10;
+  
+  const trendingMarkets = markets
+    .filter(m => m.status === 'active')
+    .sort((a, b) => (b.total_volume || 0) - (a.total_volume || 0))
+    .slice(0, limit);
+  
+  res.json(trendingMarkets);
+});
+
+// Get markets by category
+app.get('/api/markets/category/:category', async (req, res) => {
+  const markets = await readJson(MARKETS_PATH);
+  const { category } = req.params;
+  
+  const categoryMarkets = markets.filter(m => 
+    m.status === 'active' && 
+    m.category.toLowerCase() === category.toLowerCase()
+  );
+  
+  res.json(categoryMarkets);
+});
+
+// Generate suggested markets based on current news topics
+app.get('/api/markets/suggestions', async (req, res) => {
+  // This returns template suggestions for new markets based on trending topics
+  const suggestions = [
+    {
+      topic: "Technology",
+      suggestions: [
+        { title: "Will OpenAI release GPT-5 by Q2 2025?", category: "technology" },
+        { title: "Will Apple's Vision Pro 2 launch in 2025?", category: "technology" },
+        { title: "Will TikTok be banned in the US?", category: "technology" }
+      ]
+    },
+    {
+      topic: "Politics",
+      suggestions: [
+        { title: "Will there be a government shutdown in Q1 2025?", category: "politics" },
+        { title: "Will immigration reform pass in 2025?", category: "politics" },
+        { title: "Will the debt ceiling be raised without crisis?", category: "politics" }
+      ]
+    },
+    {
+      topic: "Sports",
+      suggestions: [
+        { title: "Super Bowl LIX predictions", category: "sports" },
+        { title: "2025 NBA All-Star Game MVP", category: "sports" },
+        { title: "College Football Playoff Champion", category: "sports" }
+      ]
+    },
+    {
+      topic: "Entertainment", 
+      suggestions: [
+        { title: "2025 Grammy Awards predictions", category: "entertainment" },
+        { title: "Golden Globes Best Picture", category: "entertainment" },
+        { title: "2025 Oscar Best Picture", category: "entertainment" }
+      ]
+    },
+    {
+      topic: "Finance",
+      suggestions: [
+        { title: "Fed interest rate decisions", category: "finance" },
+        { title: "S&P 500 performance predictions", category: "finance" },
+        { title: "Cryptocurrency price predictions", category: "crypto" }
+      ]
+    },
+    {
+      topic: "International",
+      suggestions: [
+        { title: "Ukraine-Russia conflict resolution", category: "international" },
+        { title: "Middle East developments", category: "international" },
+        { title: "Global trade agreements", category: "international" }
+      ]
+    }
+  ];
+  
+  res.json(suggestions);
+});
+
 app.get('/api/markets', async (req, res) => {
   const markets = await readJson(MARKETS_PATH);
   res.json(markets);
@@ -192,26 +343,82 @@ app.post('/api/markets/:id/resolve', async (req, res) => {
 // WALLET / USER ENDPOINTS
 // ============================================================================
 
-// Get user balance
+/**
+ * Calculate user balance from transactions
+ * Balance = sum of deposits - sum of withdrawals - sum of active predictions
+ */
+async function calculateBalanceFromTransactions(userId) {
+  let transactions = [];
+  let predictions = [];
+  
+  try {
+    transactions = await readJson(TRANSACTIONS_PATH);
+  } catch (e) {
+    transactions = [];
+  }
+  
+  try {
+    predictions = await readJson(PREDICTIONS_PATH);
+  } catch (e) {
+    predictions = [];
+  }
+  
+  // Filter transactions for this user
+  const userTransactions = transactions.filter(t => t.user_id === userId);
+  
+  // Sum deposits (completed only)
+  const totalDeposits = userTransactions
+    .filter(t => t.type === 'deposit' && t.status === 'completed')
+    .reduce((sum, t) => sum + (t.amount || 0), 0);
+  
+  // Sum withdrawals (completed only)
+  const totalWithdrawals = userTransactions
+    .filter(t => t.type === 'withdrawal' && t.status === 'completed')
+    .reduce((sum, t) => sum + (t.amount || 0), 0);
+  
+  // Sum active prediction stakes (money locked in trades)
+  const activePredictionStakes = predictions
+    .filter(p => p.user_id === userId && p.status === 'active')
+    .reduce((sum, p) => sum + (p.stake_amount || 0), 0);
+  
+  // Balance = deposits - withdrawals - active stakes
+  const balance = totalDeposits - totalWithdrawals - activePredictionStakes;
+  
+  return {
+    balance: Math.max(0, balance), // Never negative
+    totalDeposits,
+    totalWithdrawals,
+    activePredictionStakes
+  };
+}
+
+// Get user balance (calculated from transactions)
 app.get('/api/users/:id/balance', async (req, res) => {
   const users = await readJson(USERS_PATH);
-  const user = users.find((u) => u.id === req.params.id);
+  let user = users.find((u) => u.id === req.params.id);
+  
   if (!user) {
     // Create default user if not found
-    const newUser = {
+    user = {
       id: req.params.id,
       username: 'user',
       email: '',
-      balance: 0,
-      total_deposited: 0,
-      total_withdrawn: 0,
       created_at: new Date().toISOString()
     };
-    users.push(newUser);
+    users.push(user);
     await writeJson(USERS_PATH, users);
-    return res.json({ balance: 0, user: newUser });
   }
-  res.json({ balance: user.balance, user });
+  
+  // Calculate balance from transactions (not stored value)
+  const balanceInfo = await calculateBalanceFromTransactions(req.params.id);
+  
+  res.json({ 
+    balance: balanceInfo.balance, 
+    total_deposited: balanceInfo.totalDeposits,
+    total_withdrawn: balanceInfo.totalWithdrawals,
+    active_stakes: balanceInfo.activePredictionStakes,
+    user 
+  });
 });
 
 // Deposit funds
@@ -235,19 +442,13 @@ app.post('/api/users/:id/deposit', async (req, res) => {
       id: req.params.id,
       username: 'user',
       email: '',
-      balance: 0,
-      total_deposited: 0,
-      total_withdrawn: 0,
       created_at: new Date().toISOString()
     };
     users.push(user);
+    await writeJson(USERS_PATH, users);
   }
 
-  // Update balance
-  user.balance = (user.balance || 0) + amount;
-  user.total_deposited = (user.total_deposited || 0) + amount;
-
-  // Record transaction
+  // Record transaction (balance is calculated from transactions, not stored)
   let transactions = [];
   try {
     transactions = await readJson(TRANSACTIONS_PATH);
@@ -262,19 +463,19 @@ app.post('/api/users/:id/deposit', async (req, res) => {
     amount,
     payment_method,
     status: 'completed',
-    balance_after: user.balance,
     created_at: new Date().toISOString()
   };
 
   transactions.push(transaction);
-
-  await writeJson(USERS_PATH, users);
   await writeJson(TRANSACTIONS_PATH, transactions);
+
+  // Calculate new balance from all transactions
+  const balanceInfo = await calculateBalanceFromTransactions(req.params.id);
 
   res.status(201).json({
     success: true,
     transaction,
-    new_balance: user.balance
+    new_balance: balanceInfo.balance
   });
 });
 
@@ -286,22 +487,29 @@ app.post('/api/users/:id/withdraw', async (req, res) => {
     return res.status(400).json({ error: 'Invalid withdrawal amount' });
   }
 
-  const users = await readJson(USERS_PATH);
-  const user = users.find((u) => u.id === req.params.id);
+  // Calculate current balance from transactions
+  const currentBalanceInfo = await calculateBalanceFromTransactions(req.params.id);
 
-  if (!user) {
-    return res.status(404).json({ error: 'User not found' });
-  }
-
-  if (user.balance < amount) {
+  if (currentBalanceInfo.balance < amount) {
     return res.status(400).json({ error: 'Insufficient balance' });
   }
 
-  // Update balance
-  user.balance -= amount;
-  user.total_withdrawn = (user.total_withdrawn || 0) + amount;
+  // Ensure user exists
+  const users = await readJson(USERS_PATH);
+  let user = users.find((u) => u.id === req.params.id);
 
-  // Record transaction
+  if (!user) {
+    user = {
+      id: req.params.id,
+      username: 'user',
+      email: '',
+      created_at: new Date().toISOString()
+    };
+    users.push(user);
+    await writeJson(USERS_PATH, users);
+  }
+
+  // Record transaction (balance is calculated from transactions, not stored)
   let transactions = [];
   try {
     transactions = await readJson(TRANSACTIONS_PATH);
@@ -315,20 +523,20 @@ app.post('/api/users/:id/withdraw', async (req, res) => {
     type: 'withdrawal',
     amount,
     withdrawal_method,
-    status: 'pending', // Withdrawals typically need processing
-    balance_after: user.balance,
+    status: 'completed', // For demo, mark as completed immediately
     created_at: new Date().toISOString()
   };
 
   transactions.push(transaction);
-
-  await writeJson(USERS_PATH, users);
   await writeJson(TRANSACTIONS_PATH, transactions);
+
+  // Calculate new balance from all transactions
+  const balanceInfo = await calculateBalanceFromTransactions(req.params.id);
 
   res.status(201).json({
     success: true,
     transaction,
-    new_balance: user.balance
+    new_balance: balanceInfo.balance
   });
 });
 

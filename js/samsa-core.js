@@ -175,56 +175,9 @@ const SPORT_LABEL_MAPPINGS = SPORT_MAPPINGS;
 // STATE
 // ============================================================================
 
-let markets = [
-  {
-    id: 'mkt_btc_100k',
-    title: 'Will Bitcoin reach $100,000 by end of 2025?',
-    description: 'Predict whether Bitcoin will hit the $100k milestone before December 31, 2025',
-    category: 'crypto',
-    closeDate: 'Dec 31, 2025',
-    outcomes: [
-      { id: 'yes', title: 'Yes', probability: 65, stake: 15000 },
-      { id: 'no', title: 'No', probability: 35, stake: 8000 }
-    ],
-    volume: 23000, volume24h: 3200, traders: 1247,
-    news: [
-      { title: 'Bitcoin ETF sees record inflows', source: 'CoinDesk', time: '2h ago' },
-      { title: 'Institutional adoption accelerates', source: 'Bloomberg', time: '5h ago' }
-    ]
-  },
-  {
-    id: 'mkt_nba_2025',
-    title: 'Who will win the 2025 NBA Championship?',
-    description: 'Predict the winner of the 2025 NBA Finals',
-    category: 'sports',
-    closeDate: 'Jun 1, 2025',
-    outcomes: [
-      { id: 'lakers', title: 'LA Lakers', probability: 30, stake: 12000 },
-      { id: 'celtics', title: 'Boston Celtics', probability: 25, stake: 10000 },
-      { id: 'warriors', title: 'Golden State Warriors', probability: 20, stake: 8000 },
-      { id: 'other', title: 'Other Team', probability: 25, stake: 10000 }
-    ],
-    volume: 40000, volume24h: 5600, traders: 2134,
-    news: [
-      { title: 'Lakers strengthen roster with key trade', source: 'ESPN', time: '1h ago' }
-    ]
-  },
-  {
-    id: 'mkt_ai_coding',
-    title: 'Will AI surpass human performance in coding by 2026?',
-    description: 'Will AI models achieve superhuman performance on standard coding benchmarks?',
-    category: 'technology',
-    closeDate: 'Jan 1, 2026',
-    outcomes: [
-      { id: 'yes', title: 'Yes', probability: 55, stake: 18000 },
-      { id: 'no', title: 'No', probability: 45, stake: 14000 }
-    ],
-    volume: 32000, volume24h: 4100, traders: 1876,
-    news: [
-      { title: 'New AI model shows 40% improvement', source: 'TechCrunch', time: '3h ago' }
-    ]
-  }
-];
+// Markets data - loaded from backend API
+// All values (probability, volume, traders, stake) are populated by backend
+let markets = [];
 
 let INTERESTS_DATA = {
   politics: [], sports: [], international: [], finance: [],
@@ -242,13 +195,13 @@ let predictions = [];
 // ============================================================================
 
 const Utils = {
-  formatCurrency: (value, currency = '$') => 
+  formatCurrency: (value, currency = '$') =>
     `${currency}${value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
-  
+
   formatPercentage: (value) => `${Math.round(value)}%`,
-  
+
   formatDate: (date) => new Date(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
-  
+
   formatRelativeTime: (date) => {
     const diffMs = Date.now() - new Date(date);
     const mins = Math.floor(diffMs / 60000);
@@ -259,7 +212,7 @@ const Utils = {
     if (mins > 0) return `${mins}m ago`;
     return 'just now';
   },
-  
+
   debounce: (func, wait) => {
     let timeout;
     return (...args) => {
@@ -267,12 +220,12 @@ const Utils = {
       timeout = setTimeout(() => func(...args), wait);
     };
   },
-  
+
   generateId: (prefix = 'id') => `${prefix}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-  
-  truncateText: (text, maxLength = 100) => 
+
+  truncateText: (text, maxLength = 100) =>
     text.length <= maxLength ? text : text.substring(0, maxLength - 3) + '...',
-  
+
   isEmpty: (value) => {
     if (value === null || value === undefined) return true;
     if (typeof value === 'string') return value.trim() === '';
@@ -302,22 +255,22 @@ const Storage = {
       localStorage.setItem(CONFIG.STORAGE_PREFIX + key, JSON.stringify(value));
     } catch (e) { console.error('Storage save error:', e); }
   },
-  
+
   load: (key, defaultValue = null) => {
     try {
       const item = localStorage.getItem(CONFIG.STORAGE_PREFIX + key);
       return item ? JSON.parse(item) : defaultValue;
-    } catch (e) { 
+    } catch (e) {
       console.error('Storage load error:', e);
       return defaultValue;
     }
   },
-  
+
   remove: (key) => {
-    try { localStorage.removeItem(CONFIG.STORAGE_PREFIX + key); } 
+    try { localStorage.removeItem(CONFIG.STORAGE_PREFIX + key); }
     catch (e) { console.error('Storage remove error:', e); }
   },
-  
+
   clear: () => {
     Object.keys(localStorage)
       .filter(key => key.startsWith(CONFIG.STORAGE_PREFIX))
@@ -347,10 +300,52 @@ function isFavorited(itemId) {
   return Storage.load('favorites', []).some(f => f.id === itemId);
 }
 
+// Dashboard section collapse/expand state
+const dashboardSectionStates = {
+  positions: false,
+  following: false,
+  watchlist: false,
+  interests: false
+};
+
+function toggleDashboardSection(section) {
+  const contentEl = document.getElementById(`${section}Content`);
+  const chevronEl = document.getElementById(`${section}Chevron`);
+  
+  if (!contentEl || !chevronEl) return;
+  
+  const isExpanded = dashboardSectionStates[section];
+  
+  if (isExpanded) {
+    // Collapse
+    contentEl.style.maxHeight = '0';
+    contentEl.style.paddingTop = '0';
+    contentEl.style.paddingBottom = '0';
+    chevronEl.style.transform = 'rotate(0deg)';
+  } else {
+    // Expand
+    contentEl.style.maxHeight = contentEl.scrollHeight + 100 + 'px';
+    contentEl.style.paddingTop = '0';
+    contentEl.style.paddingBottom = '1.25rem';
+    chevronEl.style.transform = 'rotate(180deg)';
+  }
+  
+  dashboardSectionStates[section] = !isExpanded;
+}
+
+// Initialize dashboard sections (expand all by default on page load)
+function initDashboardSections() {
+  ['positions', 'following', 'watchlist', 'interests'].forEach(section => {
+    // Start expanded
+    dashboardSectionStates[section] = false;
+    toggleDashboardSection(section);
+  });
+}
+
 async function toggleFavorite(itemId, itemName, itemType, category) {
   const favorites = Storage.load('favorites', []);
   const index = favorites.findIndex(f => f.id === itemId);
-  
+
   if (index >= 0) {
     favorites.splice(index, 1);
     saveLocalFavorites(favorites);
@@ -361,6 +356,55 @@ async function toggleFavorite(itemId, itemName, itemType, category) {
     return true;
   }
 }
+
+// Watchlist storage (for markets/events)
+let localWatchlist = [];
+
+function loadWatchlist() {
+  const stored = Storage.load('watchlist', []);
+  localWatchlist.length = 0;
+  localWatchlist.push(...stored);
+  return stored;
+}
+
+function saveWatchlist(watchlist) {
+  Storage.save('watchlist', watchlist);
+}
+
+function isWatchlisted(marketId) {
+  return Storage.load('watchlist', []).some(w => w.id === marketId);
+}
+
+async function toggleWatchlist(marketId, marketTitle, category) {
+  const watchlist = Storage.load('watchlist', []);
+  const index = watchlist.findIndex(w => w.id === marketId);
+
+  if (index >= 0) {
+    watchlist.splice(index, 1);
+    saveWatchlist(watchlist);
+    updateSidebarWatchlist();
+    return false;
+  } else {
+    watchlist.push({
+      id: marketId,
+      title: marketTitle,
+      category,
+      addedAt: new Date().toISOString()
+    });
+    saveWatchlist(watchlist);
+    updateSidebarWatchlist();
+    return true;
+  }
+}
+
+// Make watchlist functions globally available
+window.isWatchlisted = isWatchlisted;
+window.toggleWatchlist = toggleWatchlist;
+window.loadWatchlist = loadWatchlist;
+
+// Make dashboard section toggle functions globally available
+window.toggleDashboardSection = toggleDashboardSection;
+window.initDashboardSections = initDashboardSections;
 
 // Predictions storage
 function loadPredictions() { return Storage.load('predictions', []); }
@@ -403,19 +447,25 @@ const API = {
     console.log(`API Status: ${apiConnected ? '✓ Connected' : '✗ Offline'}`);
     return apiConnected;
   },
-  
+
   isConnected: () => apiConnected,
-  
+
   // Markets
   getMarkets: () => apiCall('/markets'),
   getMarket: (id) => apiCall(`/markets/${id}`),
   createMarket: (data) => apiCall('/markets', { method: 'POST', body: JSON.stringify(data) }),
   resolveMarket: (id, winningOutcomeId) => apiCall(`/markets/${id}/resolve`, { method: 'POST', body: JSON.stringify({ winning_outcome_id: winningOutcomeId }) }),
-  
+
+  // Current Events & Trending Markets
+  getCurrentEvents: () => apiCall('/markets/current-events'),
+  getTrending: (limit = 10) => apiCall(`/markets/trending?limit=${limit}`),
+  getByCategory: (category) => apiCall(`/markets/category/${category}`),
+  getSuggestions: () => apiCall('/markets/suggestions'),
+
   // Predictions
   getPredictions: (marketId = null) => apiCall(`/predictions${marketId ? `?market_id=${marketId}` : ''}`),
   createPrediction: (data) => apiCall('/predictions', { method: 'POST', body: JSON.stringify(data) }),
-  
+
   // Favorites
   getFavorites: (userId = 'demo') => apiCall(`/favorites?user_id=${userId}`),
   addFavorite: (data) => apiCall('/favorites', { method: 'POST', body: JSON.stringify(data) }),
@@ -431,11 +481,11 @@ window.SamsaApi = API;
 async function fetchWithCache(url, options = {}) {
   const cacheKey = `${url}_${JSON.stringify(options)}`;
   const cached = dataCache.get(cacheKey);
-  
+
   if (cached && Date.now() - cached.timestamp < CONFIG.CACHE_TTL) {
     return cached.data;
   }
-  
+
   const response = await fetch(url, options);
   if (!response.ok) throw new Error(`HTTP ${response.status}`);
   const data = await response.json();
@@ -466,18 +516,18 @@ async function loadJsonFile(path) {
 
 async function loadAllInterestsData() {
   console.log('Loading interests data...');
-  
+
   // Map items preserving multi-category labels
   const mapToInterest = (items, category) => items.map(item => ({
-    id: item.id, 
-    wikidataId: item.id, 
-    name: item.name, 
-    image: item.icon, 
+    id: item.id,
+    wikidataId: item.id,
+    name: item.name,
+    image: item.icon,
     category,
     // Include additional categories for multi-category items
     categories: item.categories ? [category, ...item.categories] : [category]
   }));
-  
+
   INTERESTS_DATA.politics = mapToInterest(TOPICS.politics, 'politics');
   INTERESTS_DATA.sports = mapToInterest(SPORTS, 'sports');
   INTERESTS_DATA.international = mapToInterest(TOPICS.international, 'international');
@@ -489,7 +539,7 @@ async function loadAllInterestsData() {
   INTERESTS_DATA.technology = mapToInterest(TOPICS.technology, 'technology');
   INTERESTS_DATA.arts_and_culture = mapToInterest(TOPICS.arts_and_culture, 'arts_and_culture');
   INTERESTS_DATA.social = mapToInterest(TOPICS.social, 'social');
-  
+
   const totalCount = Object.values(INTERESTS_DATA).reduce((sum, arr) => sum + arr.length, 0);
   console.log(`Loaded ${totalCount} interests`);
 }
@@ -501,7 +551,7 @@ async function loadAllInterestsData() {
 function filterMarketsBySearch(marketsList, searchTerm) {
   if (!searchTerm) return marketsList;
   const term = searchTerm.toLowerCase();
-  return marketsList.filter(m => 
+  return marketsList.filter(m =>
     m.title.toLowerCase().includes(term) ||
     m.description.toLowerCase().includes(term) ||
     m.category.toLowerCase().includes(term)

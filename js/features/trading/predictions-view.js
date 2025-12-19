@@ -7,6 +7,20 @@
 // Use LMSR engine constants and functions
 const PLATFORM_FEE = window.LMSR ? window.LMSR.PLATFORM_FEE : 0.01;
 
+/**
+ * Normalize outcome title - converts "Yes, Banned" → "Yes", "No, Still Operating" → "No"
+ */
+function normalizePredictionOutcomeTitle(title) {
+  const lower = (title || '').toLowerCase().trim();
+  if (lower === 'yes' || lower.startsWith('yes,') || lower.startsWith('yes ')) {
+    return 'Yes';
+  }
+  if (lower === 'no' || lower.startsWith('no,') || lower.startsWith('no ')) {
+    return 'No';
+  }
+  return title;
+}
+
 // Wrapper functions that delegate to LMSR engine
 function calcWinProfit(stake, probability, fee = PLATFORM_FEE) {
   return window.LMSR ? window.LMSR.calcWinProfit(stake, probability, fee) : stake * (1 - (probability > 1 ? probability / 100 : probability)) * (1 - fee);
@@ -23,6 +37,200 @@ function calcLossAmount(stake, probability) {
 function calcLoseReturn(stake, probability) {
   return window.LMSR ? window.LMSR.calcLoseReturn(stake, probability) : stake * (probability > 1 ? probability / 100 : probability);
 }
+
+// Track currently selected outcome for inline form
+let currentInlineSelection = null;
+
+/**
+ * Show inline trading form in the sidebar (replaces stats card temporarily)
+ */
+function showInlineTradingForm(marketId, outcomeId) {
+  const market = markets.find(m => String(m.id) === String(marketId));
+  if (!market) {
+    console.error('Market not found:', marketId);
+    return;
+  }
+  const outcome = market.outcomes.find(o => String(o.id) === String(outcomeId));
+  if (!outcome) {
+    console.error('Outcome not found:', outcomeId);
+    return;
+  }
+  
+  const probability = outcome.probability;
+  const container = document.getElementById('inlineTradingForm');
+  const statsCard = document.getElementById('statsCard');
+  
+  if (!container) {
+    // Fallback to modal if container doesn't exist
+    openPredictionForm(marketId, outcomeId);
+    return;
+  }
+
+  // Update button states - highlight selected
+  document.querySelectorAll('.outcome-btn').forEach(btn => {
+    btn.classList.remove('ring-2', 'ring-yellow-500', 'ring-offset-2', 'ring-offset-slate-950');
+  });
+  const selectedBtn = document.getElementById(`outcomeBtn-${outcomeId}`);
+  if (selectedBtn) {
+    selectedBtn.classList.add('ring-2', 'ring-yellow-500', 'ring-offset-2', 'ring-offset-slate-950');
+  }
+
+  // Store current selection
+  currentInlineSelection = { marketId, outcomeId, probability };
+
+  // Hide stats card and show trading form
+  if (statsCard) statsCard.classList.add('hidden');
+  container.classList.remove('hidden');
+
+  // Determine colors based on outcome
+  const isYes = normalizePredictionOutcomeTitle(outcome.title).toLowerCase() === 'yes';
+  const isBinary = market.outcomes.length === 2 && 
+    market.outcomes.some(o => normalizePredictionOutcomeTitle(o.title).toLowerCase() === 'yes') &&
+    market.outcomes.some(o => normalizePredictionOutcomeTitle(o.title).toLowerCase() === 'no');
+
+  container.innerHTML = `
+    <div class="bg-slate-900/80 border border-yellow-500/50 rounded-xl overflow-hidden">
+      <div class="px-4 py-3 border-b border-slate-800 flex items-center justify-between">
+        <div class="flex items-center gap-2">
+          <span class="text-white font-semibold text-sm">Place Trade</span>
+          <span class="px-2 py-0.5 rounded text-xs font-medium ${isBinary ? (isYes ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400') : 'bg-yellow-500/20 text-yellow-400'}">${normalizePredictionOutcomeTitle(outcome.title)}</span>
+        </div>
+        <button onclick="hideInlineTradingForm()" class="text-slate-400 hover:text-white text-sm">✕</button>
+      </div>
+      
+      <div class="p-4 space-y-4">
+        <!-- Price Display -->
+        <div class="flex items-center justify-between">
+          <span class="text-slate-400 text-sm">Current Price</span>
+          <span class="text-2xl font-bold ${isBinary ? (isYes ? 'text-green-400' : 'text-red-400') : 'text-yellow-400'}">${probability}¢</span>
+        </div>
+
+        <!-- Investment Input -->
+        <div>
+          <label class="text-slate-400 text-xs mb-1 block">Investment Amount</label>
+          <div class="relative">
+            <span class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500">$</span>
+            <input type="number" id="inlineStakeAmount" min="1" step="0.01" placeholder="0.00" 
+              class="w-full bg-slate-800 border border-slate-700 text-white rounded-lg pl-7 pr-4 py-2.5 focus:outline-none focus:border-yellow-500/50 text-lg" />
+          </div>
+        </div>
+
+        <!-- Quick Amounts -->
+        <div class="flex gap-2">
+          ${['5', '10', '25', '50', '100'].map(amt => `
+            <button onclick="document.getElementById('inlineStakeAmount').value='${amt}'; updateInlineTradeCalculations(${amt}, ${probability})" 
+              class="flex-1 py-1.5 text-xs rounded-md bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-white transition-colors">$${amt}</button>
+          `).join('')}
+        </div>
+
+        <!-- Trade Outcomes - Compact -->
+        <div class="grid grid-cols-2 gap-2">
+          <div class="bg-green-500/10 border border-green-500/20 rounded-lg p-3">
+            <p class="text-green-400 text-xs font-medium mb-1">If Win</p>
+            <p class="text-green-400 font-bold" id="inlineWinReturn">$0.00</p>
+            <p class="text-green-400/70 text-xs" id="inlineWinProfit">+$0.00</p>
+          </div>
+          <div class="bg-red-500/10 border border-red-500/20 rounded-lg p-3">
+            <p class="text-red-400 text-xs font-medium mb-1">If Lose</p>
+            <p class="text-yellow-400 font-bold" id="inlineLoseReturn">$0.00</p>
+            <p class="text-red-400/70 text-xs" id="inlineLossAmount">-$0.00</p>
+          </div>
+        </div>
+
+        <!-- Balance -->
+        <div class="flex items-center justify-between text-xs">
+          <span class="text-slate-500">Available Balance</span>
+          <span class="text-green-400 font-medium">$${typeof getBalance === 'function' ? getBalance().toFixed(2) : '0.00'}</span>
+        </div>
+
+        <!-- Confirm Button -->
+        <button onclick="submitInlinePrediction('${marketId}', '${outcomeId}', ${probability})" 
+          class="w-full bg-gradient-to-r from-yellow-500 to-yellow-600 hover:from-yellow-600 hover:to-yellow-700 text-slate-950 font-bold py-3 rounded-lg transition-all">
+          Confirm Trade
+        </button>
+      </div>
+    </div>
+  `;
+
+  // Add input listener for real-time calculations
+  document.getElementById('inlineStakeAmount').addEventListener('input', function(e) {
+    updateInlineTradeCalculations(parseFloat(e.target.value) || 0, probability);
+  });
+  
+  // Focus the input
+  setTimeout(() => document.getElementById('inlineStakeAmount').focus(), 100);
+}
+
+/**
+ * Hide inline trading form and show stats card again
+ */
+function hideInlineTradingForm() {
+  const container = document.getElementById('inlineTradingForm');
+  const statsCard = document.getElementById('statsCard');
+  
+  if (container) container.classList.add('hidden');
+  if (statsCard) statsCard.classList.remove('hidden');
+  
+  // Remove highlight from buttons
+  document.querySelectorAll('.outcome-btn').forEach(btn => {
+    btn.classList.remove('ring-2', 'ring-yellow-500', 'ring-offset-2', 'ring-offset-slate-950');
+  });
+  
+  currentInlineSelection = null;
+}
+
+/**
+ * Update inline trade calculations
+ */
+function updateInlineTradeCalculations(stake, probability) {
+  const p = probability / 100;
+  
+  const winProfit = calcWinProfit(stake, p);
+  const winReturn = calcWinReturn(stake, p);
+  const lossAmount = calcLossAmount(stake, p);
+  const loseReturn = calcLoseReturn(stake, p);
+  
+  const winReturnEl = document.getElementById('inlineWinReturn');
+  const winProfitEl = document.getElementById('inlineWinProfit');
+  const loseReturnEl = document.getElementById('inlineLoseReturn');
+  const lossAmountEl = document.getElementById('inlineLossAmount');
+  
+  if (winReturnEl) winReturnEl.textContent = '$' + winReturn.toFixed(2);
+  if (winProfitEl) winProfitEl.textContent = '+$' + winProfit.toFixed(2);
+  if (loseReturnEl) loseReturnEl.textContent = '$' + loseReturn.toFixed(2);
+  if (lossAmountEl) lossAmountEl.textContent = '-$' + lossAmount.toFixed(2);
+}
+
+/**
+ * Submit prediction from inline form
+ */
+async function submitInlinePrediction(marketId, outcomeId, probability) {
+  const stake = parseFloat(document.getElementById('inlineStakeAmount').value) || 0;
+  
+  if (stake <= 0) {
+    alert('Please enter a valid investment amount');
+    return;
+  }
+  
+  // Check balance
+  if (typeof hasSufficientBalance === 'function' && !hasSufficientBalance(stake)) {
+    const currentBalance = typeof getBalance === 'function' ? getBalance() : 0;
+    alert(`Insufficient balance. You have $${currentBalance.toFixed(2)} available.`);
+    return;
+  }
+
+  // Use the existing submitPrediction logic
+  await submitPrediction(marketId, outcomeId, probability);
+  
+  // Hide inline form after successful submission
+  hideInlineTradingForm();
+}
+
+// Make functions globally available
+window.showInlineTradingForm = showInlineTradingForm;
+window.hideInlineTradingForm = hideInlineTradingForm;
+window.updateInlineTradeCalculations = updateInlineTradeCalculations;
+window.submitInlinePrediction = submitInlinePrediction;
 
 function openPredictionForm(marketId, outcomeId) {
   // Handle both string and numeric IDs
@@ -50,11 +258,11 @@ function openPredictionForm(marketId, outcomeId) {
       <!-- Market Info -->
       <div class="bg-slate-800/50 rounded-xl p-4 mb-6">
         <p class="text-slate-400 text-sm mb-1">Trading on</p>
-        <p class="text-white font-semibold text-lg">${outcome.title}</p>
+        <p class="text-white font-semibold text-lg">${normalizePredictionOutcomeTitle(outcome.title)}</p>
         <div class="flex items-center gap-4 mt-3">
           <div>
-            <p class="text-slate-500 text-xs">Probability</p>
-            <p class="text-yellow-400 text-2xl font-bold">${probability}%</p>
+            <p class="text-slate-500 text-xs">Price</p>
+            <p class="text-yellow-400 text-2xl font-bold">${probability}¢</p>
           </div>
           <div>
             <p class="text-slate-500 text-xs">Platform Fee</p>
@@ -76,9 +284,9 @@ function openPredictionForm(marketId, outcomeId) {
         </div>
         
         <!-- Trade Outcomes -->
-        <div class="grid grid-cols-2 gap-4">
+        <div class="flex gap-4">
           <!-- If Win -->
-          <div class="bg-green-500/10 border border-green-500/30 rounded-xl p-4">
+          <div class="flex-1 bg-green-500/10 border border-green-500/30 rounded-xl p-4">
             <div class="flex items-center gap-2 mb-3">
               <span class="text-green-400 text-lg">✓</span>
               <p class="text-green-400 font-semibold">If You Win</p>
@@ -100,7 +308,7 @@ function openPredictionForm(marketId, outcomeId) {
           </div>
           
           <!-- If Lose -->
-          <div class="bg-red-500/10 border border-red-500/30 rounded-xl p-4">
+          <div class="flex-1 bg-red-500/10 border border-red-500/30 rounded-xl p-4">
             <div class="flex items-center gap-2 mb-3">
               <span class="text-red-400 text-lg">✗</span>
               <p class="text-red-400 font-semibold">If You Lose</p>
@@ -119,18 +327,6 @@ function openPredictionForm(marketId, outcomeId) {
                 <span class="text-yellow-400 text-xs font-medium" id="loseReturnPercent">0%</span>
               </div>
             </div>
-          </div>
-        </div>
-        
-        <!-- Summary -->
-        <div class="bg-slate-800/30 rounded-xl p-4 border border-slate-700/50">
-          <div class="flex justify-between items-center mb-2">
-            <span class="text-slate-400 text-sm">Risk/Reward</span>
-            <span class="text-white font-semibold" id="riskReward">-</span>
-          </div>
-          <div class="text-xs text-slate-500">
-            <p>• Win ${probability}% of trades: Profit = Investment × ${(100 - probability).toFixed(0)}% × ${((1 - PLATFORM_FEE) * 100).toFixed(0)}%</p>
-            <p>• Lose ${100 - probability}% of trades: Keep = Investment × ${probability}%</p>
           </div>
         </div>
         
@@ -172,10 +368,6 @@ function updateTradeCalculations(stake, probability) {
   document.getElementById('loseReturn').textContent = '$' + loseReturn.toFixed(2);
   document.getElementById('lossAmount').textContent = '-$' + lossAmount.toFixed(2);
   document.getElementById('loseReturnPercent').textContent = loseReturnPercent + '%';
-  
-  // Risk/Reward ratio
-  const riskReward = winProfit > 0 ? (lossAmount / winProfit).toFixed(2) : '-';
-  document.getElementById('riskReward').textContent = `1:${riskReward}`;
 }
 
 async function submitPrediction(marketId, outcomeId, probability) {

@@ -31,6 +31,12 @@ document.addEventListener('DOMContentLoaded', async function () {
 
   // Show dashboard/portfolio by default
   showDashboard();
+  updateActiveNavItem('dashboard');
+  
+  // Initialize portfolio chart
+  if (typeof initPortfolioChart === 'function') {
+    initPortfolioChart();
+  }
 
   console.log('✓ Samsa initialized');
 });

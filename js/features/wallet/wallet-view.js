@@ -10,6 +10,9 @@ const DEFAULT_USER_ID = 'user_default';
 let walletState = {
   userId: DEFAULT_USER_ID,
   balance: 0,
+  totalDeposited: 0,
+  totalWithdrawn: 0,
+  activeStakes: 0,
   isLoading: false,
   transactions: []
 };
@@ -26,11 +29,25 @@ async function initializeWallet() {
     if (response.ok) {
       const data = await response.json();
       walletState.balance = data.balance || 0;
-      console.log('✅ Wallet initialized, balance:', walletState.balance);
+      walletState.totalDeposited = data.total_deposited || 0;
+      walletState.totalWithdrawn = data.total_withdrawn || 0;
+      walletState.activeStakes = data.active_stakes || 0;
+      console.log('✅ Wallet initialized:', {
+        balance: walletState.balance,
+        totalDeposited: walletState.totalDeposited,
+        totalWithdrawn: walletState.totalWithdrawn
+      });
+    } else {
+      // API returned error, start with $0
+      walletState.balance = 0;
+      walletState.totalDeposited = 0;
+      walletState.totalWithdrawn = 0;
     }
   } catch (error) {
     console.log('⚠️ Could not fetch wallet balance:', error.message);
-    walletState.balance = 1000; // Default balance for demo
+    walletState.balance = 0;
+    walletState.totalDeposited = 0;
+    walletState.totalWithdrawn = 0;
   }
   
   walletState.isLoading = false;
@@ -62,6 +79,11 @@ function updateWalletUI() {
   const depositBalanceEl = document.getElementById('depositCurrentBalance');
   if (depositBalanceEl) {
     depositBalanceEl.textContent = `$${walletState.balance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  }
+  
+  // Update portfolio chart to sync with new values
+  if (typeof updatePortfolioChart === 'function') {
+    updatePortfolioChart();
   }
 }
 
@@ -246,6 +268,7 @@ async function confirmDeposit() {
     if (response.ok) {
       const data = await response.json();
       walletState.balance = data.new_balance;
+      walletState.totalDeposited += amount; // Track total deposited
       updateWalletUI();
       
       // Show success
@@ -276,6 +299,7 @@ async function confirmDeposit() {
   } catch (error) {
     // Demo mode fallback - just add the balance locally
     walletState.balance += amount;
+    walletState.totalDeposited += amount; // Track total deposited
     updateWalletUI();
     
     const modal = document.getElementById('depositModal');
@@ -403,6 +427,7 @@ async function confirmWithdraw() {
     if (response.ok) {
       const data = await response.json();
       walletState.balance = data.new_balance;
+      walletState.totalWithdrawn += amount; // Track total withdrawn
       updateWalletUI();
       closeWithdrawModal();
       alert(`Withdrawal of $${amount.toFixed(2)} initiated. It will be processed in 1-3 business days.`);
@@ -415,6 +440,7 @@ async function confirmWithdraw() {
   } catch (error) {
     // Demo mode fallback
     walletState.balance -= amount;
+    walletState.totalWithdrawn += amount; // Track total withdrawn
     updateWalletUI();
     closeWithdrawModal();
     alert(`Demo withdrawal of $${amount.toFixed(2)} processed.`);

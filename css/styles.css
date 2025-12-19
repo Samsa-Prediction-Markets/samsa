@@ -167,7 +167,7 @@ body {
 
 .sidebar-item.active .sidebar-item-icon,
 .sidebar-item.active .sidebar-item-icon svg {
-  color: rgb(212, 175, 55);
+  color: rgba(212, 175, 55, 1);
 }
 
 .sidebar-item-text {
@@ -175,6 +175,10 @@ body {
   font-weight: 500;
   opacity: 0;
   transition: opacity 0.3s;
+}
+
+.sidebar-item.active .sidebar-item-text {
+  color: rgba(212, 175, 55, 1);
 }
 
 .sidebar:hover .sidebar-item-text {
@@ -316,6 +320,7 @@ body {
     opacity: 0;
     transform: translateX(20px);
   }
+
   to {
     opacity: 1;
     transform: translateX(0);
@@ -383,6 +388,8 @@ body {
 /* Market card animations */
 .market-card {
   transition: transform 0.2s ease, box-shadow 0.2s ease;
+  break-inside: avoid;
+  margin-bottom: 1.5rem;
 }
 
 .market-card:hover {
@@ -426,6 +433,77 @@ button:focus-visible {
 }
 
 /* Ensure buttons and clickable elements are interactive */
-button, a, [onclick], .cursor-pointer {
+button,
+a,
+[onclick],
+.cursor-pointer {
   pointer-events: auto;
+}
+
+/* ========================================
+   Logo Shine Animation
+   ======================================== */
+
+.logo-container {
+  position: relative;
+  display: inline-block;
+  cursor: pointer;
+}
+
+.logo-container .logo-base {
+  display: block;
+  opacity: 1;
+  transition: opacity 0.4s ease-out;
+}
+
+.logo-container .logo-shine {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 107.5%;
+  width: 107.5%;
+  transform: scale(1.075);
+  object-fit: contain;
+  object-position: left center;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.4s ease-out;
+}
+
+/* Hover effect - transition from base to shine */
+.logo-container:hover .logo-base {
+  opacity: 0;
+}
+
+.logo-container:hover .logo-shine {
+  opacity: 1;
+}
+
+/* Additional glow effect on container */
+.logo-container:hover {
+  filter: drop-shadow(0 0 8px rgba(212, 175, 55, 0.3));
+}
+
+/* Custom scrollbar for sidebar */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 4px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #334155;
+  border-radius: 4px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #475569;
+}
+
+/* Firefox scrollbar */
+.custom-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: #334155 transparent;
 }

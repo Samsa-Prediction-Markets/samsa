@@ -2,6 +2,44 @@
 // SAMSA - LMSR ENGINE
 // Logarithmic Market Scoring Rule with Risk-Weighted Rebate Model
 // ============================================================================
+//
+// FORMULAS IMPLEMENTED:
+// ─────────────────────────────────────────────────────────────────────────────
+//
+// Pricing (Probability):
+//   p = e^(qY/b) / (e^(qY/b) + e^(qN/b))
+//
+// Risk-Weighted Pressure Update:
+//   ∆q = S(1 − p)
+//
+// State Update:
+//   YES trade: qY ← qY + S(1 − p)
+//   NO trade:  qN ← qN + S(1 − p)
+//
+// Local Probability Change (Approximation):
+//   ∆p ≈ (p(1 − p) / b) · S(1 − p)
+//
+// Settlement (Rebated-Risk Model):
+//   Win profit:       S(1 − p)(1 − f)
+//   Loss:             S(1 − p)
+//   Refund on loss:   Sp
+//   Platform revenue: Sf(1 − p)
+//
+// Inverse Relationship:
+//   qY − qN = b · ln(p / (1 − p))
+//
+// VARIABLES:
+// ─────────────────────────────────────────────────────────────────────────────
+//   qY : YES confidence pressure (dollars of downside risk)
+//   qN : NO confidence pressure (dollars of downside risk)
+//   b  : liquidity parameter (dollars of downside risk)
+//   p  : market confidence/probability for YES (0-1)
+//   S  : user stake (dollars)
+//   f  : platform fee fraction (e.g., 0.01 = 1%)
+//
+// UNITS:
+//   q and b are measured in dollars of downside risk
+// ============================================================================
 
 /**
  * LMSR Market Class
@@ -10,36 +48,37 @@
  */
 class LMSRMarket {
   /**
-   * @param {number} b - Liquidity parameter (higher = more stable prices)
-   * @param {number} initialProbability - Starting probability (0-1)
+   * Create a new LMSR market
+   * @param {number} b - Liquidity parameter in dollars (higher = more stable prices)
+   * @param {number} initialProbability - Starting probability (0-1), default 0.5
    */
   constructor(b = 100, initialProbability = 0.5) {
     this.b = b;
-    // Initialize qYes and qNo to achieve desired initial probability
-    // p = e^(qYes/b) / (e^(qYes/b) + e^(qNo/b))
-    // For equal odds: qYes = qNo = 0 gives p = 0.5
-    // To set custom initial probability, we adjust qYes
+    
+    // Initialize qY and qN using the inverse relationship:
+    // qY − qN = b · ln(p / (1 − p))
+    // We set qN = 0 and derive qY from desired probability
     if (initialProbability !== 0.5) {
-      // Derive qYes from desired probability (with qNo = 0)
-      // p = e^(qYes/b) / (e^(qYes/b) + 1)
-      // Solving: qYes = b * ln(p / (1 - p))
       const clampedP = Math.max(0.01, Math.min(0.99, initialProbability));
-      this.qYes = b * Math.log(clampedP / (1 - clampedP));
-      this.qNo = 0;
+      // qY = b · ln(p / (1 − p)) when qN = 0
+      this.qY = this.b * Math.log(clampedP / (1 - clampedP));
+      this.qN = 0;
     } else {
-      this.qYes = 0;
-      this.qNo = 0;
+      // For p = 0.5: qY = qN = 0 (since ln(1) = 0)
+      this.qY = 0;
+      this.qN = 0;
     }
   }
 
   /**
    * Get current market probability for YES outcome
+   * Formula: p = e^(qY/b) / (e^(qY/b) + e^(qN/b))
    * @returns {number} Probability between 0 and 1
    */
   getProbability() {
-    const eYes = Math.exp(this.qYes / this.b);
-    const eNo = Math.exp(this.qNo / this.b);
-    return eYes / (eYes + eNo);
+    const expQY = Math.exp(this.qY / this.b);
+    const expQN = Math.exp(this.qN / this.b);
+    return expQY / (expQY + expQN);
   }
 
   /**
@@ -51,55 +90,140 @@ class LMSRMarket {
   }
 
   /**
-   * Risk-weighted investment on YES or NO
-   * Investment pressure is weighted by downside risk (1 - p)
-   * @param {"YES" | "NO"} side - Side to invest on
-   * @param {number} stake - Amount to invest
-   * @returns {number} New probability after investment (clamped 0.05-0.95)
+   * Calculate the expected probability change for a given stake
+   * Formula: ∆p ≈ (p(1 − p) / b) · S(1 − p)
+   * @param {"YES" | "NO"} side - Side being traded
+   * @param {number} stake - Amount to invest (S)
+   * @returns {number} Approximate probability change
    */
-  invest(side, stake) {
+  estimateProbabilityChange(side, stake) {
     const p = this.getProbability();
-    // Risk-weighted pressure based on downside risk
-    const deltaQ = stake * (1 - p);
-
-    if (side === "YES") {
-      this.qYes += deltaQ;
-    } else {
-      this.qNo += deltaQ;
-    }
-
-    // Return clamped probability
-    const newP = this.getProbability();
-    return Math.max(0.05, Math.min(0.95, newP));
+    const S = stake;
+    
+    // ∆p ≈ (p(1 − p) / b) · S(1 − p)
+    const deltaP = (p * (1 - p) / this.b) * S * (1 - p);
+    
+    // YES trades increase p, NO trades decrease p
+    return side === "YES" ? deltaP : -deltaP;
   }
 
   /**
-   * Get market state for persistence
-   * @returns {Object} Market state
+   * Calculate the risk-weighted pressure update
+   * Formula: ∆q = S(1 − p)
+   * @param {number} stake - Amount to invest (S)
+   * @returns {number} Pressure delta
    */
-  getState() {
+  calcDeltaQ(stake) {
+    const p = this.getProbability();
+    return stake * (1 - p);
+  }
+
+  /**
+   * Place a risk-weighted investment on YES or NO
+   * State Update:
+   *   YES trade: qY ← qY + S(1 − p)
+   *   NO trade:  qN ← qN + S(1 − p)
+   * 
+   * @param {"YES" | "NO"} side - Side to invest on
+   * @param {number} stake - Amount to invest (S in dollars)
+   * @returns {Object} Investment result with old/new probability and delta
+   */
+  invest(side, stake) {
+    const oldP = this.getProbability();
+    
+    // Calculate risk-weighted pressure: ∆q = S(1 − p)
+    const deltaQ = stake * (1 - oldP);
+
+    // State Update
+    if (side === "YES") {
+      // qY ← qY + S(1 − p)
+      this.qY += deltaQ;
+    } else {
+      // qN ← qN + S(1 − p)
+      this.qN += deltaQ;
+    }
+
+    const newP = this.getProbability();
+    
+    // Clamp to prevent extreme values
+    const clampedP = Math.max(0.01, Math.min(0.99, newP));
+
     return {
-      qYes: this.qYes,
-      qNo: this.qNo,
-      b: this.b,
-      probability: this.getProbability()
+      oldProbability: oldP,
+      newProbability: clampedP,
+      deltaQ: deltaQ,
+      deltaP: newP - oldP,
+      side: side,
+      stake: stake
     };
   }
 
   /**
-   * Restore market state
+   * Verify the inverse relationship: qY − qN = b · ln(p / (1 − p))
+   * This should always hold true (useful for debugging)
+   * @returns {Object} Verification result
+   */
+  verifyInverseRelationship() {
+    const p = this.getProbability();
+    const lhs = this.qY - this.qN;
+    const rhs = this.b * Math.log(p / (1 - p));
+    const difference = Math.abs(lhs - rhs);
+    
+    return {
+      qY_minus_qN: lhs,
+      b_times_ln: rhs,
+      difference: difference,
+      isValid: difference < 0.0001 // Account for floating point errors
+    };
+  }
+
+  /**
+   * Get complete market state for persistence or display
+   * @returns {Object} Market state
+   */
+  getState() {
+    const p = this.getProbability();
+    return {
+      qY: this.qY,
+      qN: this.qN,
+      b: this.b,
+      probability: p,
+      probabilityPercent: p * 100,
+      // Verify inverse relationship
+      inverseCheck: this.verifyInverseRelationship()
+    };
+  }
+
+  /**
+   * Restore market state from saved data
    * @param {Object} state - Previously saved state
    */
   setState(state) {
-    if (state.qYes !== undefined) this.qYes = state.qYes;
-    if (state.qNo !== undefined) this.qNo = state.qNo;
+    if (state.qY !== undefined) this.qY = state.qY;
+    if (state.qN !== undefined) this.qN = state.qN;
     if (state.b !== undefined) this.b = state.b;
+  }
+
+  /**
+   * Reset market to a specific probability
+   * Uses inverse relationship: qY − qN = b · ln(p / (1 − p))
+   * @param {number} probability - Target probability (0-1)
+   */
+  resetToProbability(probability) {
+    const clampedP = Math.max(0.01, Math.min(0.99, probability));
+    this.qY = this.b * Math.log(clampedP / (1 - clampedP));
+    this.qN = 0;
   }
 }
 
 // ============================================================================
-// SETTLEMENT CALCULATIONS
-// These use the rebated-risk model where losers get back stake * probability
+// SETTLEMENT CALCULATIONS (Rebated-Risk Model)
+// ============================================================================
+//
+// Win profit:       S(1 − p)(1 − f)  - Winner gets profit minus platform fee
+// Loss:             S(1 − p)         - Amount at risk
+// Refund on loss:   Sp               - Loser gets back stake × probability
+// Platform revenue: Sf(1 − p)        - Platform fee on winning trades
 // ============================================================================
 
 const LMSR = {
@@ -107,149 +231,224 @@ const LMSR = {
   PLATFORM_FEE: 0.01,
 
   /**
-   * Calculate win profit: S × (1-p) × (1-f)
+   * Calculate win profit
+   * Formula: S(1 − p)(1 − f)
    * Winner gets profit proportional to risk taken, minus platform fee
-   * @param {number} stake - Investment amount
-   * @param {number} probability - Probability (0-1 or 0-100)
-   * @param {number} fee - Platform fee (default 1%)
-   * @returns {number} Profit amount
+   * 
+   * @param {number} stake - Investment amount (S)
+   * @param {number} probability - Probability at trade time (p), 0-1 or 0-100
+   * @param {number} fee - Platform fee fraction (f), default 0.01
+   * @returns {number} Profit amount in dollars
    */
   calcWinProfit(stake, probability, fee = this.PLATFORM_FEE) {
+    const S = stake;
     const p = probability > 1 ? probability / 100 : probability;
-    return stake * (1 - p) * (1 - fee);
+    const f = fee;
+    
+    // Win profit = S(1 − p)(1 − f)
+    return S * (1 - p) * (1 - f);
   },
 
   /**
-   * Calculate total return on win: stake + profit
-   * @param {number} stake - Investment amount
-   * @param {number} probability - Probability (0-1 or 0-100)
-   * @param {number} fee - Platform fee
-   * @returns {number} Total return
+   * Calculate total return on win
+   * Formula: S + S(1 − p)(1 − f) = S[1 + (1 − p)(1 − f)]
+   * 
+   * @param {number} stake - Investment amount (S)
+   * @param {number} probability - Probability (p), 0-1 or 0-100
+   * @param {number} fee - Platform fee (f)
+   * @returns {number} Total return in dollars
    */
   calcWinReturn(stake, probability, fee = this.PLATFORM_FEE) {
     return stake + this.calcWinProfit(stake, probability, fee);
   },
 
   /**
-   * Calculate loss amount: S × (1-p)
-   * Amount lost is proportional to risk
-   * @param {number} stake - Investment amount
-   * @param {number} probability - Probability (0-1 or 0-100)
-   * @returns {number} Loss amount
+   * Calculate loss amount (amount at risk)
+   * Formula: S(1 − p)
+   * 
+   * @param {number} stake - Investment amount (S)
+   * @param {number} probability - Probability (p), 0-1 or 0-100
+   * @returns {number} Loss amount in dollars
    */
   calcLossAmount(stake, probability) {
+    const S = stake;
     const p = probability > 1 ? probability / 100 : probability;
-    return stake * (1 - p);
+    
+    // Loss = S(1 − p)
+    return S * (1 - p);
   },
 
   /**
-   * Calculate refund on loss: S × p
-   * Loser gets back their stake proportional to probability (rebate)
-   * @param {number} stake - Investment amount
-   * @param {number} probability - Probability (0-1 or 0-100)
-   * @returns {number} Refund amount
+   * Calculate refund on loss (rebate)
+   * Formula: Sp
+   * Loser gets back their stake proportional to probability
+   * 
+   * @param {number} stake - Investment amount (S)
+   * @param {number} probability - Probability (p), 0-1 or 0-100
+   * @returns {number} Refund amount in dollars
    */
   calcLoseReturn(stake, probability) {
+    const S = stake;
     const p = probability > 1 ? probability / 100 : probability;
-    return stake * p;
+    
+    // Refund on loss = Sp
+    return S * p;
   },
 
   /**
-   * Calculate platform revenue from a trade
-   * Revenue = S × (1-p) × f (only collected on wins)
-   * @param {number} stake - Investment amount
-   * @param {number} probability - Probability (0-1 or 0-100)
-   * @param {number} fee - Platform fee
-   * @returns {number} Platform revenue
+   * Calculate platform revenue from a winning trade
+   * Formula: Sf(1 − p)
+   * Platform only collects fee when user wins
+   * 
+   * @param {number} stake - Investment amount (S)
+   * @param {number} probability - Probability (p), 0-1 or 0-100
+   * @param {number} fee - Platform fee fraction (f)
+   * @returns {number} Platform revenue in dollars
    */
   calcPlatformRevenue(stake, probability, fee = this.PLATFORM_FEE) {
+    const S = stake;
     const p = probability > 1 ? probability / 100 : probability;
-    return stake * (1 - p) * fee;
+    const f = fee;
+    
+    // Platform revenue = Sf(1 − p)
+    return S * f * (1 - p);
   },
 
   /**
    * Full settlement calculation
-   * @param {number} stake - Investment amount
-   * @param {number} probability - Probability at time of trade (0-1 or 0-100)
+   * Applies the rebated-risk model for trade resolution
+   * 
+   * @param {number} stake - Investment amount (S)
+   * @param {number} probability - Probability at time of trade (p), 0-1 or 0-100
    * @param {boolean} didWin - Whether the trade won
-   * @param {number} fee - Platform fee
-   * @returns {Object} Settlement result
+   * @param {number} fee - Platform fee (f)
+   * @returns {Object} Complete settlement result
    */
   settleTrade(stake, probability, didWin, fee = this.PLATFORM_FEE) {
-    const p = probability > 1 ? probability / 100 : probability;
     const S = stake;
+    const p = probability > 1 ? probability / 100 : probability;
     const f = fee;
 
-    const profit = S * (1 - p) * (1 - f);
-    const platformRevenue = S * (1 - p) * f;
-    const loss = S * (1 - p);
-    const refund = S * p;
+    // Calculate all values using formulas
+    const winProfit = S * (1 - p) * (1 - f);      // S(1 − p)(1 − f)
+    const platformRevenue = S * f * (1 - p);      // Sf(1 − p)
+    const loss = S * (1 - p);                      // S(1 − p)
+    const refund = S * p;                          // Sp
 
     if (didWin) {
       return {
         outcome: "WIN",
-        userNet: profit,
-        totalReturn: S + profit,
-        platformRevenue
+        stake: S,
+        probability: p,
+        profit: winProfit,
+        totalReturn: S + winProfit,
+        userNet: winProfit,
+        platformRevenue: platformRevenue,
+        formula: `Win profit = S(1-p)(1-f) = ${S}×${(1-p).toFixed(4)}×${(1-f).toFixed(4)} = ${winProfit.toFixed(2)}`
       };
     } else {
       return {
         outcome: "LOSE",
-        userNet: -loss,
+        stake: S,
+        probability: p,
+        loss: loss,
         refund: refund,
         totalReturn: refund,
-        platformRevenue: 0 // Platform only earns on wins
+        userNet: -loss,
+        platformRevenue: 0, // Platform only earns on wins
+        formula: `Refund = Sp = ${S}×${p.toFixed(4)} = ${refund.toFixed(2)}`
       };
     }
   },
 
   /**
    * Calculate risk/reward ratio
-   * @param {number} stake - Investment amount
-   * @param {number} probability - Probability (0-1 or 0-100)
-   * @param {number} fee - Platform fee
+   * @param {number} stake - Investment amount (S)
+   * @param {number} probability - Probability (p), 0-1 or 0-100
+   * @param {number} fee - Platform fee (f)
    * @returns {string} Risk/reward ratio string
    */
   calcRiskReward(stake, probability, fee = this.PLATFORM_FEE) {
     const winProfit = this.calcWinProfit(stake, probability, fee);
     const lossAmount = this.calcLossAmount(stake, probability);
+    
     if (winProfit <= 0) return "-";
-    return `1:${(lossAmount / winProfit).toFixed(2)}`;
+    
+    // Risk:Reward = Loss:Profit
+    const ratio = lossAmount / winProfit;
+    return `1:${ratio.toFixed(2)}`;
+  },
+
+  /**
+   * Calculate implied odds from probability
+   * @param {number} probability - Probability (0-1 or 0-100)
+   * @returns {Object} Implied odds in various formats
+   */
+  calcImpliedOdds(probability) {
+    const p = probability > 1 ? probability / 100 : probability;
+    
+    return {
+      decimal: 1 / p,
+      fractional: `${Math.round((1 - p) * 100)}/${Math.round(p * 100)}`,
+      american: p >= 0.5 
+        ? Math.round(-100 * p / (1 - p))
+        : Math.round(100 * (1 - p) / p),
+      percentage: p * 100
+    };
   },
 
   /**
    * Get full trade breakdown for UI display
-   * @param {number} stake - Investment amount
+   * Shows all values with their formulas
+   * 
+   * @param {number} stake - Investment amount (S)
    * @param {number} probability - Probability (0-100)
-   * @param {number} fee - Platform fee
-   * @returns {Object} Complete trade breakdown
+   * @param {number} fee - Platform fee (f)
+   * @returns {Object} Complete trade breakdown with formulas
    */
   getTradeBreakdown(stake, probability, fee = this.PLATFORM_FEE) {
+    const S = stake;
     const p = probability > 1 ? probability / 100 : probability;
+    const f = fee;
     
-    const winProfit = this.calcWinProfit(stake, p, fee);
-    const winReturn = this.calcWinReturn(stake, p, fee);
-    const lossAmount = this.calcLossAmount(stake, p);
-    const loseReturn = this.calcLoseReturn(stake, p);
-    const platformRevenue = this.calcPlatformRevenue(stake, p, fee);
+    const winProfit = S * (1 - p) * (1 - f);
+    const winReturn = S + winProfit;
+    const lossAmount = S * (1 - p);
+    const loseReturn = S * p;
+    const platformRevenue = S * f * (1 - p);
 
     return {
-      stake,
+      // Input values
+      stake: S,
       probability: p,
       probabilityPercent: p * 100,
-      fee,
+      fee: f,
+      feePercent: f * 100,
+      
+      // Win scenario
       win: {
         profit: winProfit,
         totalReturn: winReturn,
-        returnPercent: stake > 0 ? (winReturn / stake) * 100 : 0
+        returnPercent: S > 0 ? (winReturn / S) * 100 : 0,
+        formula: `S(1-p)(1-f) = ${S}×(1-${p.toFixed(4)})×(1-${f}) = $${winProfit.toFixed(2)}`
       },
+      
+      // Lose scenario (with rebate)
       lose: {
         loss: lossAmount,
         refund: loseReturn,
-        returnPercent: stake > 0 ? (loseReturn / stake) * 100 : 0
+        returnPercent: S > 0 ? (loseReturn / S) * 100 : 0,
+        lossFormula: `S(1-p) = ${S}×(1-${p.toFixed(4)}) = $${lossAmount.toFixed(2)}`,
+        refundFormula: `Sp = ${S}×${p.toFixed(4)} = $${loseReturn.toFixed(2)}`
       },
-      riskReward: this.calcRiskReward(stake, p, fee),
-      platformRevenue
+      
+      // Platform
+      platformRevenue: platformRevenue,
+      platformFormula: `Sf(1-p) = ${S}×${f}×(1-${p.toFixed(4)}) = $${platformRevenue.toFixed(2)}`,
+      
+      // Risk metrics
+      riskReward: this.calcRiskReward(S, p, f),
+      impliedOdds: this.calcImpliedOdds(p)
     };
   }
 };
@@ -267,8 +466,8 @@ class LMSRMarketManager {
   /**
    * Create or get a market
    * @param {string} marketId - Unique market identifier
-   * @param {number} b - Liquidity parameter
-   * @param {number} initialProbability - Starting probability
+   * @param {number} b - Liquidity parameter in dollars
+   * @param {number} initialProbability - Starting probability (0-1)
    * @returns {LMSRMarket} Market instance
    */
   getOrCreateMarket(marketId, b = 100, initialProbability = 0.5) {
@@ -291,8 +490,8 @@ class LMSRMarketManager {
    * Place investment on a market
    * @param {string} marketId - Market identifier
    * @param {"YES" | "NO"} side - Side to invest on
-   * @param {number} stake - Amount to invest
-   * @returns {Object} Investment result with new probability
+   * @param {number} stake - Amount to invest in dollars
+   * @returns {Object} Investment result with probability changes and breakdown
    */
   invest(marketId, side, stake) {
     const market = this.markets.get(marketId);
@@ -301,16 +500,20 @@ class LMSRMarketManager {
     }
 
     const oldProbability = market.getProbability();
-    const newProbability = market.invest(side, stake);
+    const estimatedDeltaP = market.estimateProbabilityChange(side, stake);
+    const result = market.invest(side, stake);
 
     return {
       marketId,
       side,
       stake,
       oldProbability,
-      newProbability,
-      probabilityChange: newProbability - oldProbability,
-      breakdown: LMSR.getTradeBreakdown(stake, oldProbability)
+      newProbability: result.newProbability,
+      deltaQ: result.deltaQ,
+      actualDeltaP: result.deltaP,
+      estimatedDeltaP: estimatedDeltaP,
+      breakdown: LMSR.getTradeBreakdown(stake, oldProbability),
+      marketState: market.getState()
     };
   }
 
@@ -352,6 +555,8 @@ window.LMSR = LMSR;
 window.lmsrManager = lmsrManager;
 window.LMSRMarketManager = LMSRMarketManager;
 
-// Log initialization
-console.log('LMSR Engine initialized');
-
+// Log initialization with formula summary
+console.log('LMSR Engine initialized with formulas:');
+console.log('  Pricing: p = e^(qY/b) / (e^(qY/b) + e^(qN/b))');
+console.log('  Pressure: ∆q = S(1-p)');
+console.log('  Win: S(1-p)(1-f), Lose refund: Sp');
