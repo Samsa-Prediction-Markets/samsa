@@ -17,6 +17,10 @@ let walletState = {
   transactions: []
 };
 
+let stripeInstance = null;
+let stripeElements = null;
+let stripeCard = null;
+
 /**
  * Initialize wallet - fetch balance from API
  */
@@ -169,6 +173,12 @@ function openDepositModal() {
           </div>
         </div>
         
+        <div id="cardContainer" class="mt-2">
+          <label class="text-white font-medium mb-2 block">Card Details</label>
+          <div id="card-element" class="w-full bg-slate-800 border border-slate-700 text-white rounded-lg px-4 py-3"></div>
+          <div id="card-errors" class="mt-2 text-sm text-red-400 hidden"></div>
+        </div>
+        
         <!-- New Balance Preview -->
         <div id="newBalancePreview" class="hidden bg-green-500/10 border border-green-500/30 rounded-xl p-4">
           <div class="flex justify-between">
@@ -181,10 +191,12 @@ function openDepositModal() {
           class="w-full bg-gradient-to-r from-yellow-500 to-yellow-600 hover:from-yellow-600 hover:to-yellow-700 text-slate-950 font-bold py-3 rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed" disabled>
           Deposit Funds
         </button>
+        <button id="subscribeBtn" onclick="startSubscription()" 
+          class="w-full mt-2 bg-slate-800 border border-slate-700 hover:border-slate-600 text-white font-bold py-3 rounded-lg transition-all">
+          Subscribe Monthly
+        </button>
         
-        <p class="text-slate-500 text-xs text-center">
-          Demo mode: No real payment required. Funds are added instantly.
-        </p>
+        <p id="depositHint" class="text-slate-500 text-xs text-center">Secure payment powered by Stripe</p>
       </div>
     </div>
   `;
@@ -196,6 +208,19 @@ function openDepositModal() {
   });
   
   setTimeout(() => document.getElementById('depositAmount').focus(), 100);
+  
+  if (!stripeInstance && window.STRIPE_CONFIG && window.STRIPE_CONFIG.publishableKey) {
+    stripeInstance = Stripe(window.STRIPE_CONFIG.publishableKey);
+    stripeElements = stripeInstance.elements();
+    stripeCard = stripeElements.create('card');
+    stripeCard.mount('#card-element');
+  }
+  if (!stripeInstance) {
+    const hint = document.getElementById('depositHint');
+    const btn = document.getElementById('confirmDepositBtn');
+    if (hint) hint.textContent = 'Stripe not configured — set publishable key';
+    if (btn) btn.disabled = true;
+  }
 }
 
 /**
@@ -240,6 +265,42 @@ function updateDepositPreview(amount) {
   }
 }
 
+async function startSubscription() {
+  const priceId = (window.STRIPE_CONFIG && window.STRIPE_CONFIG.defaultPriceId) ? window.STRIPE_CONFIG.defaultPriceId : '';
+  if (!priceId) {
+    alert('Subscription price is not configured');
+    return;
+  }
+  const btn = document.getElementById('subscribeBtn');
+  btn.disabled = true;
+  btn.textContent = 'Redirecting...';
+  try {
+    const res = await fetch('/api/payments/create-checkout-session', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId: walletState.userId, priceId })
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'Failed to start subscription');
+    }
+    const data = await res.json();
+    if (data.id) {
+      const r = await stripeInstance.redirectToCheckout({ sessionId: data.id });
+      if (r.error) {
+        alert(r.error.message || 'Redirect failed');
+      }
+    } else if (data.url) {
+      window.location.href = data.url;
+    }
+  } catch (e) {
+    alert(e.message || 'Subscription failed');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Subscribe Monthly';
+  }
+}
+
 /**
  * Confirm deposit
  */
@@ -255,71 +316,64 @@ async function confirmDeposit() {
   confirmBtn.disabled = true;
   confirmBtn.innerHTML = '<span class="animate-pulse">Processing...</span>';
   
+  if (selectedPaymentMethod !== 'card') {
+    alert('Please use card for deposits');
+    confirmBtn.disabled = false;
+    confirmBtn.innerHTML = 'Deposit Funds';
+    return;
+  }
   try {
-    const response = await fetch(`/api/users/${walletState.userId}/deposit`, {
+    const intentRes = await fetch(`/api/payments/create-intent`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        amount,
-        payment_method: selectedPaymentMethod
-      })
+      body: JSON.stringify({ userId: walletState.userId, amount, currency: 'usd' })
     });
-    
-    if (response.ok) {
-      const data = await response.json();
-      walletState.balance = data.new_balance;
-      walletState.totalDeposited += amount; // Track total deposited
-      updateWalletUI();
-      
-      // Show success
-      const modal = document.getElementById('depositModal');
-      modal.innerHTML = `
-        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 max-w-md w-full text-center">
-          <div class="w-16 h-16 bg-green-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
-            <span class="text-green-400 text-3xl">✓</span>
-          </div>
-          <h3 class="text-xl font-bold text-white mb-2">Deposit Successful!</h3>
-          <p class="text-slate-400 mb-4">$${amount.toFixed(2)} has been added to your account.</p>
-          <div class="bg-slate-800/50 rounded-xl p-4 mb-4">
-            <p class="text-slate-400 text-sm">New Balance</p>
-            <p class="text-2xl font-bold text-green-400">$${walletState.balance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
-          </div>
-          <button onclick="closeDepositModal()" 
-            class="w-full bg-gradient-to-r from-yellow-500 to-yellow-600 text-slate-950 font-bold py-3 rounded-lg">
-            Done
-          </button>
-        </div>
-      `;
-    } else {
-      const error = await response.json();
-      alert('Deposit failed: ' + (error.error || 'Unknown error'));
+    if (!intentRes.ok) {
+      const err = await intentRes.json().catch(() => ({}));
+      throw new Error(err.error || 'Failed to create payment intent');
+    }
+    const { client_secret } = await intentRes.json();
+    const result = await stripeInstance.confirmCardPayment(client_secret, {
+      payment_method: { card: stripeCard }
+    });
+    if (result.error) {
+      const errEl = document.getElementById('card-errors');
+      if (errEl) {
+        errEl.textContent = result.error.message || 'Payment failed';
+        errEl.classList.remove('hidden');
+      }
       confirmBtn.disabled = false;
       confirmBtn.innerHTML = 'Deposit Funds';
+      return;
     }
-  } catch (error) {
-    // Demo mode fallback - just add the balance locally
-    walletState.balance += amount;
-    walletState.totalDeposited += amount; // Track total deposited
-    updateWalletUI();
-    
     const modal = document.getElementById('depositModal');
     modal.innerHTML = `
       <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 max-w-md w-full text-center">
-        <div class="w-16 h-16 bg-yellow-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
-          <span class="text-yellow-400 text-3xl">✓</span>
+        <div class="w-16 h-16 bg-green-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
+          <span class="text-green-400 text-3xl">✓</span>
         </div>
-        <h3 class="text-xl font-bold text-white mb-2">Demo Deposit Added!</h3>
-        <p class="text-slate-400 mb-4">$${amount.toFixed(2)} has been added to your demo account.</p>
-        <div class="bg-slate-800/50 rounded-xl p-4 mb-4">
-          <p class="text-slate-400 text-sm">New Balance</p>
-          <p class="text-2xl font-bold text-yellow-400">$${walletState.balance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
-        </div>
+        <h3 class="text-xl font-bold text-white mb-2">Payment Succeeded</h3>
+        <p class="text-slate-400 mb-4">Your deposit is being confirmed.</p>
         <button onclick="closeDepositModal()" 
           class="w-full bg-gradient-to-r from-yellow-500 to-yellow-600 text-slate-950 font-bold py-3 rounded-lg">
           Done
         </button>
       </div>
     `;
+    const balRes = await fetch(`/api/users/${walletState.userId}/balance`);
+    if (balRes.ok) {
+      const data = await balRes.json();
+      walletState.balance = data.balance || walletState.balance;
+      updateWalletUI();
+    }
+  } catch (e) {
+    const errEl = document.getElementById('card-errors');
+    if (errEl) {
+      errEl.textContent = e.message || 'Payment failed';
+      errEl.classList.remove('hidden');
+    }
+    confirmBtn.disabled = false;
+    confirmBtn.innerHTML = 'Deposit Funds';
   }
 }
 
@@ -493,4 +547,4 @@ window.deductBalance = deductBalance;
 window.addBalance = addBalance;
 window.updateWalletUI = updateWalletUI;
 window.walletState = walletState;
-
+window.startSubscription = startSubscription;

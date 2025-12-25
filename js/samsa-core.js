@@ -514,6 +514,126 @@ async function loadJsonFile(path) {
   }
 }
 
+// ============================================================================
+// AUTH
+// ============================================================================
+
+const Auth = (() => {
+  let supabaseClient = null;
+  let currentSession = null;
+  function hasConfig() {
+    return typeof window.SUPABASE_CONFIG === 'object' && window.SUPABASE_CONFIG.url && window.SUPABASE_CONFIG.anonKey;
+  }
+  function init() {
+    if (!hasConfig()) return false;
+    const { url, anonKey } = window.SUPABASE_CONFIG;
+    supabaseClient = window.supabase.createClient(url, anonKey, { auth: { persistSession: false, autoRefreshToken: false } });
+    supabaseClient.auth.getSession().then(({ data }) => {
+      currentSession = data.session || null;
+    });
+    supabaseClient.auth.onAuthStateChange((_event, session) => {
+      currentSession = session || null;
+      if (currentSession) {
+        document.getElementById('authView')?.classList.add('hidden');
+        document.getElementById('dashboardView')?.classList.remove('hidden');
+      }
+    });
+    return true;
+  }
+  function ready() {
+    return !!supabaseClient;
+  }
+  function session() {
+    return currentSession;
+  }
+  function validateEmail(email) {
+    const e = (email || '').trim();
+    if (!e || e.length > 254) return false;
+    if (/[\x00-\x1F\x7F]/.test(e)) return false;
+    if (typeof document !== 'undefined') {
+      const input = document.createElement('input');
+      input.setAttribute('type', 'email');
+      input.value = e;
+      if (input.checkValidity()) return true;
+    }
+    const parts = e.split('@');
+    if (parts.length !== 2) return false;
+    const local = parts[0];
+    const domain = parts[1];
+    if (!local || !domain) return false;
+    if (local.length > 64) return false;
+    if (!domain.includes('.')) return false;
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/u;
+    return emailRegex.test(e);
+  }
+  function validatePassword(pw) {
+    if (typeof pw !== 'string') return false;
+    const t = pw.trim();
+    if (t.length < 8) return false;
+    return true;
+  }
+  async function login(email, password) {
+    if (!supabaseClient) throw new Error('Auth not initialized');
+    const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
+    if (error) {
+      const msg = error.message || 'Login failed';
+      throw new Error(msg);
+    }
+    currentSession = data.session || null;
+    return data;
+  }
+  async function signup(email, password) {
+    if (!supabaseClient) throw new Error('Auth not initialized');
+    const origin = typeof window !== 'undefined' ? window.location.origin : undefined;
+    const { data, error } = await supabaseClient.auth.signUp({ email, password, options: { emailRedirectTo: origin } });
+    if (error) {
+      const msg = error.message || 'Signup failed';
+      throw new Error(msg);
+    }
+    const user = data.user || null;
+    if (user) {
+      try {
+        await saveUserProfile(user);
+      } catch (e) {}
+    }
+    return data;
+  }
+  async function resetPassword(email, redirectTo) {
+    if (!supabaseClient) throw new Error('Auth not initialized');
+    const { data, error } = await supabaseClient.auth.resetPasswordForEmail(email, { redirectTo });
+    if (error) {
+      const msg = error.message || 'Reset failed';
+      throw new Error(msg);
+    }
+    return data;
+  }
+  async function updatePassword(newPassword) {
+    if (!supabaseClient) throw new Error('Auth not initialized');
+    const { data, error } = await supabaseClient.auth.updateUser({ password: newPassword });
+    if (error) {
+      const msg = error.message || 'Update failed';
+      throw new Error(msg);
+    }
+    return data;
+  }
+  async function logout() {
+    if (!supabaseClient) return;
+    await supabaseClient.auth.signOut();
+    currentSession = null;
+  }
+  async function saveUserProfile(user) {
+    if (!supabaseClient || !user) return;
+    const payload = { id: user.id, email: user.email, created_at: new Date().toISOString() };
+    let res = await supabaseClient.from('profiles').upsert(payload, { onConflict: 'id' });
+    if (res.error) {
+      await supabaseClient.from('users').upsert(payload, { onConflict: 'id' });
+    }
+  }
+  return { init, ready, session, login, signup, resetPassword, updatePassword, logout, validateEmail, validatePassword };
+})();
+
+window.Auth = Auth;
+
 async function loadAllInterestsData() {
   console.log('Loading interests data...');
 
@@ -591,4 +711,3 @@ function applyMarketFilters(marketsList, options = {}) {
 // ============================================================================
 
 console.log('%c[SAMSA] Core v5.0 loaded', 'color: yellow; font-weight: bold');
-

@@ -133,6 +133,58 @@ samsa/
 | POST | `/api/users/:id/withdraw` | Withdraw funds |
 | GET | `/api/users/:id/transactions` | Transaction history |
 
+### Payments (Stripe)
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/payments/create-intent` | Create PaymentIntent for wallet deposit |
+| POST | `/api/payments/create-checkout-session` | Create Checkout Session for subscriptions |
+| POST | `/api/stripe/webhook` | Stripe webhook for payment confirmations |
+
+## 💳 Stripe Integration
+
+### Setup
+- Create a Stripe account and obtain keys:
+  - `STRIPE_PUBLISHABLE_KEY` and `STRIPE_SECRET_KEY`
+  - Optional: `STRIPE_DEFAULT_PRICE_ID` for subscriptions
+- Add keys to `.env`:
+  ```
+  STRIPE_PUBLISHABLE_KEY=pk_test_...
+  STRIPE_SECRET_KEY=sk_test_...
+  STRIPE_WEBHOOK_SECRET=whsec_...
+  STRIPE_DEFAULT_PRICE_ID=price_...
+  ```
+- Start server and expose keys to client via `/config/stripe.js`.
+
+### One‑Time Deposits
+- Client uses Stripe Elements in the Dashboard “Buying Power” modal.
+- Server creates PaymentIntents with user metadata.
+- Webhook confirms `payment_intent.succeeded` and credits balance via transactions.
+
+### Recurring Subscriptions
+- Client starts a subscription from the deposit modal using Stripe Checkout.
+- Server creates a Session with `mode=subscription` and user metadata.
+- Webhook credits funds on `invoice.payment_succeeded`.
+
+### Security
+- Card data never touches the server; Stripe.js handles tokenization.
+- Webhook uses raw body and signature verification; ensure `STRIPE_WEBHOOK_SECRET` is set.
+- Server validates amounts, currency, and userId.
+
+## 🧪 Testing
+- Use Stripe test keys in `.env`.
+- Test cards:
+  - Success: `4242 4242 4242 4242`
+  - Insufficient funds: `4000 0000 0000 9995`
+  - Lost card: `4000 0000 0000 0341`
+- Webhook:
+  - Forward events to `http://localhost:3001/api/stripe/webhook` using Stripe CLI.
+  - Set `STRIPE_WEBHOOK_SECRET` from the CLI output.
+
+## 🛠️ Troubleshooting
+- Webhook signature errors: verify raw body route is mounted before `express.json()` and secret matches.
+- Card confirmation errors: check publishable key exposure via `/config/stripe.js` and ensure Stripe script loads.
+- Subscription redirects: confirm `STRIPE_DEFAULT_PRICE_ID` exists and is active in Stripe.
+
 ## 🎨 Tech Stack
 
 - **Frontend**: Vanilla JavaScript, Tailwind CSS, HTML5
@@ -180,4 +232,3 @@ ISC License
 ---
 
 **Samsa** - *Trade on what you believe* 🦋
-
