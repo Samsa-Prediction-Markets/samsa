@@ -209,5 +209,108 @@
     "image_url": "https://images.unsplash.com/photo-1677442136019-21780ecad995?w=800",
     "winning_outcome_id": null,
     "search_keywords": "openai gpt5 gpt-5 ai artificial intelligence chatgpt"
+  },
+  {
+    "id": "mkt_eu_expansion",
+    "title": "Will Ukraine join the European Union by 2027?",
+    "description": "Predict whether Ukraine will officially become an EU member state before January 1, 2027",
+    "category": "international",
+    "status": "active",
+    "close_date": "2027-01-01T00:00:00.000Z",
+    "resolution_date": null,
+    "outcomes": [
+      { "id": "yes", "title": "Yes", "probability": 0, "total_stake": 0 },
+      { "id": "no", "title": "No", "probability": 0, "total_stake": 0 }
+    ],
+    "total_volume": 0,
+    "image_url": "https://images.unsplash.com/photo-1526304640581-d334cdbbf45e?w=800",
+    "winning_outcome_id": null,
+    "search_keywords": "ukraine eu european union membership expansion geopolitics"
+  },
+  {
+    "id": "mkt_india_elections",
+    "title": "Who will win the 2029 Indian General Election?",
+    "description": "Predict which party will form the government after India's next general election",
+    "category": "international",
+    "status": "active",
+    "close_date": "2029-05-31T00:00:00.000Z",
+    "resolution_date": null,
+    "outcomes": [
+      { "id": "bjp", "title": "BJP-led NDA", "probability": 0, "total_stake": 0 },
+      { "id": "congress", "title": "Congress-led Alliance", "probability": 0, "total_stake": 0 },
+      { "id": "other", "title": "Other Coalition", "probability": 0, "total_stake": 0 }
+    ],
+    "total_volume": 0,
+    "image_url": "https://images.unsplash.com/photo-1524492412937-b28074a5d7da?w=800",
+    "winning_outcome_id": null,
+    "search_keywords": "india election bjp congress modi parliament general election"
+  },
+  {
+    "id": "mkt_china_taiwan",
+    "title": "Will China and Taiwan hold official diplomatic talks in 2025?",
+    "description": "Predict whether high-level official diplomatic meetings will occur between China and Taiwan in 2025",
+    "category": "international",
+    "status": "active",
+    "close_date": "2025-12-31T00:00:00.000Z",
+    "resolution_date": null,
+    "outcomes": [
+      { "id": "yes", "title": "Yes", "probability": 0, "total_stake": 0 },
+      { "id": "no", "title": "No", "probability": 0, "total_stake": 0 }
+    ],
+    "total_volume": 0,
+    "image_url": "https://images.unsplash.com/photo-1535083783855-76ae62b2914e?w=800",
+    "winning_outcome_id": null,
+    "search_keywords": "china taiwan diplomacy talks relations cross-strait"
+  },
+  {
+    "id": "mkt_brics_expansion",
+    "title": "Will BRICS add new member countries in 2025?",
+    "description": "Predict whether BRICS will officially admit new member nations during 2025",
+    "category": "international",
+    "status": "active",
+    "close_date": "2025-12-31T00:00:00.000Z",
+    "resolution_date": null,
+    "outcomes": [
+      { "id": "yes", "title": "Yes, 1+ New Members", "probability": 0, "total_stake": 0 },
+      { "id": "no", "title": "No New Members", "probability": 0, "total_stake": 0 }
+    ],
+    "total_volume": 0,
+    "image_url": "https://images.unsplash.com/photo-1451187580459-43490279c0fa?w=800",
+    "winning_outcome_id": null,
+    "search_keywords": "brics expansion membership brazil russia india china south africa"
+  },
+  {
+    "id": "mkt_middle_east_peace",
+    "title": "Will Israel and Saudi Arabia normalize relations by 2026?",
+    "description": "Predict whether Israel and Saudi Arabia will establish official diplomatic relations",
+    "category": "international",
+    "status": "active",
+    "close_date": "2026-12-31T00:00:00.000Z",
+    "resolution_date": null,
+    "outcomes": [
+      { "id": "yes", "title": "Yes", "probability": 0, "total_stake": 0 },
+      { "id": "no", "title": "No", "probability": 0, "total_stake": 0 }
+    ],
+    "total_volume": 0,
+    "image_url": "https://images.unsplash.com/photo-1451847251646-8a6c0dd1510c?w=800",
+    "winning_outcome_id": null,
+    "search_keywords": "israel saudi arabia normalization middle east peace abraham accords"
+  },
+  {
+    "id": "mkt_uk_rejoins_eu",
+    "title": "Will the UK rejoin the EU single market by 2030?",
+    "description": "Predict whether the United Kingdom will rejoin the European Union single market",
+    "category": "international",
+    "status": "active",
+    "close_date": "2030-01-01T00:00:00.000Z",
+    "resolution_date": null,
+    "outcomes": [
+      { "id": "yes", "title": "Yes", "probability": 0, "total_stake": 0 },
+      { "id": "no", "title": "No", "probability": 0, "total_stake": 0 }
+    ],
+    "total_volume": 0,
+    "image_url": "https://images.unsplash.com/photo-1513635269975-59663e0ac1ad?w=800",
+    "winning_outcome_id": null,
+    "search_keywords": "uk britain eu european union single market brexit trade"
   }
 ]
