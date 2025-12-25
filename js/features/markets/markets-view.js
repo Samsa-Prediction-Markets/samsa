@@ -182,7 +182,7 @@ function createMultiOutcomeChart(marketId, outcomes, width = 300, height = 120) 
       <div class="flex items-center gap-2">
         <span class="w-3 h-3 rounded-full" style="background: ${color.line}"></span>
         <span class="text-xs text-white font-medium">${normalizeOutcomeTitle(outcome.title)}</span>
-        <span class="text-xs font-bold text-slate-500">--¢</span>
+        <span class="text-xs font-bold text-slate-300">${Math.round(outcome.probability || 0)}¢</span>
       </div>
     `;
   });
@@ -232,10 +232,17 @@ function createMiniMultiChart(marketId, outcomes) {
       <div class="flex items-center gap-1">
         <span class="w-2 h-2 rounded-full" style="background: ${color.line}"></span>
         <span class="text-xs" style="color: ${color.line}">${normalizeOutcomeTitle(outcome.title)}</span>
-        <span class="text-xs text-slate-500">--¢</span>
+        <span class="text-xs text-slate-300">${Math.round(outcome.probability || 0)}¢</span>
       </div>
     `;
   });
+
+  const histories = generateMarketHistories(marketId, outcomes, 30);
+  const paths = outcomes.slice(0, displayCount).map((outcome, idx) => {
+    const color = colorPalette[idx % colorPalette.length];
+    const path = generateLinePath(histories[idx] || [], width, height);
+    return `<path d="${path}" fill="none" stroke="${color.line}" stroke-width="1.2" stroke-linecap="round" opacity="0.9" />`;
+  }).join('');
 
   return `
     <div class="rounded-xl overflow-hidden bg-slate-800/30">
@@ -246,10 +253,8 @@ function createMiniMultiChart(marketId, outcomes) {
         </div>
       </div>
       <svg class="w-full" style="aspect-ratio: ${width} / ${height};" viewBox="0 0 ${width} ${height}" preserveAspectRatio="none">
-        <!-- Grid -->
         <line x1="0" y1="${height / 2}" x2="${width}" y2="${height / 2}" stroke="#334155" stroke-width="0.5" stroke-dasharray="2,2" />
-        <!-- Empty state - no data -->
-        <text x="${width / 2}" y="${height / 2 + 4}" text-anchor="middle" fill="#64748b" font-size="10">No trading data</text>
+        ${paths}
       </svg>
     </div>
   `;
@@ -263,23 +268,48 @@ let trendingMarketsData = [];
  * Normalize market data from API (snake_case) to expected format (camelCase)
  */
 function normalizeMarket(market) {
-  return {
+  const base = {
     ...market,
-    // Normalize property names
     volume: market.volume || market.total_volume || 0,
     volume24h: market.volume24h || Math.round((market.total_volume || 0) * 0.15) || 0,
     traders: market.traders || Math.round((market.total_volume || 0) / 50) || 0,
     closeDate: market.closeDate || formatCloseDate(market.close_date) || 'TBD',
-    // Normalize outcomes
     outcomes: (market.outcomes || []).map(o => ({
       ...o,
-      stake: o.stake || o.total_stake || 0
+      stake: o.stake || o.total_stake || 0,
+      probability: typeof o.probability === 'number' ? o.probability : null
     })),
-    // Default news if not present
     news: market.news || [
       { title: 'Market activity increasing', source: 'Samsa', time: '1h ago' }
     ]
   };
+  const outcomes = base.outcomes;
+  const missing = outcomes.length > 0 && outcomes.every(o => !o.probability || o.probability === 0);
+  if (missing) {
+    const yesIdx = outcomes.findIndex(o => normalizeOutcomeTitle(o.title).toLowerCase() === 'yes');
+    const noIdx = outcomes.findIndex(o => normalizeOutcomeTitle(o.title).toLowerCase() === 'no');
+    const isBinary = outcomes.length === 2 && yesIdx !== -1 && noIdx !== -1;
+    if (isBinary) {
+      outcomes[yesIdx].probability = 50;
+      outcomes[noIdx].probability = 50;
+    } else {
+      const equal = Math.floor(100 / outcomes.length);
+      let remaining = 100;
+      outcomes.forEach((o, idx) => {
+        const p = idx === outcomes.length - 1 ? remaining : equal;
+        o.probability = p;
+        remaining -= equal;
+      });
+    }
+  }
+  return base;
+}
+
+function adaptMarket(market) {
+  if (window.metricsAdapter && typeof window.metricsAdapter.normalize === 'function' && market && market.metrics) {
+    return window.metricsAdapter.normalize(market);
+  }
+  return normalizeMarket(market);
 }
 
 /**
@@ -305,7 +335,7 @@ async function renderMarkets() {
       const apiMarkets = await response.json();
       if (apiMarkets && apiMarkets.length > 0) {
         // Normalize API markets and merge with local sample markets
-        const normalizedApiMarkets = apiMarkets.map(normalizeMarket);
+        const normalizedApiMarkets = apiMarkets.map(adaptMarket);
         const apiIds = new Set(normalizedApiMarkets.map(m => m.id));
         const uniqueSampleMarkets = markets.filter(m => !apiIds.has(m.id));
         markets = [...normalizedApiMarkets, ...uniqueSampleMarkets];
@@ -332,7 +362,7 @@ async function renderMarkets() {
     }
   }
 
-  grid.innerHTML = markets.map(market => createMarketCardHTML(normalizeMarket(market))).join('');
+  grid.innerHTML = markets.map(market => createMarketCardHTML(adaptMarket(market))).join('');
 
   // Also render trending slideshow
   renderTrendingSlideshow();
@@ -351,7 +381,7 @@ async function fetchCurrentEventMarkets() {
     if (response.ok) {
       const currentMarkets = await response.json();
       console.log(`✅ Loaded ${currentMarkets.length} current event markets`);
-      return currentMarkets.map(normalizeMarket);
+      return currentMarkets.map(adaptMarket);
     }
   } catch (error) {
     console.log('⚠️ Could not fetch current events:', error.message);
@@ -367,7 +397,7 @@ async function fetchTrendingMarkets(limit = 5) {
     const response = await fetch(`http://localhost:3001/api/markets/trending?limit=${limit}`);
     if (response.ok) {
       const trending = await response.json();
-      return trending.map(normalizeMarket);
+      return trending.map(adaptMarket);
     }
   } catch (error) {
     console.log('⚠️ Could not fetch trending markets:', error.message);
@@ -383,7 +413,7 @@ async function fetchMarketsByCategory(category) {
     const response = await fetch(`http://localhost:3001/api/markets/category/${category}`);
     if (response.ok) {
       const categoryMarkets = await response.json();
-      return categoryMarkets.map(normalizeMarket);
+      return categoryMarkets.map(adaptMarket);
     }
   } catch (error) {
     console.log(`⚠️ Could not fetch ${category} markets:`, error.message);
@@ -649,7 +679,7 @@ function renderTrendingSlideshow() {
 
   // Sort markets by volume to get "trending" ones, normalize each
   trendingMarketsData = [...markets]
-    .map(normalizeMarket)
+    .map(adaptMarket)
     .sort((a, b) => (b.volume24h || 0) - (a.volume24h || 0))
     .slice(0, 5);
 
@@ -715,7 +745,7 @@ function createTrendingSlide(market) {
           <button class="flex-1 relative overflow-hidden rounded-lg px-3 py-2 transition-all duration-200 border ${idx === 0 ? 'bg-green-500/10 border-green-500/50 hover:border-green-500 hover:bg-green-500/20' : 'bg-red-500/10 border-red-500/50 hover:border-red-500 hover:bg-red-500/20'} active:scale-95" onclick="event.stopPropagation(); openPredictionForm('${market.id}', '${outcome.id}')">
             <div class="flex flex-col gap-1">
               <span class="text-white font-medium text-xs text-center">${normalizeOutcomeTitle(outcome.title)}</span>
-              <span class="text-lg font-bold text-center ${idx === 0 ? 'text-green-400' : 'text-red-400'}">--¢</span>
+              <span class="text-lg font-bold text-center ${idx === 0 ? 'text-green-400' : 'text-red-400'}">${Math.round(outcome.probability || 0)}¢</span>
             </div>
           </button>
         `).join('')}
@@ -733,12 +763,12 @@ function createTrendingSlide(market) {
       return `
             <button class="w-[calc(50%-4px)] relative overflow-hidden rounded-lg px-3 py-2 transition-all duration-200 border ${colors.bg} ${colors.border} ${colors.hover} active:scale-[0.98] flex flex-col items-center justify-center" onclick="event.stopPropagation(); openPredictionForm('${market.id}', '${outcome.id}')">
               <span class="text-white font-medium text-xs truncate text-center w-full">${normalizeOutcomeTitle(outcome.title)}</span>
-              <span class="text-lg font-bold ${colors.text}">--¢</span>
+              <span class="text-lg font-bold ${colors.text}">${Math.round(outcome.probability || 0)}¢</span>
             </button>
           `;
     }).join('')}
-        ${hasMore ? `<p class="w-full text-xs text-slate-500 text-center mt-1">+${market.outcomes.length - 4} more options</p>` : ''}
-      </div>
+      ${hasMore ? `<p class="w-full text-xs text-slate-500 text-center mt-1">+${market.outcomes.length - 4} more options</p>` : ''}
+    </div>
     `;
   }
 
@@ -784,16 +814,16 @@ function createTrendingSlide(market) {
         <div class="bg-slate-800/30 rounded-xl p-4">
           <div class="flex items-center justify-between mb-3">
             <span class="text-sm text-slate-400">30-Day Price</span>
-            <span class="text-sm font-semibold text-slate-500">--</span>
+            <span class="text-sm font-semibold text-white">${Math.round((market.outcomes[0]?.probability || 0))}¢</span>
           </div>
-          ${createTrendingChart(market.id, market.outcomes, 400, 160)}
+          ${createTrendingChart(market, 400, 160)}
           <!-- Legend -->
           <div class="flex flex-wrap justify-center gap-4 mt-3">
             ${market.outcomes.slice(0, isBinary ? 2 : 4).map((outcome, idx) => `
               <div class="flex items-center gap-2">
                 <span class="w-2.5 h-2.5 rounded-full" style="background: ${OUTCOME_COLORS[idx]?.line || '#3b82f6'}"></span>
                 <span class="text-xs text-slate-400 truncate max-w-[80px]">${normalizeOutcomeTitle(outcome.title)}</span>
-                <span class="text-xs font-bold text-slate-500">--¢</span>
+                <span class="text-xs font-bold text-slate-300">${Math.round(outcome.probability || 0)}¢</span>
               </div>
             `).join('')}
           </div>
@@ -810,15 +840,15 @@ function createTrendingSlide(market) {
           <div class="grid grid-cols-3 gap-3">
             <div class="bg-slate-800/30 rounded-lg p-3 text-center">
               <p class="text-xs text-slate-500 mb-1">Volume</p>
-              <p class="text-sm font-bold text-yellow-400">$0</p>
+              <p class="text-sm font-bold text-yellow-400">$${((market.volume || 0)).toLocaleString()}</p>
             </div>
             <div class="bg-slate-800/30 rounded-lg p-3 text-center">
               <p class="text-xs text-slate-500 mb-1">24h</p>
-              <p class="text-sm font-bold text-yellow-400">$0</p>
+              <p class="text-sm font-bold text-yellow-400">$${((market.volume24h || 0)).toLocaleString()}</p>
             </div>
             <div class="bg-slate-800/30 rounded-lg p-3 text-center">
               <p class="text-xs text-slate-500 mb-1">Traders</p>
-              <p class="text-sm font-bold text-yellow-400">0</p>
+              <p class="text-sm font-bold text-yellow-400">${market.traders || 0}</p>
             </div>
           </div>
           
@@ -837,15 +867,37 @@ function createTrendingSlide(market) {
 /**
  * Create chart for trending slide - empty state
  */
-function createTrendingChart(marketId, outcomes, width, height) {
+function createTrendingChart(market, width, height) {
+  const outcomes = market.outcomes || [];
+  const titles = outcomes.map(o => normalizeOutcomeTitle(o.title).toLowerCase());
+  const isBinary = outcomes.length === 2 && titles.includes('yes') && titles.includes('no');
+  const colorPalette = isBinary ? BINARY_COLORS : MULTI_COLORS;
+  let histories;
+  if (market.sparkline && Array.isArray(market.sparkline.points) && market.sparkline.points.length > 0) {
+    const pts = market.sparkline.points.map(pt => Math.round((pt.p || 0) * 100));
+    if (isBinary) {
+      histories = [pts, pts.map(v => 100 - v)];
+    } else {
+      histories = [pts];
+      for (let i = 1; i < Math.min(outcomes.length, 4); i++) {
+        histories.push(generateProbabilityHistory(`m-${market.id}-${i}`, outcomes[i]?.probability || 50, pts.length));
+      }
+    }
+  } else {
+    histories = generateMarketHistories(market.id, outcomes, 30);
+  }
+  const displayCount = isBinary ? 2 : Math.min(outcomes.length, 4);
+  const paths = histories.slice(0, displayCount).map((h, idx) => {
+    const color = colorPalette[idx % colorPalette.length];
+    const path = generateLinePath(h || [], width, height);
+    return `<path d="${path}" fill="none" stroke="${color.line}" stroke-width="1.5" stroke-linecap="round" />`;
+  }).join('');
   return `
     <svg width="100%" height="${height}" viewBox="0 0 ${width} ${height}" preserveAspectRatio="none" class="rounded-lg">
-      <!-- Grid lines -->
       <line x1="0" y1="${height * 0.25}" x2="${width}" y2="${height * 0.25}" stroke="#334155" stroke-width="0.5" stroke-dasharray="4,4" />
       <line x1="0" y1="${height * 0.5}" x2="${width}" y2="${height * 0.5}" stroke="#334155" stroke-width="0.5" stroke-dasharray="4,4" />
       <line x1="0" y1="${height * 0.75}" x2="${width}" y2="${height * 0.75}" stroke="#334155" stroke-width="0.5" stroke-dasharray="4,4" />
-      <!-- Empty state message -->
-      <text x="${width / 2}" y="${height / 2}" text-anchor="middle" fill="#64748b" font-size="12">No trading data yet</text>
+      ${paths}
     </svg>
   `;
 }
@@ -922,7 +974,7 @@ function createMarketCardHTML(market) {
       <button class="flex-1 relative overflow-hidden rounded-lg px-3 py-2 transition-all duration-200 border ${idx === 0 ? 'bg-green-500/10 border-green-500/50 hover:border-green-500 hover:bg-green-500/20' : 'bg-red-500/10 border-red-500/50 hover:border-red-500 hover:bg-red-500/20'} active:scale-95" onclick="event.stopPropagation(); openPredictionForm('${market.id}', '${outcome.id}')">
         <div class="flex flex-col gap-1">
           <span class="text-white font-medium text-xs text-center">${normalizeOutcomeTitle(outcome.title)}</span>
-          <span class="text-lg font-bold text-center ${idx === 0 ? 'text-green-400' : 'text-red-400'}">--¢</span>
+          <span class="text-lg font-bold text-center ${idx === 0 ? 'text-green-400' : 'text-red-400'}">${Math.round(outcome.probability || 0)}¢</span>
         </div>
       </button>
     `).join('');
@@ -938,7 +990,7 @@ function createMarketCardHTML(market) {
       return `
             <button class="w-[calc(50%-4px)] relative overflow-hidden rounded-lg px-3 py-2 transition-all duration-200 border ${colors.bg} ${colors.border} ${colors.hover} active:scale-[0.98] flex flex-col items-center justify-center" onclick="event.stopPropagation(); openPredictionForm('${market.id}', '${outcome.id}')">
               <span class="text-white font-medium text-xs truncate text-center w-full">${normalizeOutcomeTitle(outcome.title)}</span>
-              <span class="text-lg font-bold ${colors.text}">--¢</span>
+              <span class="text-lg font-bold ${colors.text}">${Math.round(outcome.probability || 0)}¢</span>
             </button>
           `;
     }).join('')}
@@ -1076,7 +1128,7 @@ function generateDetailHTML(market) {
                   <button id="outcomeBtn-${outcome.id}" onclick="showInlineTradingForm('${safeMarket.id}', '${outcome.id}')" 
                     class="outcome-btn flex flex-col items-center justify-center p-4 rounded-lg border transition-all ${isYes ? 'border-green-500/50 bg-green-500/10 hover:border-green-500 hover:bg-green-500/20' : 'border-red-500/50 bg-red-500/10 hover:border-red-500 hover:bg-red-500/20'}">
                     <span class="text-white font-medium mb-1">${normalizeOutcomeTitle(outcome.title)}</span>
-                    <span class="text-2xl font-bold ${isYes ? 'text-green-400' : 'text-red-400'}">--¢</span>
+                    <span class="text-2xl font-bold ${isYes ? 'text-green-400' : 'text-red-400'}">${Math.round(outcome.probability || 0)}¢</span>
                   </button>
                 `;
       }).join('')
@@ -1087,7 +1139,7 @@ function generateDetailHTML(market) {
                   <button id="outcomeBtn-${outcome.id}" onclick="showInlineTradingForm('${safeMarket.id}', '${outcome.id}')" 
                     class="outcome-btn flex flex-col items-center justify-center p-4 rounded-lg border transition-all ${multiColor.border} ${multiColor.bg} ${multiColor.hover}">
                     <span class="text-white font-medium mb-1">${normalizeOutcomeTitle(outcome.title)}</span>
-                    <span class="text-2xl font-bold ${multiColor.text}">--¢</span>
+                    <span class="text-2xl font-bold ${multiColor.text}">${Math.round(outcome.probability || 0)}¢</span>
                   </button>
                 `;
       }).join('')
@@ -1181,7 +1233,7 @@ function generateDetailHTML(market) {
                           <span class="w-2.5 h-2.5 rounded-full" style="background: ${color.line}"></span>
                           <span class="text-slate-300 text-sm">${normalizeOutcomeTitle(outcome.title)}</span>
                         </div>
-                        <span class="font-semibold text-sm text-slate-500">--%</span>
+                        <span class="font-semibold text-sm text-slate-300">${Math.round(outcome.probability || 0)}%</span>
                       </div>
                     `;
     }).join('')}

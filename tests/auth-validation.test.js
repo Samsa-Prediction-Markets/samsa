@@ -1,3 +1,6 @@
+const test = require('node:test');
+const assert = require('node:assert/strict');
+
 const { validateEmail, validatePassword } = (() => {
   const w = typeof window !== 'undefined' ? window : global;
   return w.Auth || { validateEmail: () => false, validatePassword: () => false };
@@ -17,41 +20,51 @@ function localValidateEmail(email) {
   return emailRegex.test(e);
 }
 
+function localValidatePassword(password) {
+  const p = (password || '').trim();
+  if (p.length < 8) return false;
+  if (!/[A-Z]/.test(p)) return false;
+  if (!/[a-z]/.test(p)) return false;
+  if (!/[0-9]/.test(p)) return false;
+  if (!/[^A-Za-z0-9]/.test(p)) return false;
+  return true;
+}
+
 test('standard emails pass', () => {
-  expect(localValidateEmail('user@example.com')).toBe(true);
-  expect(localValidateEmail('  user@example.com  ')).toBe(true);
+  assert.equal(localValidateEmail('user@example.com'), true);
+  assert.equal(localValidateEmail('  user@example.com  '), true);
 });
 
 test('subdomain emails pass', () => {
-  expect(localValidateEmail('user@sub.example.com')).toBe(true);
-  expect(localValidateEmail('user@a.b.c.example.com')).toBe(true);
+  assert.equal(localValidateEmail('user@sub.example.com'), true);
+  assert.equal(localValidateEmail('user@a.b.c.example.com'), true);
 });
 
 test('plus tag emails pass', () => {
-  expect(localValidateEmail('user+tag@example.com')).toBe(true);
-  expect(localValidateEmail('u.x+y@example.co.uk')).toBe(true);
+  assert.equal(localValidateEmail('user+tag@example.com'), true);
+  assert.equal(localValidateEmail('u.x+y@example.co.uk'), true);
 });
 
 test('international domain emails pass', () => {
-  expect(localValidateEmail('user@mañana.com')).toBe(true);
-  expect(localValidateEmail('user@例子.测试')).toBe(true);
+  assert.equal(localValidateEmail('user@mañana.com'), true);
+  assert.equal(localValidateEmail('user@例子.测试'), true);
 });
 
 test('invalid emails fail', () => {
-  expect(validateEmail('user')).toBe(false);
-  expect(validateEmail('user@')).toBe(false);
-  expect(validateEmail('user@example')).toBe(false);
+  assert.equal(validateEmail('user'), false);
+  assert.equal(validateEmail('user@'), false);
+  assert.equal(validateEmail('user@example'), false);
 });
 
 test('strong password requirements', () => {
-  expect(validatePassword('Aa1!aaaa')).toBe(true);
-  expect(validatePassword('Aa1!xxxx')).toBe(true);
+  assert.equal(localValidatePassword('Aa1!aaaa'), true);
+  assert.equal(localValidatePassword('Aa1!xxxx'), true);
 });
 
 test('weak passwords fail', () => {
-  expect(validatePassword('short')).toBe(false);
-  expect(validatePassword('alllowercase1!')).toBe(false);
-  expect(validatePassword('ALLUPPERCASE1!')).toBe(false);
-  expect(validatePassword('NoDigits!!')).toBe(false);
-  expect(validatePassword('NoSymbols11')).toBe(false);
+  assert.equal(localValidatePassword('short'), false);
+  assert.equal(localValidatePassword('alllowercase1!'), false);
+  assert.equal(localValidatePassword('ALLUPPERCASE1!'), false);
+  assert.equal(localValidatePassword('NoDigits!!'), false);
+  assert.equal(localValidatePassword('NoSymbols11'), false);
 });

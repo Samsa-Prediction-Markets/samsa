@@ -1,0 +1,17 @@
+{
+  "__meta": {
+    "daily_at": "2025-12-25T20:52:28.786Z"
+  },
+  "mkt_test_1": {
+    "outcomes": [
+      {
+        "id": "yes",
+        "probability": 55
+      },
+      {
+        "id": "no",
+        "probability": 45
+      }
+    ]
+  }
+}

@@ -5,6 +5,7 @@ const morgan = require('morgan');
 const path = require('path');
 const { nanoid } = require('nanoid');
 const { readJson, writeJson, addTransaction, findTransactionByExternalId, updateTransaction } = require('./lib/datastore');
+const { computeMarketMetrics } = require('./lib/metrics');
 const https = require('https');
 
 const app = express();
@@ -12,10 +13,12 @@ const PORT = process.env.PORT || 3001;
 const Stripe = require('stripe');
 const stripeSecret = (process.env.STRIPE_SECRET_KEY || '').trim();
 const stripe = stripeSecret ? Stripe(stripeSecret) : null;
+const METRICS_OBS = { recompute_count: 0, recompute_total_ms: 0, provider_errors: 0 };
 
 const DATA_DIR = path.join(__dirname, 'data');
 const MARKETS_PATH = path.join(DATA_DIR, 'markets.json');
 const PREDICTIONS_PATH = path.join(DATA_DIR, 'predictions.json');
+const INTRADAY_CACHE_PATH = path.join(DATA_DIR, 'market_intraday_cache.json');
 const USERS_PATH = path.join(DATA_DIR, 'users.json');
 const TRANSACTIONS_PATH = path.join(DATA_DIR, 'transactions.json');
 
@@ -212,13 +215,16 @@ app.get('/api/markets/current-events', async (req, res) => {
 app.get('/api/markets/trending', async (req, res) => {
   const markets = await readJson(MARKETS_PATH);
   const limit = parseInt(req.query.limit) || 10;
-  
-  const trendingMarkets = markets
-    .filter(m => m.status === 'active')
-    .sort((a, b) => (b.total_volume || 0) - (a.total_volume || 0))
-    .slice(0, limit);
-  
-  res.json(trendingMarkets);
+  const active = markets.filter((m) => m.status === 'active');
+  const withMetrics = await Promise.all(active.map(async (m) => {
+    const t0 = Date.now();
+    const metrics = await computeMarketMetrics(m);
+    METRICS_OBS.recompute_count += 1;
+    METRICS_OBS.recompute_total_ms += Date.now() - t0;
+    return { ...m, metrics };
+  }));
+  withMetrics.sort((a, b) => (b.metrics?.trend?.score || 0) - (a.metrics?.trend?.score || 0));
+  res.json(withMetrics.slice(0, limit));
 });
 
 // Get markets by category
@@ -293,14 +299,25 @@ app.get('/api/markets/suggestions', async (req, res) => {
 
 app.get('/api/markets', async (req, res) => {
   const markets = await readJson(MARKETS_PATH);
-  res.json(markets);
+  const enriched = await Promise.all(markets.map(async (m) => {
+    const t0 = Date.now();
+    const metrics = await computeMarketMetrics(m);
+    METRICS_OBS.recompute_count += 1;
+    METRICS_OBS.recompute_total_ms += Date.now() - t0;
+    return { ...m, metrics };
+  }));
+  res.json(enriched);
 });
 
 app.get('/api/markets/:id', async (req, res) => {
   const markets = await readJson(MARKETS_PATH);
   const market = markets.find((m) => m.id === req.params.id);
   if (!market) return res.status(404).json({ error: 'Market not found' });
-  res.json(market);
+  const t0 = Date.now();
+  const metrics = await computeMarketMetrics(market);
+  METRICS_OBS.recompute_count += 1;
+  METRICS_OBS.recompute_total_ms += Date.now() - t0;
+  res.json({ ...market, metrics });
 });
 
 app.post('/api/markets', async (req, res) => {
@@ -401,6 +418,22 @@ app.post('/api/predictions', async (req, res) => {
 
   outcome.total_stake = (outcome.total_stake || 0) + stake_amount;
   recomputeMarketStats(market);
+
+  try {
+    let intraday = {};
+    try { intraday = await readJson(INTRADAY_CACHE_PATH); } catch (e) { intraday = {}; }
+    const titles = (market.outcomes || []).map((o) => (o.title || '').trim().toLowerCase());
+    const yesIdx = titles.indexOf('yes');
+    const primaryIdx = yesIdx !== -1 ? yesIdx : 0;
+    const primaryOutcome = market.outcomes[primaryIdx];
+    const p = typeof primaryOutcome.probability === 'number' ? (primaryOutcome.probability > 1 ? primaryOutcome.probability / 100 : primaryOutcome.probability) : 0.5;
+    const entry = { t: new Date().toISOString(), p };
+    const existing = intraday[market_id] && Array.isArray(intraday[market_id].sparkline) ? intraday[market_id].sparkline : [];
+    const updated = [...existing, entry].slice(-300);
+    intraday[market_id] = { sparkline: updated };
+    intraday.__meta = { cached_at: new Date().toISOString() };
+    await writeJson(INTRADAY_CACHE_PATH, intraday);
+  } catch (e) {}
 
   await writeJson(PREDICTIONS_PATH, predictions);
   await writeJson(MARKETS_PATH, markets);
@@ -842,6 +875,22 @@ app.post('/api/markets/ingest/news', async (req, res) => {
   } catch (e) {
     res.status(400).json({ error: e.message || 'Failed to ingest news' });
   }
+});
+
+app.get('/api/markets/:id/stats', async (req, res) => {
+  const markets = await readJson(MARKETS_PATH);
+  const market = markets.find((m) => m.id === req.params.id);
+  if (!market) return res.status(404).json({ error: 'Market not found' });
+  const t0 = Date.now();
+  const metrics = await computeMarketMetrics(market);
+  METRICS_OBS.recompute_count += 1;
+  METRICS_OBS.recompute_total_ms += Date.now() - t0;
+  res.json({ market_id: market.id, metrics });
+});
+
+app.get('/api/health/metrics-trends', async (req, res) => {
+  const avg = METRICS_OBS.recompute_count > 0 ? METRICS_OBS.recompute_total_ms / METRICS_OBS.recompute_count : 0;
+  res.json({ counters: METRICS_OBS, avg_recompute_ms: Math.round(avg) });
 });
 
 app.listen(PORT, () => {
