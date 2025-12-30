@@ -178,7 +178,8 @@ function showInlineTradingForm(marketId, outcomeId) {
             </div>
           </div>
 
-          <!-- Capital at Risk Indicator -->
+          <!-- LIMITS FEATURE - Commented out but preserved for future use -->
+          <!-- Capital at Risk Indicator
           <div id="inlineCapitalRisk" class="hidden bg-amber-500/10 border border-amber-500/30 rounded-lg p-3 mb-4">
             <div class="flex items-center gap-2">
               <svg class="w-4 h-4 text-amber-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
@@ -187,6 +188,7 @@ function showInlineTradingForm(marketId, outcomeId) {
               <span class="text-amber-400 text-sm font-medium" id="inlineCapitalRiskText">0% of your capital</span>
             </div>
           </div>
+          -->
 
           <!-- Quick Amounts -->
           <div class="flex gap-2 mb-4">
@@ -330,28 +332,29 @@ function updateInlineTradeCalculations(stake, probability) {
   if (loseReturnEl) loseReturnEl.textContent = '$' + loseReturn.toFixed(2);
   if (lossAmountEl) lossAmountEl.textContent = loseReturn > 0 ? 'partial refund' : 'full position at risk';
 
+  // LIMITS FEATURE - Commented out but preserved for future use
   // Update Capital at Risk indicator
-  const capitalRiskEl = document.getElementById('inlineCapitalRisk');
-  const capitalRiskTextEl = document.getElementById('inlineCapitalRiskText');
-  if (capitalRiskEl && capitalRiskTextEl && stake > 0 && balance > 0) {
-    const capitalPercent = (stake / balance) * 100;
-    capitalRiskEl.classList.remove('hidden');
-    capitalRiskTextEl.textContent = `This position represents ${capitalPercent.toFixed(1)}% of your capital`;
-    
-    // Change color based on risk level
-    if (capitalPercent > 10) {
-      capitalRiskEl.className = 'bg-red-500/10 border border-red-500/30 rounded-lg p-3';
-      capitalRiskTextEl.className = 'text-red-400 text-sm font-medium';
-    } else if (capitalPercent > 5) {
-      capitalRiskEl.className = 'bg-amber-500/10 border border-amber-500/30 rounded-lg p-3';
-      capitalRiskTextEl.className = 'text-amber-400 text-sm font-medium';
-    } else {
-      capitalRiskEl.className = 'bg-slate-500/10 border border-slate-500/30 rounded-lg p-3';
-      capitalRiskTextEl.className = 'text-slate-400 text-sm font-medium';
-    }
-  } else if (capitalRiskEl) {
-    capitalRiskEl.classList.add('hidden');
-  }
+  // const capitalRiskEl = document.getElementById('inlineCapitalRisk');
+  // const capitalRiskTextEl = document.getElementById('inlineCapitalRiskText');
+  // if (capitalRiskEl && capitalRiskTextEl && stake > 0 && balance > 0) {
+  //   const capitalPercent = (stake / balance) * 100;
+  //   capitalRiskEl.classList.remove('hidden');
+  //   capitalRiskTextEl.textContent = `This position represents ${capitalPercent.toFixed(1)}% of your capital`;
+  //   
+  //   // Change color based on risk level
+  //   if (capitalPercent > 10) {
+  //     capitalRiskEl.className = 'bg-red-500/10 border border-red-500/30 rounded-lg p-3';
+  //     capitalRiskTextEl.className = 'text-red-400 text-sm font-medium';
+  //   } else if (capitalPercent > 5) {
+  //     capitalRiskEl.className = 'bg-amber-500/10 border border-amber-500/30 rounded-lg p-3';
+  //     capitalRiskTextEl.className = 'text-amber-400 text-sm font-medium';
+  //   } else {
+  //     capitalRiskEl.className = 'bg-slate-500/10 border border-slate-500/30 rounded-lg p-3';
+  //     capitalRiskTextEl.className = 'text-slate-400 text-sm font-medium';
+  //   }
+  // } else if (capitalRiskEl) {
+  //   capitalRiskEl.classList.add('hidden');
+  // }
 
   // Validate against risk controls
   if (typeof validateTradeRisk === 'function' && stake > 0) {
@@ -416,7 +419,8 @@ function showPositionReview(marketId, outcomeId, probability) {
   const winReturn = calcWinReturn(stake, p);
   const lossAmount = calcLossAmount(stake, p);
   const loseReturn = calcLoseReturn(stake, p);
-  const capitalPercent = balance > 0 ? ((stake / balance) * 100).toFixed(1) : 0;
+  // LIMITS FEATURE - Commented out but preserved for future use
+  // const capitalPercent = balance > 0 ? ((stake / balance) * 100).toFixed(1) : 0;
 
   // Get educational nudge
   const nudge = typeof getRandomNudge === 'function' ? getRandomNudge('beforeTrade') : '';
@@ -455,7 +459,8 @@ function showPositionReview(marketId, outcomeId, probability) {
         </div>
       </div>
       
-      <!-- Capital at Risk - Key Safeguard -->
+      <!-- LIMITS FEATURE - Commented out but preserved for future use -->
+      <!-- Capital at Risk - Key Safeguard
       <div class="bg-amber-500/10 border border-amber-500/30 rounded-xl p-4 mb-6">
         <div class="flex items-center gap-3">
           <div class="w-10 h-10 bg-amber-500/20 rounded-full flex items-center justify-center">
@@ -465,10 +470,11 @@ function showPositionReview(marketId, outcomeId, probability) {
           </div>
           <div>
             <p class="text-amber-400 font-semibold">Capital at Risk</p>
-            <p class="text-amber-300 text-sm">This position represents ${capitalPercent}% of your available capital.</p>
+            <p class="text-amber-300 text-sm">This position represents capitalPercent% of your available capital.</p>
           </div>
         </div>
       </div>
+      -->
       
       <!-- Outcome Scenarios -->
       <div class="mb-6">
@@ -910,7 +916,8 @@ function openPredictionForm(marketId, outcomeId) {
             class="w-full bg-slate-800 border border-slate-700 text-white rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-yellow-500/20 text-lg" />
         </div>
         
-        <!-- Capital at Risk Indicator -->
+        <!-- LIMITS FEATURE - Commented out but preserved for future use -->
+        <!-- Capital at Risk Indicator
         <div id="capitalRiskIndicator" class="hidden bg-amber-500/10 border border-amber-500/30 rounded-lg p-3">
           <div class="flex items-center gap-2">
             <svg class="w-4 h-4 text-amber-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
@@ -919,6 +926,7 @@ function openPredictionForm(marketId, outcomeId) {
             <span class="text-amber-400 text-sm font-medium" id="capitalRiskText">0% of your capital</span>
           </div>
         </div>
+        -->
         
         <!-- Risk Warnings -->
         <div id="riskWarnings" class="hidden space-y-2"></div>
@@ -983,7 +991,8 @@ function openPredictionForm(marketId, outcomeId) {
   document.getElementById('stakeAmount').addEventListener('input', function(e) {
     const stake = parseFloat(e.target.value) || 0;
     updateTradeCalculations(stake, probability);
-    updateCapitalRiskIndicator(stake, balance);
+    // LIMITS FEATURE - Commented out but preserved for future use
+    // updateCapitalRiskIndicator(stake, balance);
     updateRiskWarnings(stake);
   });
   
@@ -1007,32 +1016,33 @@ function showPositionReviewFromModal(marketId, outcomeId, probability) {
   showPositionReview(marketId, outcomeId, probability);
 }
 
-function updateCapitalRiskIndicator(stake, balance) {
-  const indicatorEl = document.getElementById('capitalRiskIndicator');
-  const textEl = document.getElementById('capitalRiskText');
-  
-  if (!indicatorEl || !textEl) return;
-  
-  if (stake > 0 && balance > 0) {
-    const capitalPercent = (stake / balance) * 100;
-    indicatorEl.classList.remove('hidden');
-    textEl.textContent = `This position represents ${capitalPercent.toFixed(1)}% of your capital`;
-    
-    // Change color based on risk level
-    if (capitalPercent > 10) {
-      indicatorEl.className = 'bg-red-500/10 border border-red-500/30 rounded-lg p-3';
-      textEl.className = 'text-red-400 text-sm font-medium';
-    } else if (capitalPercent > 5) {
-      indicatorEl.className = 'bg-amber-500/10 border border-amber-500/30 rounded-lg p-3';
-      textEl.className = 'text-amber-400 text-sm font-medium';
-    } else {
-      indicatorEl.className = 'bg-slate-500/10 border border-slate-500/30 rounded-lg p-3';
-      textEl.className = 'text-slate-400 text-sm font-medium';
-    }
-  } else {
-    indicatorEl.classList.add('hidden');
-  }
-}
+// LIMITS FEATURE - Commented out but preserved for future use
+// function updateCapitalRiskIndicator(stake, balance) {
+//   const indicatorEl = document.getElementById('capitalRiskIndicator');
+//   const textEl = document.getElementById('capitalRiskText');
+//   
+//   if (!indicatorEl || !textEl) return;
+//   
+//   if (stake > 0 && balance > 0) {
+//     const capitalPercent = (stake / balance) * 100;
+//     indicatorEl.classList.remove('hidden');
+//     textEl.textContent = `This position represents ${capitalPercent.toFixed(1)}% of your capital`;
+//     
+//     // Change color based on risk level
+//     if (capitalPercent > 10) {
+//       indicatorEl.className = 'bg-red-500/10 border border-red-500/30 rounded-lg p-3';
+//       textEl.className = 'text-red-400 text-sm font-medium';
+//     } else if (capitalPercent > 5) {
+//       indicatorEl.className = 'bg-amber-500/10 border border-amber-500/30 rounded-lg p-3';
+//       textEl.className = 'text-amber-400 text-sm font-medium';
+//     } else {
+//       indicatorEl.className = 'bg-slate-500/10 border border-slate-500/30 rounded-lg p-3';
+//       textEl.className = 'text-slate-400 text-sm font-medium';
+//     }
+//   } else {
+//     indicatorEl.classList.add('hidden');
+//   }
+// }
 
 function updateRiskWarnings(stake) {
   if (typeof validateTradeRisk !== 'function' || stake <= 0) return;

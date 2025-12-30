@@ -9,12 +9,13 @@
 // ============================================================================
 
 const RISK_CONTROLS = {
+  // LIMITS FEATURE - Commented out but preserved for future use
   // Position size limits (as percentage of balance)
-  maxPositionSizePercent: 10, // Max 10% of balance per position
-  warningPositionSizePercent: 5, // Warn at 5%
+  // maxPositionSizePercent: 10, // Max 10% of balance per position
+  // warningPositionSizePercent: 5, // Warn at 5%
   
   // Daily allocation limits
-  maxDailyAllocationPercent: 25, // Max 25% of balance per day
+  // maxDailyAllocationPercent: 25, // Max 25% of balance per day
   
   // Cooldown after losses (in milliseconds)
   lossCooldownDuration: 30000, // 30 seconds reflection time after loss
@@ -134,12 +135,13 @@ function validateTradeRisk(amount) {
     }
   }
   
+  // LIMITS FEATURE - Commented out but preserved for future use
   // Check position size limits
-  if (capitalAtRisk > RISK_CONTROLS.maxPositionSizePercent) {
-    blocked.push(`Position size exceeds ${RISK_CONTROLS.maxPositionSizePercent}% of your capital. Consider a smaller position.`);
-  } else if (capitalAtRisk > RISK_CONTROLS.warningPositionSizePercent) {
-    warnings.push(`This position represents ${capitalAtRisk.toFixed(1)}% of your capital.`);
-  }
+  // if (capitalAtRisk > RISK_CONTROLS.maxPositionSizePercent) {
+  //   blocked.push(`Position size exceeds ${RISK_CONTROLS.maxPositionSizePercent}% of your capital. Consider a smaller position.`);
+  // } else if (capitalAtRisk > RISK_CONTROLS.warningPositionSizePercent) {
+  //   warnings.push(`This position represents ${capitalAtRisk.toFixed(1)}% of your capital.`);
+  // }
   
   // LIMITS FEATURE - Commented out but preserved for future use
   // Check daily limits
