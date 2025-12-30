@@ -41,6 +41,38 @@ function calcLoseReturn(stake, probability) {
 
 // Track currently selected outcome for inline form
 let currentInlineSelection = null;
+let currentTradeMode = 'buy'; // 'buy' or 'sell'
+
+/**
+ * Get user's current position for a specific outcome
+ */
+function getUserPosition(marketId, outcomeId) {
+  const userPredictions = typeof predictions !== 'undefined' ? predictions : [];
+  const position = userPredictions
+    .filter(p => String(p.marketId || p.market_id) === String(marketId) && 
+                 String(p.outcomeId || p.outcome_id) === String(outcomeId) && 
+                 p.status === 'active')
+    .reduce((sum, p) => sum + (p.stake || p.stake_amount || 0), 0);
+  return position;
+}
+
+/**
+ * Calculate sell value - what user gets back when selling position
+ * Sell value = position * current probability (they exit at current market price)
+ */
+function calcSellValue(positionSize, currentProbability) {
+  const p = currentProbability > 1 ? currentProbability / 100 : currentProbability;
+  return positionSize * p * (1 - PLATFORM_FEE);
+}
+
+/**
+ * Calculate sell profit/loss
+ */
+function calcSellProfitLoss(positionSize, entryProbability, currentProbability) {
+  const sellValue = calcSellValue(positionSize, currentProbability);
+  // Original cost was the position size
+  return sellValue - positionSize;
+}
 
 /**
  * Show inline trading form in the sidebar (replaces stats card temporarily)
@@ -89,85 +121,162 @@ function showInlineTradingForm(marketId, outcomeId) {
     market.outcomes.some(o => normalizePredictionOutcomeTitle(o.title).toLowerCase() === 'yes') &&
     market.outcomes.some(o => normalizePredictionOutcomeTitle(o.title).toLowerCase() === 'no');
 
+  // Check user's existing position
+  const userPosition = getUserPosition(marketId, outcomeId);
+  const hasPosition = userPosition > 0;
+
   container.innerHTML = `
     <div class="bg-slate-900/80 border border-yellow-500/50 rounded-xl overflow-hidden">
       <div class="px-4 py-3 border-b border-slate-800 flex items-center justify-between">
         <div class="flex items-center gap-2">
-          <span class="text-white font-semibold text-sm">Review Position</span>
+          <span class="text-white font-semibold text-sm">Trade</span>
           <span class="px-2 py-0.5 rounded text-xs font-medium ${isBinary ? (isYes ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400') : 'bg-yellow-500/20 text-yellow-400'}">${normalizePredictionOutcomeTitle(outcome.title)}</span>
         </div>
         <button onclick="hideInlineTradingForm()" class="text-slate-400 hover:text-white text-sm">✕</button>
       </div>
       
       <div class="p-4 space-y-4">
-        <!-- Market Probability Info (Probability-First Language) -->
+        <!-- Buy/Sell Toggle -->
+        <div class="flex rounded-lg bg-slate-800 p-1">
+          <button id="buyTabBtn" onclick="switchTradeMode('buy', '${marketId}', '${outcomeId}', ${probability})"
+            class="flex-1 py-2 px-4 rounded-md text-sm font-semibold transition-all bg-green-500/20 text-green-400 border border-green-500/50">
+            Buy
+          </button>
+          <button id="sellTabBtn" onclick="switchTradeMode('sell', '${marketId}', '${outcomeId}', ${probability})"
+            class="flex-1 py-2 px-4 rounded-md text-sm font-semibold transition-all text-slate-400 hover:text-white ${!hasPosition ? 'opacity-50 cursor-not-allowed' : ''}"
+            ${!hasPosition ? 'disabled title="No position to sell"' : ''}>
+            Sell ${hasPosition ? `($${userPosition.toFixed(2)})` : ''}
+          </button>
+        </div>
+
+        <!-- User's Current Position (if any) -->
+        ${hasPosition ? `
+        <div class="bg-slate-800/50 rounded-lg p-3 border border-slate-700">
+          <div class="flex items-center justify-between">
+            <span class="text-slate-400 text-xs">Your Position</span>
+            <span class="text-yellow-400 font-bold">$${userPosition.toFixed(2)}</span>
+          </div>
+        </div>
+        ` : ''}
+
+        <!-- Market Probability Info -->
         <div class="bg-slate-800/50 rounded-lg p-3 border border-slate-700">
           <p class="text-slate-400 text-xs mb-1">Market Probability</p>
           <p class="text-2xl font-bold ${isBinary ? (isYes ? 'text-green-400' : 'text-red-400') : 'text-yellow-400'}">${probability}%</p>
           <p class="text-slate-500 text-xs mt-1">This reflects the collective belief of market participants.</p>
         </div>
 
-        <!-- Investment Input -->
-        <div>
-          <label class="text-slate-400 text-xs mb-1 block">Position Size</label>
-          <div class="relative">
-            <span class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500">$</span>
-            <input type="number" id="inlineStakeAmount" min="1" step="0.01" placeholder="0.00" 
-              class="w-full bg-slate-800 border border-slate-700 text-white rounded-lg pl-7 pr-4 py-2.5 focus:outline-none focus:border-yellow-500/50 text-lg" />
+        <!-- Buy Mode Content -->
+        <div id="buyModeContent">
+          <!-- Investment Input -->
+          <div class="mb-4">
+            <label class="text-slate-400 text-xs mb-1 block">Position Size</label>
+            <div class="relative">
+              <span class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500">$</span>
+              <input type="number" id="inlineStakeAmount" min="1" step="0.01" placeholder="0.00" 
+                class="w-full bg-slate-800 border border-slate-700 text-white rounded-lg pl-7 pr-4 py-2.5 focus:outline-none focus:border-yellow-500/50 text-lg" />
+            </div>
           </div>
-        </div>
 
-        <!-- Capital at Risk Indicator -->
-        <div id="inlineCapitalRisk" class="hidden bg-amber-500/10 border border-amber-500/30 rounded-lg p-3">
-          <div class="flex items-center gap-2">
-            <svg class="w-4 h-4 text-amber-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
-            </svg>
-            <span class="text-amber-400 text-sm font-medium" id="inlineCapitalRiskText">0% of your capital</span>
+          <!-- Capital at Risk Indicator -->
+          <div id="inlineCapitalRisk" class="hidden bg-amber-500/10 border border-amber-500/30 rounded-lg p-3 mb-4">
+            <div class="flex items-center gap-2">
+              <svg class="w-4 h-4 text-amber-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
+              </svg>
+              <span class="text-amber-400 text-sm font-medium" id="inlineCapitalRiskText">0% of your capital</span>
+            </div>
           </div>
-        </div>
 
-        <!-- Quick Amounts -->
-        <div class="flex gap-2">
-          ${['5', '10', '25', '50', '100'].map(amt => `
-            <button onclick="document.getElementById('inlineStakeAmount').value='${amt}'; updateInlineTradeCalculations(${amt}, ${probability})" 
-              class="flex-1 py-1.5 text-xs rounded-md bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-white transition-colors">$${amt}</button>
-          `).join('')}
-        </div>
-
-        <!-- Outcome Scenarios - Probability-Based Language -->
-        <div class="grid grid-cols-2 gap-2">
-          <div class="bg-green-500/10 border border-green-500/20 rounded-lg p-3">
-            <p class="text-green-400 text-xs font-medium mb-1">If Outcome Occurs</p>
-            <p class="text-green-400 font-bold" id="inlineWinReturn">$0.00</p>
-            <p class="text-green-400/70 text-xs" id="inlineWinProfit">+$0.00 return</p>
+          <!-- Quick Amounts -->
+          <div class="flex gap-2 mb-4">
+            ${['5', '10', '25', '50', '100'].map(amt => `
+              <button onclick="document.getElementById('inlineStakeAmount').value='${amt}'; updateInlineTradeCalculations(${amt}, ${probability})" 
+                class="flex-1 py-1.5 text-xs rounded-md bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-white transition-colors">$${amt}</button>
+            `).join('')}
           </div>
-          <div class="bg-slate-500/10 border border-slate-500/20 rounded-lg p-3">
-            <p class="text-slate-400 text-xs font-medium mb-1">If Outcome Doesn't Occur</p>
-            <p class="text-yellow-400 font-bold" id="inlineLoseReturn">$0.00</p>
-            <p class="text-slate-400/70 text-xs" id="inlineLossAmount">partial refund</p>
+
+          <!-- Outcome Scenarios -->
+          <div class="grid grid-cols-2 gap-2 mb-4">
+            <div class="bg-green-500/10 border border-green-500/20 rounded-lg p-3">
+              <p class="text-green-400 text-xs font-medium mb-1">If Outcome Occurs</p>
+              <p class="text-green-400 font-bold" id="inlineWinReturn">$0.00</p>
+              <p class="text-green-400/70 text-xs" id="inlineWinProfit">+$0.00 return</p>
+            </div>
+            <div class="bg-slate-500/10 border border-slate-500/20 rounded-lg p-3">
+              <p class="text-slate-400 text-xs font-medium mb-1">If Outcome Doesn't Occur</p>
+              <p class="text-yellow-400 font-bold" id="inlineLoseReturn">$0.00</p>
+              <p class="text-slate-400/70 text-xs" id="inlineLossAmount">partial refund</p>
+            </div>
           </div>
+
+          <!-- Risk Warnings -->
+          <div id="inlineRiskWarnings" class="hidden space-y-2 mb-4"></div>
+
+          <!-- Balance -->
+          <div class="flex items-center justify-between text-xs mb-4">
+            <span class="text-slate-500">Available Balance</span>
+            <span class="text-green-400 font-medium">$${typeof getBalance === 'function' ? getBalance().toFixed(2) : '0.00'}</span>
+          </div>
+
+          <!-- Review & Confirm Button -->
+          <button onclick="showPositionReview('${marketId}', '${outcomeId}', ${probability})" 
+            class="w-full bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white font-bold py-3 rounded-lg transition-all">
+            Review Buy Order
+          </button>
         </div>
 
-        <!-- Risk Warnings -->
-        <div id="inlineRiskWarnings" class="hidden space-y-2"></div>
+        <!-- Sell Mode Content (hidden by default) -->
+        <div id="sellModeContent" class="hidden">
+          <!-- Sell Amount Input -->
+          <div class="mb-4">
+            <label class="text-slate-400 text-xs mb-1 block">Amount to Sell</label>
+            <div class="relative">
+              <span class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500">$</span>
+              <input type="number" id="inlineSellAmount" min="0.01" max="${userPosition}" step="0.01" placeholder="0.00" 
+                class="w-full bg-slate-800 border border-slate-700 text-white rounded-lg pl-7 pr-4 py-2.5 focus:outline-none focus:border-red-500/50 text-lg" />
+            </div>
+          </div>
 
-        <!-- Balance -->
-        <div class="flex items-center justify-between text-xs">
-          <span class="text-slate-500">Available Balance</span>
-          <span class="text-green-400 font-medium">$${typeof getBalance === 'function' ? getBalance().toFixed(2) : '0.00'}</span>
+          <!-- Quick Sell Amounts -->
+          <div class="flex gap-2 mb-4">
+            ${hasPosition ? ['25', '50', '75', '100'].map(pct => {
+              const amt = (userPosition * (parseInt(pct) / 100)).toFixed(2);
+              return `
+                <button onclick="document.getElementById('inlineSellAmount').value='${amt}'; updateInlineSellCalculations(${amt}, ${probability})" 
+                  class="flex-1 py-1.5 text-xs rounded-md bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-white transition-colors">${pct}%</button>
+              `;
+            }).join('') : ''}
+          </div>
+
+          <!-- Sell Value Display -->
+          <div class="bg-red-500/10 border border-red-500/20 rounded-lg p-4 mb-4">
+            <div class="flex items-center justify-between mb-2">
+              <span class="text-slate-400 text-sm">You will receive</span>
+              <span class="text-white font-bold text-xl" id="inlineSellValue">$0.00</span>
+            </div>
+            <div class="flex items-center justify-between">
+              <span class="text-slate-500 text-xs">After 1% platform fee</span>
+              <span class="text-slate-400 text-sm" id="inlineSellProfitLoss">$0.00</span>
+            </div>
+          </div>
+
+          <!-- Sell Warning -->
+          <div class="bg-amber-500/10 border border-amber-500/30 rounded-lg p-3 mb-4">
+            <div class="flex items-start gap-2">
+              <svg class="w-4 h-4 text-amber-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
+              </svg>
+              <span class="text-amber-400 text-xs">Selling exits your position at the current market probability. You will no longer receive payouts if this outcome occurs.</span>
+            </div>
+          </div>
+
+          <!-- Confirm Sell Button -->
+          <button onclick="showSellReview('${marketId}', '${outcomeId}', ${probability}, ${userPosition})" 
+            class="w-full bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white font-bold py-3 rounded-lg transition-all">
+            Review Sell Order
+          </button>
         </div>
-
-        <!-- Position Limit Note -->
-        <div class="bg-slate-800/30 rounded-lg p-3 border border-slate-700/50">
-          <p class="text-slate-400 text-xs">You can set a position with up to 10% of your capital.</p>
-        </div>
-
-        <!-- Review & Confirm Button -->
-        <button onclick="showPositionReview('${marketId}', '${outcomeId}', ${probability})" 
-          class="w-full bg-gradient-to-r from-yellow-500 to-yellow-600 hover:from-yellow-600 hover:to-yellow-700 text-slate-950 font-bold py-3 rounded-lg transition-all">
-          Review Position
-        </button>
       </div>
     </div>
   `;
@@ -464,6 +573,268 @@ async function submitInlinePrediction(marketId, outcomeId, probability) {
   showPositionReview(marketId, outcomeId, probability);
 }
 
+/**
+ * Switch between Buy and Sell modes
+ */
+function switchTradeMode(mode, marketId, outcomeId, probability) {
+  currentTradeMode = mode;
+  
+  const buyBtn = document.getElementById('buyTabBtn');
+  const sellBtn = document.getElementById('sellTabBtn');
+  const buyContent = document.getElementById('buyModeContent');
+  const sellContent = document.getElementById('sellModeContent');
+  
+  if (mode === 'buy') {
+    buyBtn.className = 'flex-1 py-2 px-4 rounded-md text-sm font-semibold transition-all bg-green-500/20 text-green-400 border border-green-500/50';
+    sellBtn.className = sellBtn.disabled ? 
+      'flex-1 py-2 px-4 rounded-md text-sm font-semibold transition-all text-slate-400 opacity-50 cursor-not-allowed' :
+      'flex-1 py-2 px-4 rounded-md text-sm font-semibold transition-all text-slate-400 hover:text-white';
+    buyContent.classList.remove('hidden');
+    sellContent.classList.add('hidden');
+  } else {
+    sellBtn.className = 'flex-1 py-2 px-4 rounded-md text-sm font-semibold transition-all bg-red-500/20 text-red-400 border border-red-500/50';
+    buyBtn.className = 'flex-1 py-2 px-4 rounded-md text-sm font-semibold transition-all text-slate-400 hover:text-white';
+    buyContent.classList.add('hidden');
+    sellContent.classList.remove('hidden');
+    
+    // Add listener for sell amount input
+    const sellInput = document.getElementById('inlineSellAmount');
+    if (sellInput) {
+      sellInput.addEventListener('input', function(e) {
+        updateInlineSellCalculations(parseFloat(e.target.value) || 0, probability);
+      });
+    }
+  }
+}
+
+/**
+ * Update sell calculations in real-time
+ */
+function updateInlineSellCalculations(sellAmount, probability) {
+  const sellValue = calcSellValue(sellAmount, probability);
+  const profitLoss = sellValue - sellAmount;
+  
+  const sellValueEl = document.getElementById('inlineSellValue');
+  const profitLossEl = document.getElementById('inlineSellProfitLoss');
+  
+  if (sellValueEl) sellValueEl.textContent = '$' + sellValue.toFixed(2);
+  if (profitLossEl) {
+    if (profitLoss >= 0) {
+      profitLossEl.textContent = '+$' + profitLoss.toFixed(2) + ' profit';
+      profitLossEl.className = 'text-green-400 text-sm';
+    } else {
+      profitLossEl.textContent = '-$' + Math.abs(profitLoss).toFixed(2) + ' loss';
+      profitLossEl.className = 'text-red-400 text-sm';
+    }
+  }
+}
+
+/**
+ * Show sell review modal
+ */
+function showSellReview(marketId, outcomeId, probability, maxPosition) {
+  const sellAmount = parseFloat(document.getElementById('inlineSellAmount')?.value) || 0;
+  
+  if (sellAmount <= 0) {
+    alert('Please enter a valid sell amount');
+    return;
+  }
+  
+  if (sellAmount > maxPosition) {
+    alert(`You can only sell up to $${maxPosition.toFixed(2)} of your position`);
+    return;
+  }
+  
+  const market = markets.find(m => String(m.id) === String(marketId));
+  const outcome = market?.outcomes.find(o => String(o.id) === String(outcomeId));
+  
+  const sellValue = calcSellValue(sellAmount, probability);
+  const profitLoss = sellValue - sellAmount;
+  
+  const modal = document.createElement('div');
+  modal.className = 'fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4';
+  modal.id = 'sellReviewModal';
+  modal.innerHTML = `
+    <div class="bg-slate-900 border border-slate-700 rounded-2xl p-6 max-w-lg w-full max-h-[90vh] overflow-y-auto">
+      <div class="flex justify-between items-center mb-6">
+        <h3 class="text-xl font-bold text-white flex items-center gap-2">
+          <svg class="w-6 h-6 text-red-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+          </svg>
+          Confirm Sell Order
+        </h3>
+        <button onclick="closeSellReview()" class="text-slate-400 hover:text-white text-xl">✕</button>
+      </div>
+      
+      <!-- Market Info -->
+      <div class="bg-slate-800/50 rounded-xl p-4 mb-6">
+        <p class="text-slate-400 text-sm mb-1">Selling Position</p>
+        <p class="text-white font-semibold">${market?.title || 'Unknown Market'}</p>
+        <p class="text-yellow-400 font-medium mt-2">${normalizePredictionOutcomeTitle(outcome?.title || 'Unknown')}</p>
+      </div>
+      
+      <!-- Sell Details -->
+      <div class="grid grid-cols-2 gap-4 mb-6">
+        <div class="bg-slate-800/30 rounded-xl p-4 text-center">
+          <p class="text-slate-400 text-xs mb-1">Selling</p>
+          <p class="text-2xl font-bold text-red-400">$${sellAmount.toFixed(2)}</p>
+        </div>
+        <div class="bg-slate-800/30 rounded-xl p-4 text-center">
+          <p class="text-slate-400 text-xs mb-1">You Receive</p>
+          <p class="text-2xl font-bold text-green-400">$${sellValue.toFixed(2)}</p>
+        </div>
+      </div>
+      
+      <!-- Profit/Loss -->
+      <div class="${profitLoss >= 0 ? 'bg-green-500/10 border border-green-500/30' : 'bg-red-500/10 border border-red-500/30'} rounded-xl p-4 mb-6">
+        <div class="flex items-center justify-between">
+          <span class="text-slate-300">Net ${profitLoss >= 0 ? 'Profit' : 'Loss'}</span>
+          <span class="${profitLoss >= 0 ? 'text-green-400' : 'text-red-400'} font-bold text-xl">
+            ${profitLoss >= 0 ? '+' : '-'}$${Math.abs(profitLoss).toFixed(2)}
+          </span>
+        </div>
+      </div>
+      
+      <!-- Warning -->
+      <div class="bg-amber-500/10 border border-amber-500/30 rounded-xl p-4 mb-6">
+        <div class="flex items-start gap-3">
+          <div class="w-10 h-10 bg-amber-500/20 rounded-full flex items-center justify-center flex-shrink-0">
+            <svg class="w-5 h-5 text-amber-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
+            </svg>
+          </div>
+          <div>
+            <p class="text-amber-400 font-semibold">This action is final</p>
+            <p class="text-amber-300 text-sm">Once sold, you will no longer hold a position on this outcome. If the outcome occurs, you will not receive any payout.</p>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Action Buttons -->
+      <div class="flex gap-3">
+        <button onclick="closeSellReview()" 
+          class="flex-1 bg-slate-700 hover:bg-slate-600 text-white font-semibold py-3 rounded-lg transition-colors">
+          Cancel
+        </button>
+        <button onclick="confirmSell('${marketId}', '${outcomeId}', ${sellAmount}, ${sellValue})" 
+          class="flex-1 bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white font-bold py-3 rounded-lg transition-all">
+          Confirm Sell
+        </button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(modal);
+}
+
+/**
+ * Close sell review modal
+ */
+function closeSellReview() {
+  const modal = document.getElementById('sellReviewModal');
+  if (modal) modal.remove();
+}
+
+/**
+ * Confirm and execute sell order
+ */
+async function confirmSell(marketId, outcomeId, sellAmount, sellValue) {
+  closeSellReview();
+  hideInlineTradingForm();
+  
+  // Show loading modal
+  const modal = document.createElement('div');
+  modal.className = 'fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4';
+  modal.innerHTML = `
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 max-w-md w-full text-center">
+      <div class="w-16 h-16 bg-red-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
+        <span class="text-red-400 text-3xl animate-pulse">⏳</span>
+      </div>
+      <h3 class="text-xl font-bold text-white mb-2">Processing Sell Order...</h3>
+      <p class="text-slate-400">Please wait while we process your sale.</p>
+    </div>
+  `;
+  document.body.appendChild(modal);
+  
+  // Update predictions - mark portion as sold
+  const userPredictions = typeof predictions !== 'undefined' ? predictions : [];
+  let remainingToSell = sellAmount;
+  
+  for (let i = 0; i < userPredictions.length && remainingToSell > 0; i++) {
+    const pred = userPredictions[i];
+    if (String(pred.marketId || pred.market_id) === String(marketId) && 
+        String(pred.outcomeId || pred.outcome_id) === String(outcomeId) && 
+        pred.status === 'active') {
+      const predStake = pred.stake || pred.stake_amount || 0;
+      if (predStake <= remainingToSell) {
+        // Sell entire position
+        pred.status = 'sold';
+        pred.soldAt = new Date().toISOString();
+        pred.saleValue = calcSellValue(predStake, pred.probability || pred.odds_at_prediction);
+        remainingToSell -= predStake;
+      } else {
+        // Partial sell - reduce position
+        const soldPortion = remainingToSell;
+        pred.stake = predStake - soldPortion;
+        pred.stake_amount = predStake - soldPortion;
+        remainingToSell = 0;
+        
+        // Record the sale
+        userPredictions.push({
+          id: Date.now(),
+          marketId: marketId,
+          market_id: marketId,
+          outcomeId: outcomeId,
+          outcome_id: outcomeId,
+          stake: soldPortion,
+          stake_amount: soldPortion,
+          status: 'sold',
+          soldAt: new Date().toISOString(),
+          saleValue: calcSellValue(soldPortion, pred.probability || pred.odds_at_prediction)
+        });
+      }
+    }
+  }
+  
+  // Add sell value to balance
+  if (typeof addBalance === 'function') {
+    addBalance(sellValue);
+  } else if (typeof walletState !== 'undefined') {
+    walletState.balance = (walletState.balance || 0) + sellValue;
+  }
+  
+  // Show confirmation
+  setTimeout(() => {
+    const profitLoss = sellValue - sellAmount;
+    modal.innerHTML = `
+      <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 max-w-md w-full text-center">
+        <div class="w-16 h-16 bg-green-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
+          <span class="text-green-400 text-3xl">✓</span>
+        </div>
+        <h3 class="text-xl font-bold text-white mb-2">Sell Order Complete</h3>
+        <p class="text-slate-400 mb-4">Your position has been sold.</p>
+        <div class="bg-slate-800/50 rounded-xl p-4 mb-4 text-left">
+          <div class="flex justify-between mb-2">
+            <span class="text-slate-400">Position Sold:</span>
+            <span class="text-white font-semibold">$${sellAmount.toFixed(2)}</span>
+          </div>
+          <div class="flex justify-between mb-2">
+            <span class="text-slate-400">Amount Received:</span>
+            <span class="text-green-400 font-semibold">$${sellValue.toFixed(2)}</span>
+          </div>
+          <div class="flex justify-between">
+            <span class="text-slate-400">Net ${profitLoss >= 0 ? 'Profit' : 'Loss'}:</span>
+            <span class="${profitLoss >= 0 ? 'text-green-400' : 'text-red-400'} font-semibold">${profitLoss >= 0 ? '+' : '-'}$${Math.abs(profitLoss).toFixed(2)}</span>
+          </div>
+        </div>
+        <button onclick="this.closest('.fixed').remove(); if(typeof renderMarkets === 'function') renderMarkets();" 
+          class="w-full bg-gradient-to-r from-yellow-500 to-yellow-600 text-slate-950 font-bold py-3 rounded-lg">
+          Done
+        </button>
+      </div>
+    `;
+  }, 1000);
+}
+
 // Make functions globally available
 window.showInlineTradingForm = showInlineTradingForm;
 window.hideInlineTradingForm = hideInlineTradingForm;
@@ -472,6 +843,12 @@ window.submitInlinePrediction = submitInlinePrediction;
 window.showPositionReview = showPositionReview;
 window.closePositionReview = closePositionReview;
 window.confirmPosition = confirmPosition;
+window.switchTradeMode = switchTradeMode;
+window.updateInlineSellCalculations = updateInlineSellCalculations;
+window.showSellReview = showSellReview;
+window.closeSellReview = closeSellReview;
+window.confirmSell = confirmSell;
+window.getUserPosition = getUserPosition;
 
 function openPredictionForm(marketId, outcomeId) {
   // Handle both string and numeric IDs
