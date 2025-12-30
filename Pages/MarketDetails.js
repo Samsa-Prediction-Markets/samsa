@@ -8,7 +8,7 @@
  * Shows comprehensive information about a specific market including:
  * - Market description and metadata
  * - Available outcomes with current probabilities
- * - Prediction form for placing bets
+ * - Prediction form for taking positions
  * - Related news and statistics
  */
 export default function MarketDetailsPage() {

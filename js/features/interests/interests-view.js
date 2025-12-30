@@ -132,7 +132,6 @@ async function handleFollowClick(itemId, itemName, itemType, category, buttonEle
 // ========================================
 
 const SIDEBAR_CATEGORIES = [
-  { id: 'sports', name: 'Sports', icon: '🏆' },
   { id: 'politics', name: 'Politics', icon: '🏛️' },
   { id: 'finance', name: 'Finance', icon: '💰' },
   { id: 'technology', name: 'Technology', icon: '💻' },
@@ -140,9 +139,7 @@ const SIDEBAR_CATEGORIES = [
   { id: 'health', name: 'Health', icon: '🏥' },
   { id: 'international', name: 'International', icon: '🌍' },
   { id: 'environment', name: 'Environment', icon: '🌿' },
-  { id: 'climate', name: 'Climate', icon: '🌡️' },
-  { id: 'arts_and_culture', name: 'Arts & Culture', icon: '🎬' },
-  { id: 'social', name: 'Social', icon: '👥' }
+  { id: 'climate', name: 'Climate', icon: '🌡️' }
 ];
 
 let expandedSidebarCategory = null;
@@ -188,12 +185,10 @@ function toggleSidebarCategory(categoryId) {
 }
 
 function getSidebarSubcategories(categoryId) {
-  // Get subcategories from TOPICS or SPORTS
+  // Get subcategories from TOPICS
   let items = [];
 
-  if (categoryId === 'sports' && typeof SPORTS !== 'undefined') {
-    items = SPORTS.map(s => ({ id: s.id, name: s.name, icon: s.icon }));
-  } else if (typeof TOPICS !== 'undefined' && TOPICS[categoryId]) {
+  if (typeof TOPICS !== 'undefined' && TOPICS[categoryId]) {
     items = TOPICS[categoryId].map(t => ({ id: t.id, name: t.name, icon: t.icon }));
   }
 
@@ -279,9 +274,9 @@ function unfollowFromSidebar(itemId) {
 
 function getCategoryIcon(category) {
   const icons = {
-    sports: '🏆', politics: '🏛️', finance: '💰', technology: '💻',
+    politics: '🏛️', finance: '💰', technology: '💻',
     science: '🔬', health: '🏥', international: '🌍', environment: '🌿',
-    climate: '🌡️', arts_and_culture: '🎬', social: '👥'
+    climate: '🌡️'
   };
   return icons[category] || '📌';
 }

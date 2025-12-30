@@ -485,18 +485,6 @@ function renderSuggestedInterests() {
 function getSuggestedInterestsList() {
   const interests = [];
 
-  // Add sports from config if available
-  if (typeof SELECTED_SPORTS !== 'undefined') {
-    SELECTED_SPORTS.forEach(sport => {
-      interests.push({
-        id: sport.id,
-        name: sport.name,
-        category: 'sports',
-        color: 'from-green-500 to-emerald-600'
-      });
-    });
-  }
-
   // Add political topics if available
   if (typeof SELECTED_POLITICAL_TOPICS !== 'undefined') {
     SELECTED_POLITICAL_TOPICS.slice(0, 5).forEach(topic => {
@@ -536,14 +524,12 @@ function getSuggestedInterestsList() {
   // Add some default interests if none found
   if (interests.length === 0) {
     interests.push(
-      { id: 'soccer', name: 'Soccer', category: 'sports', color: 'from-green-500 to-emerald-600' },
-      { id: 'basketball', name: 'Basketball', category: 'sports', color: 'from-orange-500 to-red-600' },
-      { id: 'crypto', name: 'Cryptocurrency', category: 'finance', color: 'from-yellow-500 to-amber-600' },
       { id: 'ai', name: 'AI & Tech', category: 'technology', color: 'from-cyan-500 to-blue-600' },
       { id: 'politics', name: 'US Politics', category: 'politics', color: 'from-blue-500 to-indigo-600' },
       { id: 'climate', name: 'Climate', category: 'environment', color: 'from-green-500 to-teal-600' },
-      { id: 'movies', name: 'Movies', category: 'entertainment', color: 'from-pink-500 to-rose-600' },
-      { id: 'music', name: 'Music', category: 'entertainment', color: 'from-purple-500 to-pink-600' }
+      { id: 'health', name: 'Public Health', category: 'health', color: 'from-red-500 to-pink-600' },
+      { id: 'science', name: 'Science', category: 'science', color: 'from-indigo-500 to-purple-600' },
+      { id: 'international', name: 'International', category: 'international', color: 'from-cyan-500 to-blue-600' }
     );
   }
 
@@ -580,13 +566,9 @@ function createSuggestedInterestCard(interest) {
  * Handle click on suggested interest
  */
 function handleInterestClick(id, name, category) {
-  if (category === 'sports' && typeof showInterestSubcategories === 'function') {
-    showInterestSubcategories(id, name);
-  } else {
-    // For non-sports, just navigate to interests
-    if (typeof navigateTo === 'function') {
-      navigateTo('interests');
-    }
+  // Navigate to interests page
+  if (typeof navigateTo === 'function') {
+    navigateTo('interests');
   }
 }
 
@@ -1066,8 +1048,8 @@ function generateDetailHTML(market) {
             </div>
           </div>
 
-          <!-- Trading Options -->
-          <div class="text-sm text-slate-400 mb-2">Select an outcome to trade</div>
+          <!-- Position Options -->
+          <div class="text-sm text-slate-400 mb-2">Select an outcome to take a position</div>
           <div id="outcomeButtonsGrid" class="grid grid-cols-2 gap-3">
             ${isBinary ?
       safeMarket.outcomes.map((outcome, idx) => {
@@ -1101,7 +1083,7 @@ function generateDetailHTML(market) {
             </div>
             <div class="p-4 text-sm">
               <p class="text-slate-300 leading-relaxed">
-                This <span class="text-white font-medium capitalize">${safeMarket.category}</span> market is a <span class="text-white font-medium">${isBinary ? 'binary (Yes/No)' : 'multi-outcome (' + safeMarket.outcomes.length + ' options)'}</span> prediction market that closes on <span class="text-white font-medium">${closeDate}</span>. The market will be resolved based on official sources and verified reports. Once closed, winning positions will be paid out according to the settlement rules.
+                This <span class="text-white font-medium capitalize">${safeMarket.category}</span> market is a <span class="text-white font-medium">${isBinary ? 'binary (Yes/No)' : 'multi-outcome (' + safeMarket.outcomes.length + ' options)'}</span> forecasting market that closes on <span class="text-white font-medium">${closeDate}</span>. The market will be resolved based on official sources and verified reports. Once resolved, positions will be settled according to the final outcome.
               </p>
             </div>
           </div>
@@ -1113,13 +1095,13 @@ function generateDetailHTML(market) {
             </div>
             <div class="p-4 text-sm space-y-4">
               <p class="text-slate-300 leading-relaxed">
-                This market uses the <span class="text-yellow-400 font-medium">Logarithmic Market Scoring Rule (LMSR)</span> with a rebated-risk model. Prices between 0¢ and 100¢ represent the market's estimated probability for each outcome. When you place a trade, your potential profit is proportional to the risk you take—betting on lower probability outcomes yields higher returns if correct.
+                This market uses the <span class="text-yellow-400 font-medium">Logarithmic Market Scoring Rule (LMSR)</span> with a rebated-risk model. Prices between 0¢ and 100¢ represent the market's estimated probability for each outcome. When you take a position, your potential return is proportional to how much your view differs from the market consensus—positions on lower probability outcomes yield higher returns if correct.
               </p>
               <p class="text-slate-300 leading-relaxed">
-                <span class="text-green-400 font-medium">If you win</span>, your profit equals your stake multiplied by (1 − probability), minus a 1% platform fee. <span class="text-red-400 font-medium">If you lose</span>, you receive a partial refund equal to your stake multiplied by the probability at the time of your trade. This rebate system means you never lose your entire stake—you always get back a portion based on the odds.
+                <span class="text-green-400 font-medium">If your forecast is correct</span>, your return equals your position multiplied by (1 − probability), minus a 1% platform fee. <span class="text-slate-400 font-medium">If the outcome differs</span>, you receive a partial refund equal to your position multiplied by the probability at entry. This means you always receive back a portion based on market probability.
               </p>
               <p class="text-slate-400 leading-relaxed text-xs">
-                For example, a $100 trade at 40% probability would return $159.40 total (including $59.40 profit) if correct, or a $40 refund if incorrect. The higher the risk, the higher the potential reward.
+                For example, a $100 position at 40% probability would return $159.40 total (including $59.40 profit) if correct, or a $40 refund if the outcome differs. Higher-conviction positions at lower probabilities offer higher potential returns.
               </p>
             </div>
           </div>

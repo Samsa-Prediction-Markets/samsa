@@ -1,14 +1,14 @@
 // ============================================================================
 // PREDICTION FORM COMPONENT
 // ============================================================================
-// Form for placing a prediction (bet) on a specific market outcome
+// Form for taking a position on a specific market outcome
 
 /**
  * Prediction Form Component
  * Allows users to enter a stake amount and see potential returns before confirming
  * @param {Object} props - Component props
  * @param {Object} props.market - The market object
- * @param {Object} props.outcome - The selected outcome to bet on
+ * @param {Object} props.outcome - The selected outcome to take a position on
  * @param {Function} props.onSubmit - Callback when form is submitted
  * @param {Function} props.onCancel - Callback to cancel and close the form
  * @param {boolean} props.isProcessing - Whether the submission is in progress
@@ -26,7 +26,7 @@ export default function PredictionForm({ market, outcome, onSubmit, onCancel, is
     const stake = parseFloat(stakeAmount) || 0;
     if (stake === 0) return 0;
 
-    // If you bet on 60% odds, you get less return than betting on 20% odds
+    // If you take a position at 60% probability, you get less return than at 20%
     const multiplier = 100 / outcome.probability;
     return stake * multiplier;
   };

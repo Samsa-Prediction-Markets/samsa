@@ -747,7 +747,7 @@ function generateLeagueMarketsData(leagueName, sport, count, leagueId) {
       traders: Math.floor(Math.random() * 500) + 100,
       news: [
         { title: `Latest ${leagueName} updates and analysis`, source: 'Sports News', time: '1h ago' },
-        { title: `Expert predictions for upcoming ${leagueName} matches`, source: 'Betting Insider', time: '3h ago' },
+        { title: `Expert predictions for upcoming ${leagueName} matches`, source: 'Sports Analytics', time: '3h ago' },
         { title: `${leagueName} odds movement and trends`, source: 'Odds Portal', time: '6h ago' }
       ]
     };

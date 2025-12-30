@@ -507,3 +507,151 @@ a,
   scrollbar-width: thin;
   scrollbar-color: #334155 transparent;
 }
+
+/* ========================================
+   Responsible Trading UI Elements
+   ======================================== */
+
+/* Capital at risk warning indicator */
+.capital-risk-indicator {
+  transition: all 0.3s ease;
+}
+
+.capital-risk-indicator.low {
+  background: rgba(100, 116, 139, 0.1);
+  border-color: rgba(100, 116, 139, 0.3);
+}
+
+.capital-risk-indicator.medium {
+  background: rgba(245, 158, 11, 0.1);
+  border-color: rgba(245, 158, 11, 0.3);
+}
+
+.capital-risk-indicator.high {
+  background: rgba(239, 68, 68, 0.1);
+  border-color: rgba(239, 68, 68, 0.3);
+}
+
+/* Position review modal */
+#positionReviewModal {
+  animation: fadeInModal 0.2s ease-out;
+}
+
+@keyframes fadeInModal {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+#positionReviewModal > div {
+  animation: slideInModal 0.3s ease-out;
+}
+
+@keyframes slideInModal {
+  from {
+    opacity: 0;
+    transform: translateY(-20px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* Reflection prompt textarea */
+#reflectionPrompt {
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+#reflectionPrompt:focus {
+  box-shadow: 0 0 0 3px rgba(234, 179, 8, 0.1);
+}
+
+/* Educational nudge styling */
+.educational-nudge {
+  font-style: italic;
+  opacity: 0.9;
+}
+
+/* Risk warning badges */
+.risk-warning {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 12px;
+  animation: fadeInWarning 0.3s ease-out;
+}
+
+@keyframes fadeInWarning {
+  from {
+    opacity: 0;
+    transform: translateY(-5px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Settings toggle buttons */
+#observeModeBtn,
+#tradingPauseBtn {
+  transition: all 0.2s ease;
+}
+
+#observeModeBtn:hover,
+#tradingPauseBtn:hover {
+  transform: translateY(-1px);
+}
+
+/* Stats cards in settings */
+.stats-card {
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.stats-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+/* Leaderboard ranking badges */
+.ranking-badge {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  font-weight: bold;
+  font-size: 14px;
+}
+
+.ranking-badge.gold {
+  background: linear-gradient(135deg, #f59e0b, #d97706);
+  color: white;
+}
+
+.ranking-badge.silver {
+  background: linear-gradient(135deg, #9ca3af, #6b7280);
+  color: white;
+}
+
+.ranking-badge.bronze {
+  background: linear-gradient(135deg, #b45309, #92400e);
+  color: white;
+}
+
+/* Confirmation modal - no celebratory effects */
+.confirmation-modal {
+  /* Intentionally calm and professional */
+}
+
+.confirmation-modal .success-icon {
+  /* Simple checkmark, no confetti or celebration */
+  animation: none;
+}
