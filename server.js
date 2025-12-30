@@ -1,24 +1,18 @@
-require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const morgan = require('morgan');
 const path = require('path');
 const { nanoid } = require('nanoid');
-const { Op } = require('sequelize');
-
-// Import database models
-const {
-  sequelize,
-  Market,
-  Outcome,
-  Prediction,
-  User,
-  Transaction,
-  initializeDatabase
-} = require('./lib/database/models');
+const { readJson, writeJson } = require('./lib/datastore');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
+
+const DATA_DIR = path.join(__dirname, 'data');
+const MARKETS_PATH = path.join(DATA_DIR, 'markets.json');
+const PREDICTIONS_PATH = path.join(DATA_DIR, 'predictions.json');
+const USERS_PATH = path.join(DATA_DIR, 'users.json');
+const TRANSACTIONS_PATH = path.join(DATA_DIR, 'transactions.json');
 
 app.use(cors());
 app.use(express.json());
@@ -32,213 +26,117 @@ app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'index.html'));
 });
 
-// ============================================================================
-// HELPER FUNCTIONS
-// ============================================================================
-
-/**
- * Format market with outcomes for API response
- */
-function formatMarketResponse(market) {
-  const plain = market.toJSON();
-  return {
-    id: plain.id,
-    title: plain.title,
-    description: plain.description,
-    category: plain.category,
-    status: plain.status,
-    close_date: plain.close_date,
-    resolution_date: plain.resolution_date,
-    total_volume: parseFloat(plain.total_volume || 0),
-    image_url: plain.image_url,
-    winning_outcome_id: plain.winning_outcome_id,
-    search_keywords: plain.search_keywords,
-    outcomes: (plain.outcomes || []).map(o => ({
-      id: o.id,
-      title: o.title,
-      probability: parseInt(o.probability || 0),
-      total_stake: parseFloat(o.total_stake || 0)
-    })),
-    created_at: plain.created_at,
-    updated_at: plain.updated_at
-  };
-}
-
-/**
- * Recompute market stats based on outcome stakes
- */
 function recomputeMarketStats(market) {
-  const outcomes = market.outcomes || [];
-  const totalStake = outcomes.reduce((sum, o) => sum + parseFloat(o.total_stake || 0), 0);
-  
+  const totalStake = market.outcomes.reduce((sum, o) => sum + (o.total_stake || 0), 0);
   market.total_volume = totalStake;
-  
   if (totalStake > 0) {
-    outcomes.forEach((o) => {
-      o.probability = Math.round((parseFloat(o.total_stake || 0) / totalStake) * 100);
+    market.outcomes.forEach((o) => {
+      o.probability = Math.round(((o.total_stake || 0) / totalStake) * 100);
     });
   }
-  
-  return market;
 }
-
-/**
- * Calculate user balance from transactions
- */
-async function calculateBalanceFromTransactions(userId) {
-  const transactions = await Transaction.findAll({
-    where: { user_id: userId }
-  });
-  
-  const predictions = await Prediction.findAll({
-    where: { user_id: userId }
-  });
-  
-  // Sum deposits (completed only)
-  const totalDeposits = transactions
-    .filter(t => t.type === 'deposit' && t.status === 'completed')
-    .reduce((sum, t) => sum + parseFloat(t.amount || 0), 0);
-  
-  // Sum withdrawals (completed only)
-  const totalWithdrawals = transactions
-    .filter(t => t.type === 'withdrawal' && t.status === 'completed')
-    .reduce((sum, t) => sum + parseFloat(t.amount || 0), 0);
-  
-  // Sum active prediction stakes (money locked in trades)
-  const activePredictionStakes = predictions
-    .filter(p => p.status === 'active')
-    .reduce((sum, p) => sum + parseFloat(p.stake_amount || 0), 0);
-  
-  // Balance = deposits - withdrawals - active stakes
-  const balance = totalDeposits - totalWithdrawals - activePredictionStakes;
-  
-  return {
-    balance: Math.max(0, balance),
-    totalDeposits,
-    totalWithdrawals,
-    activePredictionStakes
-  };
-}
-
-// ============================================================================
-// HEALTH CHECK
-// ============================================================================
 
 app.get('/api/health', (req, res) => {
-  res.json({ ok: true, service: 'samsa-api', database: 'postgresql' });
+  res.json({ ok: true, service: 'samsa-api' });
 });
 
 // ============================================================================
 // LEAGUE STATS
 // ============================================================================
 
+// Get stats for a specific league (active markets, volume, predictions)
 app.get('/api/leagues/:leagueId/stats', async (req, res) => {
-  try {
-    const { leagueId } = req.params;
-    
-    // Markets don't have league_id field yet, return defaults
-    const leagueMarkets = await Market.findAll({
-      where: { 
-        status: 'active',
-        // league_id: leagueId  // Add this when markets have league associations
-      }
-    });
-    
-    const activeMarkets = leagueMarkets.length;
-    const totalVolume = leagueMarkets.reduce((sum, m) => sum + parseFloat(m.total_volume || 0), 0);
-    
-    const leagueMarketIds = leagueMarkets.map(m => m.id);
-    const predictionCount = await Prediction.count({
-      where: { market_id: { [Op.in]: leagueMarketIds } }
-    });
-    
-    res.json({
-      league_id: leagueId,
-      active_markets: activeMarkets,
-      total_volume: totalVolume,
-      predictions: predictionCount
-    });
-  } catch (error) {
-    console.error('League stats error:', error);
-    res.status(500).json({ error: 'Failed to fetch league stats' });
-  }
+  const { leagueId } = req.params;
+  const markets = await readJson(MARKETS_PATH);
+  const predictions = await readJson(PREDICTIONS_PATH);
+  
+  // Filter markets that belong to this league (by matching league ID in market data)
+  // For now, markets don't have league_id, so we return aggregated defaults
+  // When markets have league associations, filter by: m.league_id === leagueId
+  const leagueMarkets = markets.filter(m => m.league_id === leagueId && m.status === 'active');
+  
+  // Calculate stats
+  const activeMarkets = leagueMarkets.length;
+  const totalVolume = leagueMarkets.reduce((sum, m) => sum + (m.total_volume || 0), 0);
+  
+  // Count predictions for league markets
+  const leagueMarketIds = leagueMarkets.map(m => m.id);
+  const leaguePredictions = predictions.filter(p => leagueMarketIds.includes(p.market_id)).length;
+  
+  res.json({
+    league_id: leagueId,
+    active_markets: activeMarkets,
+    total_volume: totalVolume,
+    predictions: leaguePredictions
+  });
 });
 
 // ============================================================================
-// MARKETS - CURRENT EVENTS / TRENDING
+// CURRENT EVENTS / TRENDING MARKETS
 // ============================================================================
 
+// Get markets based on current events (closing soon, high volume, trending topics)
 app.get('/api/markets/current-events', async (req, res) => {
-  try {
-    const now = new Date();
-    const sixMonthsFromNow = new Date(now.getTime() + 180 * 24 * 60 * 60 * 1000);
-    
-    const markets = await Market.findAll({
-      where: {
-        status: 'active',
-        [Op.or]: [
-          { close_date: null },
-          {
-            close_date: {
-              [Op.lte]: sixMonthsFromNow,
-              [Op.gt]: now
-            }
-          }
-        ]
-      },
-      include: [{ model: Outcome, as: 'outcomes' }],
-      order: [['total_volume', 'DESC']]
+  const markets = await readJson(MARKETS_PATH);
+  const now = new Date();
+  const sixMonthsFromNow = new Date(now.getTime() + 180 * 24 * 60 * 60 * 1000);
+  
+  // Filter markets that are:
+  // 1. Active
+  // 2. Closing within the next 6 months (timely)
+  // 3. Have significant volume or are newly created
+  const currentEventMarkets = markets
+    .filter(m => m.status === 'active')
+    .filter(m => {
+      if (!m.close_date) return true;
+      const closeDate = new Date(m.close_date);
+      return closeDate <= sixMonthsFromNow && closeDate > now;
+    })
+    .sort((a, b) => {
+      // Sort by a combination of volume and how soon they close
+      const aClose = new Date(a.close_date || '2099-12-31');
+      const bClose = new Date(b.close_date || '2099-12-31');
+      const aUrgency = (aClose - now) / (1000 * 60 * 60 * 24); // days until close
+      const bUrgency = (bClose - now) / (1000 * 60 * 60 * 24);
+      
+      // Score: higher volume + sooner closing = higher score
+      const aScore = (a.total_volume || 0) / 1000 - aUrgency / 10;
+      const bScore = (b.total_volume || 0) / 1000 - bUrgency / 10;
+      return bScore - aScore;
     });
-    
-    const formatted = markets.map(formatMarketResponse);
-    res.json(formatted);
-  } catch (error) {
-    console.error('Current events error:', error);
-    res.status(500).json({ error: 'Failed to fetch current events' });
-  }
+  
+  res.json(currentEventMarkets);
 });
 
+// Get trending markets (highest 24h volume)
 app.get('/api/markets/trending', async (req, res) => {
-  try {
-    const limit = parseInt(req.query.limit) || 10;
-    
-    const markets = await Market.findAll({
-      where: { status: 'active' },
-      include: [{ model: Outcome, as: 'outcomes' }],
-      order: [['total_volume', 'DESC']],
-      limit
-    });
-    
-    const formatted = markets.map(formatMarketResponse);
-    res.json(formatted);
-  } catch (error) {
-    console.error('Trending markets error:', error);
-    res.status(500).json({ error: 'Failed to fetch trending markets' });
-  }
+  const markets = await readJson(MARKETS_PATH);
+  const limit = parseInt(req.query.limit) || 10;
+  
+  const trendingMarkets = markets
+    .filter(m => m.status === 'active')
+    .sort((a, b) => (b.total_volume || 0) - (a.total_volume || 0))
+    .slice(0, limit);
+  
+  res.json(trendingMarkets);
 });
 
+// Get markets by category
 app.get('/api/markets/category/:category', async (req, res) => {
-  try {
-    const { category } = req.params;
-    
-    const markets = await Market.findAll({
-      where: {
-        status: 'active',
-        category: { [Op.iLike]: category }
-      },
-      include: [{ model: Outcome, as: 'outcomes' }]
-    });
-    
-    const formatted = markets.map(formatMarketResponse);
-    res.json(formatted);
-  } catch (error) {
-    console.error('Category markets error:', error);
-    res.status(500).json({ error: 'Failed to fetch category markets' });
-  }
+  const markets = await readJson(MARKETS_PATH);
+  const { category } = req.params;
+  
+  const categoryMarkets = markets.filter(m => 
+    m.status === 'active' && 
+    m.category.toLowerCase() === category.toLowerCase()
+  );
+  
+  res.json(categoryMarkets);
 });
 
+// Generate suggested markets based on current news topics
 app.get('/api/markets/suggestions', async (req, res) => {
-  // Static suggestions (same as before)
+  // This returns template suggestions for new markets based on trending topics
   const suggestions = [
     {
       topic: "Technology",
@@ -265,7 +163,7 @@ app.get('/api/markets/suggestions', async (req, res) => {
       ]
     },
     {
-      topic: "Entertainment",
+      topic: "Entertainment", 
       suggestions: [
         { title: "2025 Grammy Awards predictions", category: "entertainment" },
         { title: "Golden Globes Best Picture", category: "entertainment" },
@@ -293,452 +191,368 @@ app.get('/api/markets/suggestions', async (req, res) => {
   res.json(suggestions);
 });
 
-// ============================================================================
-// MARKETS CRUD
-// ============================================================================
-
 app.get('/api/markets', async (req, res) => {
-  try {
-    const markets = await Market.findAll({
-      include: [{ model: Outcome, as: 'outcomes' }],
-      order: [['created_at', 'DESC']]
-    });
-    
-    const formatted = markets.map(formatMarketResponse);
-    res.json(formatted);
-  } catch (error) {
-    console.error('Get markets error:', error);
-    res.status(500).json({ error: 'Failed to fetch markets' });
-  }
+  const markets = await readJson(MARKETS_PATH);
+  res.json(markets);
 });
 
 app.get('/api/markets/:id', async (req, res) => {
-  try {
-    const market = await Market.findByPk(req.params.id, {
-      include: [{ model: Outcome, as: 'outcomes' }]
-    });
-    
-    if (!market) {
-      return res.status(404).json({ error: 'Market not found' });
-    }
-    
-    res.json(formatMarketResponse(market));
-  } catch (error) {
-    console.error('Get market error:', error);
-    res.status(500).json({ error: 'Failed to fetch market' });
-  }
+  const markets = await readJson(MARKETS_PATH);
+  const market = markets.find((m) => m.id === req.params.id);
+  if (!market) return res.status(404).json({ error: 'Market not found' });
+  res.json(market);
 });
 
 app.post('/api/markets', async (req, res) => {
-  try {
-    const {
-      title,
-      description,
-      category,
-      outcomes = [],
-      image_url = '',
-      search_keywords = '',
-      close_date = null,
-      resolution_date = null
-    } = req.body;
+  const {
+    title,
+    description,
+    category,
+    outcomes = [],
+    image_url = '',
+    search_keywords = '',
+    close_date = null,
+    resolution_date = null
+  } = req.body;
 
-    if (!title || !description || !category || !Array.isArray(outcomes) || outcomes.length < 2) {
-      return res.status(400).json({ error: 'Invalid market payload' });
-    }
-
-    // Start transaction
-    const result = await sequelize.transaction(async (t) => {
-      // Create market
-      const market = await Market.create({
-        id: nanoid(12),
-        title,
-        description,
-        category,
-        status: 'active',
-        close_date,
-        resolution_date,
-        total_volume: 0,
-        image_url,
-        winning_outcome_id: null,
-        search_keywords
-      }, { transaction: t });
-
-      // Create outcomes
-      const outcomePromises = outcomes.map((o) =>
-        Outcome.create({
-          id: o.id || nanoid(8),
-          market_id: market.id,
-          title: o.title,
-          probability: typeof o.probability === 'number' ? o.probability : Math.round(100 / outcomes.length),
-          total_stake: typeof o.total_stake === 'number' ? o.total_stake : 0
-        }, { transaction: t })
-      );
-
-      await Promise.all(outcomePromises);
-
-      // Fetch market with outcomes
-      const fullMarket = await Market.findByPk(market.id, {
-        include: [{ model: Outcome, as: 'outcomes' }],
-        transaction: t
-      });
-
-      return fullMarket;
-    });
-
-    res.status(201).json(formatMarketResponse(result));
-  } catch (error) {
-    console.error('Create market error:', error);
-    res.status(500).json({ error: 'Failed to create market' });
+  if (!title || !description || !category || !Array.isArray(outcomes) || outcomes.length < 2) {
+    return res.status(400).json({ error: 'Invalid market payload' });
   }
+
+  const markets = await readJson(MARKETS_PATH);
+
+  const normalizedOutcomes = outcomes.map((o) => ({
+    id: o.id || nanoid(8),
+    title: o.title,
+    probability: typeof o.probability === 'number' ? o.probability : Math.round(100 / outcomes.length),
+    total_stake: typeof o.total_stake === 'number' ? o.total_stake : 0
+  }));
+
+  const market = {
+    id: nanoid(12),
+    title,
+    description,
+    category,
+    status: 'active',
+    close_date,
+    resolution_date,
+    outcomes: normalizedOutcomes,
+    total_volume: 0,
+    image_url,
+    winning_outcome_id: null,
+    search_keywords
+  };
+
+  recomputeMarketStats(market);
+  markets.push(market);
+  await writeJson(MARKETS_PATH, markets);
+  res.status(201).json(market);
 });
 
-// ============================================================================
-// PREDICTIONS
-// ============================================================================
-
 app.get('/api/predictions', async (req, res) => {
-  try {
-    const { market_id } = req.query;
-    const where = market_id ? { market_id } : {};
-    
-    const predictions = await Prediction.findAll({
-      where,
-      order: [['created_at', 'DESC']]
-    });
-    
-    res.json(predictions);
-  } catch (error) {
-    console.error('Get predictions error:', error);
-    res.status(500).json({ error: 'Failed to fetch predictions' });
+  const predictions = await readJson(PREDICTIONS_PATH);
+  const { market_id } = req.query;
+  if (market_id) {
+    return res.json(predictions.filter((p) => p.market_id === market_id));
   }
+  res.json(predictions);
 });
 
 app.post('/api/predictions', async (req, res) => {
-  try {
-    const {
-      market_id,
-      outcome_id,
-      stake_amount,
-      odds_at_prediction,
-      user_id = null
-    } = req.body;
+  const {
+    market_id,
+    outcome_id,
+    stake_amount,
+    odds_at_prediction,
+    user_id = null
+  } = req.body;
 
-    if (!market_id || !outcome_id || typeof stake_amount !== 'number' || typeof odds_at_prediction !== 'number') {
-      return res.status(400).json({ error: 'Invalid prediction payload' });
-    }
-
-    // Use transaction for atomic operation
-    const result = await sequelize.transaction(async (t) => {
-      // Find market with outcomes
-      const market = await Market.findByPk(market_id, {
-        include: [{ model: Outcome, as: 'outcomes' }],
-        transaction: t
-      });
-
-      if (!market) {
-        throw new Error('Market not found');
-      }
-
-      if (market.status !== 'active') {
-        throw new Error('Market is not active');
-      }
-
-      const outcome = market.outcomes.find((o) => o.id === outcome_id);
-      if (!outcome) {
-        throw new Error('Outcome not found');
-      }
-
-      // Calculate potential return
-      const potential_return = Number((stake_amount * (100 / Math.max(odds_at_prediction, 1))).toFixed(2));
-
-      // Create prediction
-      const prediction = await Prediction.create({
-        id: nanoid(12),
-        market_id,
-        outcome_id,
-        user_id,
-        stake_amount,
-        odds_at_prediction,
-        potential_return,
-        status: 'active',
-        actual_return: 0
-      }, { transaction: t });
-
-      // Update outcome total stake
-      await outcome.update({
-        total_stake: parseFloat(outcome.total_stake) + stake_amount
-      }, { transaction: t });
-
-      // Recalculate market stats
-      const updatedMarket = await Market.findByPk(market_id, {
-        include: [{ model: Outcome, as: 'outcomes' }],
-        transaction: t
-      });
-
-      recomputeMarketStats(updatedMarket);
-
-      // Update market total volume and outcome probabilities
-      await updatedMarket.save({ transaction: t });
-      
-      for (const o of updatedMarket.outcomes) {
-        await o.save({ transaction: t });
-      }
-
-      return prediction;
-    });
-
-    res.status(201).json(result);
-  } catch (error) {
-    console.error('Create prediction error:', error);
-    if (error.message === 'Market not found') {
-      return res.status(404).json({ error: error.message });
-    }
-    if (error.message === 'Market is not active' || error.message === 'Outcome not found') {
-      return res.status(400).json({ error: error.message });
-    }
-    res.status(500).json({ error: 'Failed to create prediction' });
+  if (!market_id || !outcome_id || typeof stake_amount !== 'number' || typeof odds_at_prediction !== 'number') {
+    return res.status(400).json({ error: 'Invalid prediction payload' });
   }
+
+  const markets = await readJson(MARKETS_PATH);
+  const predictions = await readJson(PREDICTIONS_PATH);
+
+  const market = markets.find((m) => m.id === market_id);
+  if (!market) return res.status(404).json({ error: 'Market not found' });
+
+  if (market.status !== 'active') return res.status(400).json({ error: 'Market is not active' });
+
+  const outcome = market.outcomes.find((o) => o.id === outcome_id);
+  if (!outcome) return res.status(404).json({ error: 'Outcome not found' });
+
+  const potential_return = Number((stake_amount * (100 / Math.max(odds_at_prediction, 1))).toFixed(2));
+
+  const prediction = {
+    id: nanoid(12),
+    market_id,
+    outcome_id,
+    stake_amount,
+    odds_at_prediction,
+    potential_return,
+    status: 'active',
+    actual_return: 0,
+    user_id,
+    created_at: new Date().toISOString()
+  };
+
+  predictions.push(prediction);
+
+  outcome.total_stake = (outcome.total_stake || 0) + stake_amount;
+  recomputeMarketStats(market);
+
+  await writeJson(PREDICTIONS_PATH, predictions);
+  await writeJson(MARKETS_PATH, markets);
+
+  res.status(201).json(prediction);
 });
 
-// ============================================================================
-// MARKET RESOLUTION
-// ============================================================================
-
 app.post('/api/markets/:id/resolve', async (req, res) => {
-  try {
-    const { winning_outcome_id } = req.body;
+  const { winning_outcome_id } = req.body;
+  const markets = await readJson(MARKETS_PATH);
+  const predictions = await readJson(PREDICTIONS_PATH);
 
-    const result = await sequelize.transaction(async (t) => {
-      // Find market with outcomes
-      const market = await Market.findByPk(req.params.id, {
-        include: [{ model: Outcome, as: 'outcomes' }],
-        transaction: t
-      });
+  const market = markets.find((m) => m.id === req.params.id);
+  if (!market) return res.status(404).json({ error: 'Market not found' });
 
-      if (!market) {
-        throw new Error('Market not found');
-      }
+  const winOutcome = market.outcomes.find((o) => o.id === winning_outcome_id);
+  if (!winOutcome) return res.status(400).json({ error: 'Invalid winning_outcome_id' });
 
-      const winOutcome = market.outcomes.find((o) => o.id === winning_outcome_id);
-      if (!winOutcome) {
-        throw new Error('Invalid winning_outcome_id');
-      }
+  market.status = 'resolved';
+  market.winning_outcome_id = winning_outcome_id;
+  market.resolution_date = new Date().toISOString();
 
-      // Update market status
-      await market.update({
-        status: 'resolved',
-        winning_outcome_id,
-        resolution_date: new Date()
-      }, { transaction: t });
+  const updated = predictions.map((p) => {
+    if (p.market_id !== market.id) return p;
+    const won = p.outcome_id === winning_outcome_id;
+    return {
+      ...p,
+      status: won ? 'won' : 'lost',
+      actual_return: won ? p.potential_return : 0
+    };
+  });
 
-      // Update all predictions for this market
-      const predictions = await Prediction.findAll({
-        where: { market_id: market.id },
-        transaction: t
-      });
+  await writeJson(PREDICTIONS_PATH, updated);
+  await writeJson(MARKETS_PATH, markets);
 
-      for (const prediction of predictions) {
-        const won = prediction.outcome_id === winning_outcome_id;
-        await prediction.update({
-          status: won ? 'won' : 'lost',
-          actual_return: won ? prediction.potential_return : 0,
-          resolved_at: new Date()
-        }, { transaction: t });
-      }
-
-      return market;
-    });
-
-    res.json({ ok: true, market: formatMarketResponse(result) });
-  } catch (error) {
-    console.error('Resolve market error:', error);
-    if (error.message === 'Market not found') {
-      return res.status(404).json({ error: error.message });
-    }
-    if (error.message === 'Invalid winning_outcome_id') {
-      return res.status(400).json({ error: error.message });
-    }
-    res.status(500).json({ error: 'Failed to resolve market' });
-  }
+  res.json({ ok: true, market });
 });
 
 // ============================================================================
 // WALLET / USER ENDPOINTS
 // ============================================================================
 
-app.get('/api/users/:id/balance', async (req, res) => {
+/**
+ * Calculate user balance from transactions
+ * Balance = sum of deposits - sum of withdrawals - sum of active predictions
+ */
+async function calculateBalanceFromTransactions(userId) {
+  let transactions = [];
+  let predictions = [];
+  
   try {
-    let user = await User.findByPk(req.params.id);
-    
-    if (!user) {
-      // Create default user if not found
-      user = await User.create({
-        id: req.params.id,
-        username: 'user',
-        email: ''
-      });
-    }
-    
-    // Calculate balance from transactions
-    const balanceInfo = await calculateBalanceFromTransactions(req.params.id);
-    
-    res.json({
-      balance: balanceInfo.balance,
-      total_deposited: balanceInfo.totalDeposits,
-      total_withdrawn: balanceInfo.totalWithdrawals,
-      active_stakes: balanceInfo.activePredictionStakes,
-      user
-    });
-  } catch (error) {
-    console.error('Get balance error:', error);
-    res.status(500).json({ error: 'Failed to fetch balance' });
+    transactions = await readJson(TRANSACTIONS_PATH);
+  } catch (e) {
+    transactions = [];
   }
-});
-
-app.post('/api/users/:id/deposit', async (req, res) => {
+  
   try {
-    const { amount, payment_method = 'card' } = req.body;
-
-    if (typeof amount !== 'number' || amount <= 0) {
-      return res.status(400).json({ error: 'Invalid deposit amount' });
-    }
-
-    if (amount > 10000) {
-      return res.status(400).json({ error: 'Maximum deposit is $10,000' });
-    }
-
-    const result = await sequelize.transaction(async (t) => {
-      // Get or create user
-      let user = await User.findByPk(req.params.id, { transaction: t });
-      
-      if (!user) {
-        user = await User.create({
-          id: req.params.id,
-          username: 'user',
-          email: ''
-        }, { transaction: t });
-      }
-
-      // Create transaction
-      const transaction = await Transaction.create({
-        id: nanoid(12),
-        user_id: req.params.id,
-        type: 'deposit',
-        amount,
-        payment_method,
-        status: 'completed',
-        completed_at: new Date()
-      }, { transaction: t });
-
-      return transaction;
-    });
-
-    // Calculate new balance
-    const balanceInfo = await calculateBalanceFromTransactions(req.params.id);
-
-    res.status(201).json({
-      success: true,
-      transaction: result,
-      new_balance: balanceInfo.balance
-    });
-  } catch (error) {
-    console.error('Deposit error:', error);
-    res.status(500).json({ error: 'Failed to process deposit' });
+    predictions = await readJson(PREDICTIONS_PATH);
+  } catch (e) {
+    predictions = [];
   }
-});
-
-app.post('/api/users/:id/withdraw', async (req, res) => {
-  try {
-    const { amount, withdrawal_method = 'bank' } = req.body;
-
-    if (typeof amount !== 'number' || amount <= 0) {
-      return res.status(400).json({ error: 'Invalid withdrawal amount' });
-    }
-
-    // Calculate current balance
-    const currentBalanceInfo = await calculateBalanceFromTransactions(req.params.id);
-
-    if (currentBalanceInfo.balance < amount) {
-      return res.status(400).json({ error: 'Insufficient balance' });
-    }
-
-    const result = await sequelize.transaction(async (t) => {
-      // Ensure user exists
-      let user = await User.findByPk(req.params.id, { transaction: t });
-      
-      if (!user) {
-        user = await User.create({
-          id: req.params.id,
-          username: 'user',
-          email: ''
-        }, { transaction: t });
-      }
-
-      // Create withdrawal transaction
-      const transaction = await Transaction.create({
-        id: nanoid(12),
-        user_id: req.params.id,
-        type: 'withdrawal',
-        amount,
-        payment_method: withdrawal_method,
-        status: 'completed',
-        completed_at: new Date()
-      }, { transaction: t });
-
-      return transaction;
-    });
-
-    // Calculate new balance
-    const balanceInfo = await calculateBalanceFromTransactions(req.params.id);
-
-    res.status(201).json({
-      success: true,
-      transaction: result,
-      new_balance: balanceInfo.balance
-    });
-  } catch (error) {
-    console.error('Withdrawal error:', error);
-    res.status(500).json({ error: 'Failed to process withdrawal' });
-  }
-});
-
-app.get('/api/users/:id/transactions', async (req, res) => {
-  try {
-    const transactions = await Transaction.findAll({
-      where: { user_id: req.params.id },
-      order: [['created_at', 'DESC']]
-    });
-    
-    res.json(transactions);
-  } catch (error) {
-    console.error('Get transactions error:', error);
-    res.status(500).json({ error: 'Failed to fetch transactions' });
-  }
-});
-
-// ============================================================================
-// START SERVER
-// ============================================================================
-
-async function startServer() {
-  try {
-    // Test database connection
-    await sequelize.authenticate();
-    console.log('✅ Database connection established');
-    
-    // Sync models (create tables if they don't exist)
-    await sequelize.sync({ alter: false }); // Don't auto-alter in production
-    console.log('✅ Database synchronized');
-    
-    // Start listening
-    app.listen(PORT, () => {
-      console.log(`🚀 Samsa API listening on http://localhost:${PORT}`);
-      console.log(`📊 Using PostgreSQL database`);
-    });
-  } catch (error) {
-    console.error('❌ Failed to start server:', error);
-    process.exit(1);
-  }
+  
+  // Filter transactions for this user
+  const userTransactions = transactions.filter(t => t.user_id === userId);
+  
+  // Sum deposits (completed only)
+  const totalDeposits = userTransactions
+    .filter(t => t.type === 'deposit' && t.status === 'completed')
+    .reduce((sum, t) => sum + (t.amount || 0), 0);
+  
+  // Sum withdrawals (completed only)
+  const totalWithdrawals = userTransactions
+    .filter(t => t.type === 'withdrawal' && t.status === 'completed')
+    .reduce((sum, t) => sum + (t.amount || 0), 0);
+  
+  // Sum active prediction stakes (money locked in trades)
+  const activePredictionStakes = predictions
+    .filter(p => p.user_id === userId && p.status === 'active')
+    .reduce((sum, p) => sum + (p.stake_amount || 0), 0);
+  
+  // Balance = deposits - withdrawals - active stakes
+  const balance = totalDeposits - totalWithdrawals - activePredictionStakes;
+  
+  return {
+    balance: Math.max(0, balance), // Never negative
+    totalDeposits,
+    totalWithdrawals,
+    activePredictionStakes
+  };
 }
 
-startServer();
+// Get user balance (calculated from transactions)
+app.get('/api/users/:id/balance', async (req, res) => {
+  const users = await readJson(USERS_PATH);
+  let user = users.find((u) => u.id === req.params.id);
+  
+  if (!user) {
+    // Create default user if not found
+    user = {
+      id: req.params.id,
+      username: 'user',
+      email: '',
+      created_at: new Date().toISOString()
+    };
+    users.push(user);
+    await writeJson(USERS_PATH, users);
+  }
+  
+  // Calculate balance from transactions (not stored value)
+  const balanceInfo = await calculateBalanceFromTransactions(req.params.id);
+  
+  res.json({ 
+    balance: balanceInfo.balance, 
+    total_deposited: balanceInfo.totalDeposits,
+    total_withdrawn: balanceInfo.totalWithdrawals,
+    active_stakes: balanceInfo.activePredictionStakes,
+    user 
+  });
+});
+
+// Deposit funds
+app.post('/api/users/:id/deposit', async (req, res) => {
+  const { amount, payment_method = 'card' } = req.body;
+
+  if (typeof amount !== 'number' || amount <= 0) {
+    return res.status(400).json({ error: 'Invalid deposit amount' });
+  }
+
+  if (amount > 10000) {
+    return res.status(400).json({ error: 'Maximum deposit is $10,000' });
+  }
+
+  const users = await readJson(USERS_PATH);
+  let user = users.find((u) => u.id === req.params.id);
+
+  if (!user) {
+    // Create user if doesn't exist
+    user = {
+      id: req.params.id,
+      username: 'user',
+      email: '',
+      created_at: new Date().toISOString()
+    };
+    users.push(user);
+    await writeJson(USERS_PATH, users);
+  }
+
+  // Record transaction (balance is calculated from transactions, not stored)
+  let transactions = [];
+  try {
+    transactions = await readJson(TRANSACTIONS_PATH);
+  } catch (e) {
+    transactions = [];
+  }
+
+  const transaction = {
+    id: nanoid(12),
+    user_id: req.params.id,
+    type: 'deposit',
+    amount,
+    payment_method,
+    status: 'completed',
+    created_at: new Date().toISOString()
+  };
+
+  transactions.push(transaction);
+  await writeJson(TRANSACTIONS_PATH, transactions);
+
+  // Calculate new balance from all transactions
+  const balanceInfo = await calculateBalanceFromTransactions(req.params.id);
+
+  res.status(201).json({
+    success: true,
+    transaction,
+    new_balance: balanceInfo.balance
+  });
+});
+
+// Withdraw funds
+app.post('/api/users/:id/withdraw', async (req, res) => {
+  const { amount, withdrawal_method = 'bank' } = req.body;
+
+  if (typeof amount !== 'number' || amount <= 0) {
+    return res.status(400).json({ error: 'Invalid withdrawal amount' });
+  }
+
+  // Calculate current balance from transactions
+  const currentBalanceInfo = await calculateBalanceFromTransactions(req.params.id);
+
+  if (currentBalanceInfo.balance < amount) {
+    return res.status(400).json({ error: 'Insufficient balance' });
+  }
+
+  // Ensure user exists
+  const users = await readJson(USERS_PATH);
+  let user = users.find((u) => u.id === req.params.id);
+
+  if (!user) {
+    user = {
+      id: req.params.id,
+      username: 'user',
+      email: '',
+      created_at: new Date().toISOString()
+    };
+    users.push(user);
+    await writeJson(USERS_PATH, users);
+  }
+
+  // Record transaction (balance is calculated from transactions, not stored)
+  let transactions = [];
+  try {
+    transactions = await readJson(TRANSACTIONS_PATH);
+  } catch (e) {
+    transactions = [];
+  }
+
+  const transaction = {
+    id: nanoid(12),
+    user_id: req.params.id,
+    type: 'withdrawal',
+    amount,
+    withdrawal_method,
+    status: 'completed', // For demo, mark as completed immediately
+    created_at: new Date().toISOString()
+  };
+
+  transactions.push(transaction);
+  await writeJson(TRANSACTIONS_PATH, transactions);
+
+  // Calculate new balance from all transactions
+  const balanceInfo = await calculateBalanceFromTransactions(req.params.id);
+
+  res.status(201).json({
+    success: true,
+    transaction,
+    new_balance: balanceInfo.balance
+  });
+});
+
+// Get transaction history
+app.get('/api/users/:id/transactions', async (req, res) => {
+  let transactions = [];
+  try {
+    transactions = await readJson(TRANSACTIONS_PATH);
+  } catch (e) {
+    transactions = [];
+  }
+  
+  const userTransactions = transactions.filter((t) => t.user_id === req.params.id);
+  res.json(userTransactions);
+});
+
+app.listen(PORT, () => {
+  console.log(`Samsa API listening on http://localhost:${PORT}`);
+});

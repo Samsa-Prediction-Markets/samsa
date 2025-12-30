@@ -85,7 +85,6 @@ export default function MarketsPage() {
   const categories = [
     { value: "all", label: "All Markets" },
     { value: "politics", label: "Politics" },
-    { value: "international", label: "International" },
     { value: "sports", label: "Sports" },
     { value: "finance", label: "Finance" },
     { value: "technology", label: "Technology" },
