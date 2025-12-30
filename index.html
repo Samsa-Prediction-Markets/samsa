@@ -843,7 +843,8 @@
             features help you trade responsibly.</p>
 
           <div class="space-y-4">
-            <!-- Daily Limit -->
+            <!-- LIMITS FEATURE - Commented out but preserved for future use -->
+            <!-- Daily Limit
             <div class="flex items-center justify-between p-4 bg-slate-800/50 rounded-xl">
               <div class="flex-1">
                 <span class="text-white font-medium">Daily Allocation Limit</span>
@@ -858,8 +859,9 @@
                   class="px-3 py-2 bg-yellow-500/20 text-yellow-400 rounded-lg text-sm hover:bg-yellow-500/30 transition-colors">Set</button>
               </div>
             </div>
+            -->
 
-            <!-- Weekly Limit -->
+            <!-- Weekly Limit
             <div class="flex items-center justify-between p-4 bg-slate-800/50 rounded-xl">
               <div class="flex-1">
                 <span class="text-white font-medium">Weekly Allocation Limit</span>
@@ -874,6 +876,7 @@
                   class="px-3 py-2 bg-yellow-500/20 text-yellow-400 rounded-lg text-sm hover:bg-yellow-500/30 transition-colors">Set</button>
               </div>
             </div>
+            -->
 
             <!-- Observe Only Mode -->
             <div class="flex items-center justify-between p-4 bg-slate-800/50 rounded-xl">
@@ -1014,21 +1017,22 @@
       const state = loadRiskControlState();
       const stats = typeof getForecasterStats === 'function' ? getForecasterStats() : { totalPredictions: 0, accuracyScore: '0.0', calibrationScore: '0.0' };
 
+      // LIMITS FEATURE - Commented out but preserved for future use
       // Update limit inputs
-      const dailyInput = document.getElementById('dailyLimitInput');
-      const weeklyInput = document.getElementById('weeklyLimitInput');
-      if (dailyInput) dailyInput.value = state.dailyLimit || '';
-      if (weeklyInput) weeklyInput.value = state.weeklyLimit || '';
+      // const dailyInput = document.getElementById('dailyLimitInput');
+      // const weeklyInput = document.getElementById('weeklyLimitInput');
+      // if (dailyInput) dailyInput.value = state.dailyLimit || '';
+      // if (weeklyInput) weeklyInput.value = state.weeklyLimit || '';
 
       // Update limit status
-      const dailyStatus = document.getElementById('dailyLimitStatus');
-      const weeklyStatus = document.getElementById('weeklyLimitStatus');
-      if (dailyStatus && state.dailyLimit) {
-        dailyStatus.textContent = `Today: $${state.dailySpent?.toFixed(2) || '0.00'} / $${state.dailyLimit.toFixed(2)}`;
-      }
-      if (weeklyStatus && state.weeklyLimit) {
-        weeklyStatus.textContent = `This week: $${state.weeklySpent?.toFixed(2) || '0.00'} / $${state.weeklyLimit.toFixed(2)}`;
-      }
+      // const dailyStatus = document.getElementById('dailyLimitStatus');
+      // const weeklyStatus = document.getElementById('weeklyLimitStatus');
+      // if (dailyStatus && state.dailyLimit) {
+      //   dailyStatus.textContent = `Today: $${state.dailySpent?.toFixed(2) || '0.00'} / $${state.dailyLimit.toFixed(2)}`;
+      // }
+      // if (weeklyStatus && state.weeklyLimit) {
+      //   weeklyStatus.textContent = `This week: $${state.weeklySpent?.toFixed(2) || '0.00'} / $${state.weeklyLimit.toFixed(2)}`;
+      // }
 
       // Update observe mode button
       const observeBtn = document.getElementById('observeModeBtn');

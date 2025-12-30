@@ -141,17 +141,18 @@ function validateTradeRisk(amount) {
     warnings.push(`This position represents ${capitalAtRisk.toFixed(1)}% of your capital.`);
   }
   
+  // LIMITS FEATURE - Commented out but preserved for future use
   // Check daily limits
-  if (state.dailyLimit && (state.dailySpent + amount) > state.dailyLimit) {
-    const remaining = Math.max(0, state.dailyLimit - state.dailySpent);
-    blocked.push(`Daily allocation limit reached. Remaining: $${remaining.toFixed(2)}`);
-  }
+  // if (state.dailyLimit && (state.dailySpent + amount) > state.dailyLimit) {
+  //   const remaining = Math.max(0, state.dailyLimit - state.dailySpent);
+  //   blocked.push(`Daily allocation limit reached. Remaining: $${remaining.toFixed(2)}`);
+  // }
   
   // Check weekly limits
-  if (state.weeklyLimit && (state.weeklySpent + amount) > state.weeklyLimit) {
-    const remaining = Math.max(0, state.weeklyLimit - state.weeklySpent);
-    blocked.push(`Weekly allocation limit reached. Remaining: $${remaining.toFixed(2)}`);
-  }
+  // if (state.weeklyLimit && (state.weeklySpent + amount) > state.weeklyLimit) {
+  //   const remaining = Math.max(0, state.weeklyLimit - state.weeklySpent);
+  //   blocked.push(`Weekly allocation limit reached. Remaining: $${remaining.toFixed(2)}`);
+  // }
   
   // Check rapid trading
   const now = Date.now();
@@ -396,7 +397,8 @@ function renderSelfControlSettings() {
       <p class="text-slate-400 text-sm mb-6">Manage your forecasting activity with these self-control tools.</p>
       
       <div class="space-y-4">
-        <!-- Daily Limit -->
+        <!-- LIMITS FEATURE - Commented out but preserved for future use -->
+        <!-- Daily Limit
         <div class="flex items-center justify-between p-4 bg-slate-800/50 rounded-xl">
           <div class="flex-1">
             <span class="text-white font-medium">Daily Allocation Limit</span>
@@ -410,8 +412,9 @@ function renderSelfControlSettings() {
             <button onclick="updateDailyLimit()" class="px-3 py-2 bg-yellow-500/20 text-yellow-400 rounded-lg text-sm hover:bg-yellow-500/30 transition-colors">Set</button>
           </div>
         </div>
+        -->
         
-        <!-- Weekly Limit -->
+        <!-- Weekly Limit
         <div class="flex items-center justify-between p-4 bg-slate-800/50 rounded-xl">
           <div class="flex-1">
             <span class="text-white font-medium">Weekly Allocation Limit</span>
@@ -425,6 +428,7 @@ function renderSelfControlSettings() {
             <button onclick="updateWeeklyLimit()" class="px-3 py-2 bg-yellow-500/20 text-yellow-400 rounded-lg text-sm hover:bg-yellow-500/30 transition-colors">Set</button>
           </div>
         </div>
+        -->
         
         <!-- Observe Only Mode -->
         <div class="flex items-center justify-between p-4 bg-slate-800/50 rounded-xl">
