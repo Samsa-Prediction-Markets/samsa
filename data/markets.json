@@ -8,8 +8,18 @@
     "close_date": "2025-12-31T00:00:00.000Z",
     "resolution_date": null,
     "outcomes": [
-      { "id": "yes", "title": "Yes", "probability": 0, "total_stake": 0 },
-      { "id": "no", "title": "No", "probability": 0, "total_stake": 0 }
+      {
+        "id": "yes",
+        "title": "Yes",
+        "probability": 0,
+        "total_stake": 0
+      },
+      {
+        "id": "no",
+        "title": "No",
+        "probability": 0,
+        "total_stake": 0
+      }
     ],
     "total_volume": 0,
     "image_url": "https://images.unsplash.com/photo-1518546305927-5a555bb7020d?w=800",
@@ -25,10 +35,30 @@
     "close_date": "2025-06-01T00:00:00.000Z",
     "resolution_date": null,
     "outcomes": [
-      { "id": "lakers", "title": "LA Lakers", "probability": 0, "total_stake": 0 },
-      { "id": "celtics", "title": "Boston Celtics", "probability": 0, "total_stake": 0 },
-      { "id": "warriors", "title": "Golden State Warriors", "probability": 0, "total_stake": 0 },
-      { "id": "other", "title": "Other Team", "probability": 0, "total_stake": 0 }
+      {
+        "id": "lakers",
+        "title": "LA Lakers",
+        "probability": 0,
+        "total_stake": 0
+      },
+      {
+        "id": "celtics",
+        "title": "Boston Celtics",
+        "probability": 0,
+        "total_stake": 0
+      },
+      {
+        "id": "warriors",
+        "title": "Golden State Warriors",
+        "probability": 0,
+        "total_stake": 0
+      },
+      {
+        "id": "other",
+        "title": "Other Team",
+        "probability": 0,
+        "total_stake": 0
+      }
     ],
     "total_volume": 0,
     "image_url": "https://images.unsplash.com/photo-1546519638-68e109498ffc?w=800",
@@ -44,8 +74,18 @@
     "close_date": "2026-01-01T00:00:00.000Z",
     "resolution_date": null,
     "outcomes": [
-      { "id": "yes", "title": "Yes", "probability": 0, "total_stake": 0 },
-      { "id": "no", "title": "No", "probability": 0, "total_stake": 0 }
+      {
+        "id": "yes",
+        "title": "Yes",
+        "probability": 0,
+        "total_stake": 0
+      },
+      {
+        "id": "no",
+        "title": "No",
+        "probability": 0,
+        "total_stake": 0
+      }
     ],
     "total_volume": 0,
     "image_url": "https://images.unsplash.com/photo-1677442136019-21780ecad995?w=800",
@@ -61,8 +101,18 @@
     "close_date": "2025-03-31T00:00:00.000Z",
     "resolution_date": null,
     "outcomes": [
-      { "id": "yes", "title": "Yes", "probability": 0, "total_stake": 0 },
-      { "id": "no", "title": "No", "probability": 0, "total_stake": 0 }
+      {
+        "id": "yes",
+        "title": "Yes",
+        "probability": 0,
+        "total_stake": 0
+      },
+      {
+        "id": "no",
+        "title": "No",
+        "probability": 0,
+        "total_stake": 0
+      }
     ],
     "total_volume": 0,
     "image_url": "https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?w=800",
@@ -78,9 +128,24 @@
     "close_date": "2028-11-05T00:00:00.000Z",
     "resolution_date": null,
     "outcomes": [
-      { "id": "democrat", "title": "Democratic Candidate", "probability": 0, "total_stake": 0 },
-      { "id": "republican", "title": "Republican Candidate", "probability": 0, "total_stake": 0 },
-      { "id": "other", "title": "Other/Independent", "probability": 0, "total_stake": 0 }
+      {
+        "id": "democrat",
+        "title": "Democratic Candidate",
+        "probability": 0,
+        "total_stake": 0
+      },
+      {
+        "id": "republican",
+        "title": "Republican Candidate",
+        "probability": 0,
+        "total_stake": 0
+      },
+      {
+        "id": "other",
+        "title": "Other/Independent",
+        "probability": 0,
+        "total_stake": 0
+      }
     ],
     "total_volume": 0,
     "image_url": "https://images.unsplash.com/photo-1540910419892-4a36d2c3266c?w=800",
@@ -96,8 +161,18 @@
     "close_date": "2025-12-31T00:00:00.000Z",
     "resolution_date": null,
     "outcomes": [
-      { "id": "yes", "title": "Yes", "probability": 0, "total_stake": 0 },
-      { "id": "no", "title": "No", "probability": 0, "total_stake": 0 }
+      {
+        "id": "yes",
+        "title": "Yes",
+        "probability": 0,
+        "total_stake": 0
+      },
+      {
+        "id": "no",
+        "title": "No",
+        "probability": 0,
+        "total_stake": 0
+      }
     ],
     "total_volume": 0,
     "image_url": "https://images.unsplash.com/photo-1621761191319-c6fb62004040?w=800",
@@ -113,10 +188,30 @@
     "close_date": "2025-02-09T00:00:00.000Z",
     "resolution_date": null,
     "outcomes": [
-      { "id": "chiefs", "title": "Kansas City Chiefs", "probability": 0, "total_stake": 0 },
-      { "id": "49ers", "title": "San Francisco 49ers", "probability": 0, "total_stake": 0 },
-      { "id": "eagles", "title": "Philadelphia Eagles", "probability": 0, "total_stake": 0 },
-      { "id": "other", "title": "Other Team", "probability": 0, "total_stake": 0 }
+      {
+        "id": "chiefs",
+        "title": "Kansas City Chiefs",
+        "probability": 0,
+        "total_stake": 0
+      },
+      {
+        "id": "49ers",
+        "title": "San Francisco 49ers",
+        "probability": 0,
+        "total_stake": 0
+      },
+      {
+        "id": "eagles",
+        "title": "Philadelphia Eagles",
+        "probability": 0,
+        "total_stake": 0
+      },
+      {
+        "id": "other",
+        "title": "Other Team",
+        "probability": 0,
+        "total_stake": 0
+      }
     ],
     "total_volume": 0,
     "image_url": "https://images.unsplash.com/photo-1566577739112-5180d4bf9390?w=800",
@@ -132,10 +227,30 @@
     "close_date": "2025-03-02T00:00:00.000Z",
     "resolution_date": null,
     "outcomes": [
-      { "id": "anora", "title": "Anora", "probability": 0, "total_stake": 0 },
-      { "id": "conclave", "title": "Conclave", "probability": 0, "total_stake": 0 },
-      { "id": "brutalist", "title": "The Brutalist", "probability": 0, "total_stake": 0 },
-      { "id": "other", "title": "Other Film", "probability": 0, "total_stake": 0 }
+      {
+        "id": "anora",
+        "title": "Anora",
+        "probability": 0,
+        "total_stake": 0
+      },
+      {
+        "id": "conclave",
+        "title": "Conclave",
+        "probability": 0,
+        "total_stake": 0
+      },
+      {
+        "id": "brutalist",
+        "title": "The Brutalist",
+        "probability": 0,
+        "total_stake": 0
+      },
+      {
+        "id": "other",
+        "title": "Other Film",
+        "probability": 0,
+        "total_stake": 0
+      }
     ],
     "total_volume": 0,
     "image_url": "https://images.unsplash.com/photo-1485846234645-a62644f84728?w=800",
@@ -151,8 +266,18 @@
     "close_date": "2026-01-15T00:00:00.000Z",
     "resolution_date": null,
     "outcomes": [
-      { "id": "yes", "title": "Yes", "probability": 0, "total_stake": 0 },
-      { "id": "no", "title": "No", "probability": 0, "total_stake": 0 }
+      {
+        "id": "yes",
+        "title": "Yes",
+        "probability": 0,
+        "total_stake": 0
+      },
+      {
+        "id": "no",
+        "title": "No",
+        "probability": 0,
+        "total_stake": 0
+      }
     ],
     "total_volume": 0,
     "image_url": "https://images.unsplash.com/photo-1611273426858-450d8e3c9fce?w=800",
@@ -168,8 +293,18 @@
     "close_date": "2030-01-01T00:00:00.000Z",
     "resolution_date": null,
     "outcomes": [
-      { "id": "yes", "title": "Yes", "probability": 0, "total_stake": 0 },
-      { "id": "no", "title": "No", "probability": 0, "total_stake": 0 }
+      {
+        "id": "yes",
+        "title": "Yes",
+        "probability": 0,
+        "total_stake": 0
+      },
+      {
+        "id": "no",
+        "title": "No",
+        "probability": 0,
+        "total_stake": 0
+      }
     ],
     "total_volume": 0,
     "image_url": "https://images.unsplash.com/photo-1541185933-ef5d8ed016c2?w=800",
@@ -185,8 +320,18 @@
     "close_date": "2025-03-31T00:00:00.000Z",
     "resolution_date": null,
     "outcomes": [
-      { "id": "yes", "title": "Yes, Banned", "probability": 0, "total_stake": 0 },
-      { "id": "no", "title": "No, Still Operating", "probability": 0, "total_stake": 0 }
+      {
+        "id": "yes",
+        "title": "Yes, Banned",
+        "probability": 0,
+        "total_stake": 0
+      },
+      {
+        "id": "no",
+        "title": "No, Still Operating",
+        "probability": 0,
+        "total_stake": 0
+      }
     ],
     "total_volume": 0,
     "image_url": "https://images.unsplash.com/photo-1611162616305-c69b3fa7fbe0?w=800",
@@ -202,8 +347,18 @@
     "close_date": "2025-06-30T00:00:00.000Z",
     "resolution_date": null,
     "outcomes": [
-      { "id": "yes", "title": "Yes", "probability": 0, "total_stake": 0 },
-      { "id": "no", "title": "No", "probability": 0, "total_stake": 0 }
+      {
+        "id": "yes",
+        "title": "Yes",
+        "probability": 0,
+        "total_stake": 0
+      },
+      {
+        "id": "no",
+        "title": "No",
+        "probability": 0,
+        "total_stake": 0
+      }
     ],
     "total_volume": 0,
     "image_url": "https://images.unsplash.com/photo-1677442136019-21780ecad995?w=800",
@@ -211,6 +366,139 @@
     "search_keywords": "openai gpt5 gpt-5 ai artificial intelligence chatgpt"
   },
   {
+    "id": "HXdhS5VWeCTw",
+    "title": "Will Apple unveil a major AI feature at WWDC 2025?",
+    "description": "Apple rumors",
+    "category": "technology",
+    "status": "active",
+    "close_date": "2026-06-20T02:52:26.314Z",
+    "resolution_date": null,
+    "outcomes": [
+      {
+        "id": "yes",
+        "title": "Yes",
+        "probability": 50,
+        "total_stake": 0
+      },
+      {
+        "id": "no",
+        "title": "No",
+        "probability": 50,
+        "total_stake": 0
+      }
+    ],
+    "total_volume": 0,
+    "image_url": "",
+    "winning_outcome_id": null,
+    "search_keywords": "Sample Will Apple unveil a major AI feature at WWDC 2025?"
+  },
+  {
+    "id": "Y2oc38_oXwe4",
+    "title": "Will a US interest rate cut happen in Q1 2025?",
+    "description": "Finance outlook",
+    "category": "finance",
+    "status": "active",
+    "close_date": "2026-06-20T02:52:26.314Z",
+    "resolution_date": null,
+    "outcomes": [
+      {
+        "id": "yes",
+        "title": "Yes",
+        "probability": 50,
+        "total_stake": 0
+      },
+      {
+        "id": "no",
+        "title": "No",
+        "probability": 50,
+        "total_stake": 0
+      }
+    ],
+    "total_volume": 0,
+    "image_url": "",
+    "winning_outcome_id": null,
+    "search_keywords": "Sample Will a US interest rate cut happen in Q1 2025?"
+  },
+  {
+    "id": "Nur2wiAkkjUf",
+    "title": "Will Bitcoin exceed $100k in 2025?",
+    "description": "Crypto prospects",
+    "category": "crypto",
+    "status": "active",
+    "close_date": "2026-06-20T02:52:26.314Z",
+    "resolution_date": null,
+    "outcomes": [
+      {
+        "id": "yes",
+        "title": "Yes",
+        "probability": 50,
+        "total_stake": 0
+      },
+      {
+        "id": "no",
+        "title": "No",
+        "probability": 50,
+        "total_stake": 0
+      }
+    ],
+    "total_volume": 0,
+    "image_url": "",
+    "winning_outcome_id": null,
+    "search_keywords": "Sample Will Bitcoin exceed $100k in 2025?"
+  },
+  {
+    "id": "M9Xu685UxJ8B",
+    "title": "Will the Lakers reach the NBA Finals in 2025?",
+    "description": "Sports talk",
+    "category": "sports",
+    "status": "active",
+    "close_date": "2026-06-20T02:52:26.314Z",
+    "resolution_date": null,
+    "outcomes": [
+      {
+        "id": "yes",
+        "title": "Yes",
+        "probability": 50,
+        "total_stake": 0
+      },
+      {
+        "id": "no",
+        "title": "No",
+        "probability": 50,
+        "total_stake": 0
+      }
+    ],
+    "total_volume": 0,
+    "image_url": "",
+    "winning_outcome_id": null,
+    "search_keywords": "Sample Will the Lakers reach the NBA Finals in 2025?"
+  },
+  {
+    "id": "2qhRIOeFpjLe",
+    "title": "Will 2025 Oscars Best Picture be a streaming original?",
+    "description": "Entertainment buzz",
+    "category": "entertainment",
+    "status": "active",
+    "close_date": "2026-06-20T02:52:26.314Z",
+    "resolution_date": null,
+    "outcomes": [
+      {
+        "id": "yes",
+        "title": "Yes",
+        "probability": 50,
+        "total_stake": 0
+      },
+      {
+        "id": "no",
+        "title": "No",
+        "probability": 50,
+        "total_stake": 0
+      }
+    ],
+    "total_volume": 0,
+    "image_url": "",
+    "winning_outcome_id": null,
+    "search_keywords": "Sample Will 2025 Oscars Best Picture be a streaming original?"
     "id": "mkt_eu_expansion",
     "title": "Will Ukraine join the European Union by 2027?",
     "description": "Predict whether Ukraine will officially become an EU member state before January 1, 2027",

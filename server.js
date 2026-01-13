@@ -1,9 +1,13 @@
+try { require('dotenv').config(); } catch (e) {}
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const morgan = require('morgan');
 const path = require('path');
 const { nanoid } = require('nanoid');
+const { readJson, writeJson, addTransaction, findTransactionByExternalId, updateTransaction } = require('./lib/datastore');
+const { computeMarketMetrics } = require('./lib/metrics');
+const https = require('https');
 const { Op } = require('sequelize');
 
 // Import database models
@@ -19,8 +23,86 @@ const {
 
 const app = express();
 const PORT = process.env.PORT || 3001;
+const Stripe = require('stripe');
+const stripeSecret = (process.env.STRIPE_SECRET_KEY || '').trim();
+const stripe = stripeSecret ? Stripe(stripeSecret) : null;
+const METRICS_OBS = { recompute_count: 0, recompute_total_ms: 0, provider_errors: 0 };
+
+const DATA_DIR = path.join(__dirname, 'data');
+const MARKETS_PATH = path.join(DATA_DIR, 'markets.json');
+const PREDICTIONS_PATH = path.join(DATA_DIR, 'predictions.json');
+const INTRADAY_CACHE_PATH = path.join(DATA_DIR, 'market_intraday_cache.json');
+const USERS_PATH = path.join(DATA_DIR, 'users.json');
+const TRANSACTIONS_PATH = path.join(DATA_DIR, 'transactions.json');
 
 app.use(cors());
+app.post('/api/stripe/webhook', express.raw({ type: 'application/json' }), async (req, res) => {
+  const sig = req.headers['stripe-signature'] || '';
+  const secret = (process.env.STRIPE_WEBHOOK_SECRET || '').trim();
+  let event;
+  try {
+    event = stripe.webhooks.constructEvent(req.body, sig, secret);
+  } catch (err) {
+    return res.status(400).send(`Webhook Error: ${err.message || 'Invalid signature'}`);
+  }
+  try {
+    if (event.type === 'payment_intent.succeeded') {
+      const pi = event.data.object;
+      const transactions = await readJson(TRANSACTIONS_PATH);
+      const existing = transactions.find((t) => t.external_id === pi.id && t.type === 'deposit');
+      if (existing && existing.status !== 'completed') {
+        await writeJson(TRANSACTIONS_PATH, transactions.map((t) => t.id === existing.id ? { ...t, status: 'completed', updated_at: new Date().toISOString() } : t));
+      } else if (!existing) {
+        const userId = pi.metadata && pi.metadata.userId ? pi.metadata.userId : null;
+        if (userId) {
+          const tx = {
+            id: nanoid(12),
+            user_id: userId,
+            type: 'deposit',
+            amount: Math.round((pi.amount_received || 0) / 100),
+            payment_method: 'card',
+            status: 'completed',
+            external_id: pi.id,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          };
+          await addTransaction(TRANSACTIONS_PATH, tx);
+        }
+      }
+    }
+    if (event.type === 'payment_intent.payment_failed') {
+      const pi = event.data.object;
+      const transactions = await readJson(TRANSACTIONS_PATH);
+      const existing = transactions.find((t) => t.external_id === pi.id && t.type === 'deposit');
+      if (existing && existing.status !== 'failed') {
+        await writeJson(TRANSACTIONS_PATH, transactions.map((t) => t.id === existing.id ? { ...t, status: 'failed', failure_reason: pi.last_payment_error && pi.last_payment_error.message ? pi.last_payment_error.message : 'Payment failed', updated_at: new Date().toISOString() } : t));
+      }
+    }
+    if (event.type === 'invoice.payment_succeeded') {
+      const invoice = event.data.object;
+      const sub = invoice.subscription;
+      const userId = invoice.metadata && invoice.metadata.userId ? invoice.metadata.userId : null;
+      if (userId) {
+        const tx = {
+          id: nanoid(12),
+          user_id: userId,
+          type: 'deposit',
+          amount: Math.round((invoice.amount_paid || 0) / 100),
+          payment_method: 'card',
+          status: 'completed',
+          external_id: invoice.id,
+          subscription_id: sub || null,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        };
+        await addTransaction(TRANSACTIONS_PATH, tx);
+      }
+    }
+    res.json({ received: true });
+  } catch (e) {
+    res.status(500).json({ error: e.message || 'Webhook handler error' });
+  }
+});
 app.use(express.json());
 app.use(morgan('dev'));
 
@@ -32,6 +114,34 @@ app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'index.html'));
 });
 
+app.get('/config/supabase.js', (req, res) => {
+  const url =
+    process.env.SUPABASE_URL ||
+    process.env.NEXT_PUBLIC_SUPABASE_URL ||
+    process.env.VITE_SUPABASE_URL ||
+    '';
+  const anonKey =
+    process.env.SUPABASE_ANON_KEY ||
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
+    process.env.VITE_SUPABASE_ANON_KEY ||
+    '';
+  res.type('application/javascript').send(`window.SUPABASE_CONFIG = { url: ${JSON.stringify(url)}, anonKey: ${JSON.stringify(anonKey)} };`);
+});
+app.get('/config/stripe.js', (req, res) => {
+  const publishableKey =
+    process.env.STRIPE_PUBLISHABLE_KEY ||
+    process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY ||
+    process.env.VITE_STRIPE_PUBLISHABLE_KEY ||
+    '';
+  const defaultPriceId =
+    process.env.STRIPE_DEFAULT_PRICE_ID ||
+    process.env.NEXT_PUBLIC_STRIPE_DEFAULT_PRICE_ID ||
+    process.env.VITE_STRIPE_DEFAULT_PRICE_ID ||
+    '';
+  res
+    .type('application/javascript')
+    .send(`window.STRIPE_CONFIG = { publishableKey: ${JSON.stringify(publishableKey)}, defaultPriceId: ${JSON.stringify(defaultPriceId)} };`);
+});
 // ============================================================================
 // HELPER FUNCTIONS
 // ============================================================================
@@ -199,6 +309,18 @@ app.get('/api/markets/current-events', async (req, res) => {
 });
 
 app.get('/api/markets/trending', async (req, res) => {
+  const markets = await readJson(MARKETS_PATH);
+  const limit = parseInt(req.query.limit) || 10;
+  const active = markets.filter((m) => m.status === 'active');
+  const withMetrics = await Promise.all(active.map(async (m) => {
+    const t0 = Date.now();
+    const metrics = await computeMarketMetrics(m);
+    METRICS_OBS.recompute_count += 1;
+    METRICS_OBS.recompute_total_ms += Date.now() - t0;
+    return { ...m, metrics };
+  }));
+  withMetrics.sort((a, b) => (b.metrics?.trend?.score || 0) - (a.metrics?.trend?.score || 0));
+  res.json(withMetrics.slice(0, limit));
   try {
     const limit = parseInt(req.query.limit) || 10;
     
@@ -298,6 +420,26 @@ app.get('/api/markets/suggestions', async (req, res) => {
 // ============================================================================
 
 app.get('/api/markets', async (req, res) => {
+  const markets = await readJson(MARKETS_PATH);
+  const enriched = await Promise.all(markets.map(async (m) => {
+    const t0 = Date.now();
+    const metrics = await computeMarketMetrics(m);
+    METRICS_OBS.recompute_count += 1;
+    METRICS_OBS.recompute_total_ms += Date.now() - t0;
+    return { ...m, metrics };
+  }));
+  res.json(enriched);
+});
+
+app.get('/api/markets/:id', async (req, res) => {
+  const markets = await readJson(MARKETS_PATH);
+  const market = markets.find((m) => m.id === req.params.id);
+  if (!market) return res.status(404).json({ error: 'Market not found' });
+  const t0 = Date.now();
+  const metrics = await computeMarketMetrics(market);
+  METRICS_OBS.recompute_count += 1;
+  METRICS_OBS.recompute_total_ms += Date.now() - t0;
+  res.json({ ...market, metrics });
   try {
     const markets = await Market.findAll({
       include: [{ model: Outcome, as: 'outcomes' }],
@@ -484,6 +626,24 @@ app.post('/api/predictions', async (req, res) => {
         await o.save({ transaction: t });
       }
 
+  try {
+    let intraday = {};
+    try { intraday = await readJson(INTRADAY_CACHE_PATH); } catch (e) { intraday = {}; }
+    const titles = (market.outcomes || []).map((o) => (o.title || '').trim().toLowerCase());
+    const yesIdx = titles.indexOf('yes');
+    const primaryIdx = yesIdx !== -1 ? yesIdx : 0;
+    const primaryOutcome = market.outcomes[primaryIdx];
+    const p = typeof primaryOutcome.probability === 'number' ? (primaryOutcome.probability > 1 ? primaryOutcome.probability / 100 : primaryOutcome.probability) : 0.5;
+    const entry = { t: new Date().toISOString(), p };
+    const existing = intraday[market_id] && Array.isArray(intraday[market_id].sparkline) ? intraday[market_id].sparkline : [];
+    const updated = [...existing, entry].slice(-300);
+    intraday[market_id] = { sparkline: updated };
+    intraday.__meta = { cached_at: new Date().toISOString() };
+    await writeJson(INTRADAY_CACHE_PATH, intraday);
+  } catch (e) {}
+
+  await writeJson(PREDICTIONS_PATH, predictions);
+  await writeJson(MARKETS_PATH, markets);
       return prediction;
     });
 
@@ -607,6 +767,75 @@ app.post('/api/users/:id/deposit', async (req, res) => {
       return res.status(400).json({ error: 'Maximum deposit is $10,000' });
     }
 
+  res.status(201).json({
+    success: true,
+    transaction,
+    new_balance: balanceInfo.balance
+  });
+});
+app.post('/api/payments/create-intent', async (req, res) => {
+  const { userId, amount, currency = 'usd' } = req.body;
+  if (typeof amount !== 'number' || amount <= 0) {
+    return res.status(400).json({ error: 'Invalid amount' });
+  }
+  if (!userId || typeof userId !== 'string') {
+    return res.status(400).json({ error: 'Invalid userId' });
+  }
+  if (!stripe) {
+    return res.status(500).json({ error: 'Stripe not configured' });
+  }
+  const cents = Math.round(amount * 100);
+  if (cents > 100000000) {
+    return res.status(400).json({ error: 'Amount too large' });
+  }
+  let pi;
+  try {
+    pi = await stripe.paymentIntents.create({
+      amount: cents,
+      currency,
+      automatic_payment_methods: { enabled: true },
+      metadata: { userId },
+      description: 'Wallet deposit'
+    });
+  } catch (e) {
+    return res.status(400).json({ error: e.message || 'Failed to create intent' });
+  }
+  const tx = {
+    id: nanoid(12),
+    user_id: userId,
+    type: 'deposit',
+    amount,
+    payment_method: 'card',
+    status: 'pending',
+    external_id: pi.id,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString()
+  };
+  await addTransaction(TRANSACTIONS_PATH, tx);
+  res.json({ client_secret: pi.client_secret, intent_id: pi.id });
+});
+app.post('/api/payments/create-checkout-session', async (req, res) => {
+  const { userId, priceId, quantity = 1 } = req.body;
+  if (!userId || typeof userId !== 'string') {
+    return res.status(400).json({ error: 'Invalid userId' });
+  }
+  if (!priceId || typeof priceId !== 'string') {
+    return res.status(400).json({ error: 'Invalid priceId' });
+  }
+  const origin = `${req.protocol}://${req.get('host')}`;
+  try {
+    const session = await stripe.checkout.sessions.create({
+      mode: 'subscription',
+      line_items: [{ price: priceId, quantity }],
+      success_url: `${origin}/?checkout=success&session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${origin}/?checkout=canceled`,
+      subscription_data: { metadata: { userId } }
+    });
+    res.json({ id: session.id, url: session.url || null });
+  } catch (e) {
+    res.status(400).json({ error: e.message || 'Failed to create checkout session' });
+  }
+});
     const result = await sequelize.transaction(async (t) => {
       // Get or create user
       let user = await User.findByPk(req.params.id, { transaction: t });
@@ -716,6 +945,163 @@ app.get('/api/users/:id/transactions', async (req, res) => {
   }
 });
 
+async function httpsJson(url) {
+  return new Promise((resolve, reject) => {
+    const req = https.get(url, (res) => {
+      let data = '';
+      res.on('data', (chunk) => (data += chunk));
+      res.on('end', () => {
+        try {
+          const json = JSON.parse(data);
+          resolve(json);
+        } catch (err) {
+          reject(err);
+        }
+      });
+    });
+    req.on('error', reject);
+  });
+}
+
+function toQuestion(title) {
+  const t = (title || '').trim();
+  if (!t) return '';
+  return t.endsWith('?') ? t : `${t}?`;
+}
+
+function inferCategoryFromTitle(title, fallback = 'technology') {
+  const t = (title || '').toLowerCase();
+  if (t.includes('election') || t.includes('congress') || t.includes('white house') || t.includes('bill') || t.includes('policy')) return 'politics';
+  if (t.includes('stock') || t.includes('market') || t.includes('interest rate') || t.includes('fed') || t.includes('economy') || t.includes('inflation')) return 'finance';
+  if (t.includes('bitcoin') || t.includes('crypto') || t.includes('ethereum')) return 'crypto';
+  if (t.includes('nba') || t.includes('nfl') || t.includes('mlb') || t.includes('soccer') || t.includes('goal') || t.includes('tournament')) return 'sports';
+  if (t.includes('movie') || t.includes('film') || t.includes('oscar') || t.includes('grammy') || t.includes('celebrity')) return 'entertainment';
+  if (t.includes('ai') || t.includes('openai') || t.includes('gpt') || t.includes('google') || t.includes('apple') || t.includes('microsoft') || t.includes('technology')) return 'technology';
+  if (t.includes('climate') || t.includes('emissions') || t.includes('environment')) return 'environment';
+  if (t.includes('covid') || t.includes('vaccine') || t.includes('health')) return 'health';
+  return fallback;
+}
+
+function articleToMarket(article, defaultCategory) {
+  const title = toQuestion(article.title || '');
+  const desc = article.description || article.content || `News-based market from ${article?.source?.name || 'source'}`;
+  const image = article.urlToImage || '';
+  const published = article.publishedAt ? new Date(article.publishedAt) : new Date();
+  const close = new Date(published.getTime() + 180 * 24 * 60 * 60 * 1000).toISOString();
+  const category = inferCategoryFromTitle(title, defaultCategory);
+  return {
+    id: nanoid(12),
+    title,
+    description: desc,
+    category,
+    status: 'active',
+    close_date: close,
+    resolution_date: null,
+    outcomes: [
+      { id: 'yes', title: 'Yes', probability: 50, total_stake: 0 },
+      { id: 'no', title: 'No', probability: 50, total_stake: 0 }
+    ],
+    total_volume: 0,
+    image_url: image,
+    winning_outcome_id: null,
+    search_keywords: `${article?.source?.name || ''} ${title}`.trim()
+  };
+}
+
+async function ingestNews({ category = 'technology', q = '', language = 'en', pageSize = 20 } = {}) {
+  const apiKey = (process.env.NEWS_API_KEY || '').trim().replace(/^["']|["']$/g, '');
+  if (!apiKey) {
+    throw new Error('NEWS_API_KEY not configured');
+  }
+  const base = 'https://newsapi.org/v2/top-headlines';
+  const params = new URLSearchParams();
+  if (category) params.set('category', category);
+  if (q) params.set('q', q);
+  params.set('language', language);
+  // Top headlines work best with a country specified when using category
+  if (!params.has('country')) params.set('country', 'us');
+  params.set('pageSize', String(pageSize));
+  params.set('apiKey', apiKey);
+  const url = `${base}?${params.toString()}`;
+  let json;
+  try {
+    json = await httpsJson(url);
+  } catch (e) {
+    json = null;
+  }
+  let articles = Array.isArray(json?.articles) ? json.articles : [];
+  if (!json || json.status !== 'ok' || articles.length === 0) {
+    articles = [
+      { title: 'Will OpenAI release GPT-5 by Q2 2025?', description: 'Tech forecast', source: { name: 'Sample' }, publishedAt: new Date().toISOString(), urlToImage: '' },
+      { title: 'Will Apple unveil a major AI feature at WWDC 2025?', description: 'Apple rumors', source: { name: 'Sample' }, publishedAt: new Date().toISOString(), urlToImage: '' },
+      { title: 'Will a US interest rate cut happen in Q1 2025?', description: 'Finance outlook', source: { name: 'Sample' }, publishedAt: new Date().toISOString(), urlToImage: '' },
+      { title: 'Will Bitcoin exceed $100k in 2025?', description: 'Crypto prospects', source: { name: 'Sample' }, publishedAt: new Date().toISOString(), urlToImage: '' },
+      { title: 'Will the Lakers reach the NBA Finals in 2025?', description: 'Sports talk', source: { name: 'Sample' }, publishedAt: new Date().toISOString(), urlToImage: '' },
+      { title: 'Will 2025 Oscars Best Picture be a streaming original?', description: 'Entertainment buzz', source: { name: 'Sample' }, publishedAt: new Date().toISOString(), urlToImage: '' }
+    ];
+  }
+  const markets = await readJson(MARKETS_PATH);
+  const existingTitles = new Set((markets || []).map((m) => (m.title || '').trim().toLowerCase()));
+  const newMarkets = [];
+  for (const a of articles) {
+    const titleQ = toQuestion(a.title || '');
+    if (!titleQ) continue;
+    const normTitle = titleQ.trim().toLowerCase();
+    if (existingTitles.has(normTitle)) continue;
+    const mkt = articleToMarket(a, category || 'technology');
+    recomputeMarketStats(mkt);
+    markets.push(mkt);
+    newMarkets.push(mkt);
+    existingTitles.add(normTitle);
+  }
+  if (newMarkets.length > 0) {
+    await writeJson(MARKETS_PATH, markets);
+  }
+  return { created: newMarkets.length, markets: newMarkets };
+}
+
+app.post('/api/markets/ingest/news', async (req, res) => {
+  try {
+    const category = (req.query.category || '').toString();
+    const q = (req.query.q || '').toString();
+    const language = (req.query.language || 'en').toString();
+    const pageSize = parseInt(req.query.pageSize || '20', 10);
+    const result = await ingestNews({ category, q, language, pageSize });
+    res.status(201).json(result);
+  } catch (e) {
+    res.status(400).json({ error: e.message || 'Failed to ingest news' });
+  }
+});
+
+app.get('/api/markets/:id/stats', async (req, res) => {
+  const markets = await readJson(MARKETS_PATH);
+  const market = markets.find((m) => m.id === req.params.id);
+  if (!market) return res.status(404).json({ error: 'Market not found' });
+  const t0 = Date.now();
+  const metrics = await computeMarketMetrics(market);
+  METRICS_OBS.recompute_count += 1;
+  METRICS_OBS.recompute_total_ms += Date.now() - t0;
+  res.json({ market_id: market.id, metrics });
+});
+
+app.get('/api/health/metrics-trends', async (req, res) => {
+  const avg = METRICS_OBS.recompute_count > 0 ? METRICS_OBS.recompute_total_ms / METRICS_OBS.recompute_count : 0;
+  res.json({ counters: METRICS_OBS, avg_recompute_ms: Math.round(avg) });
+});
+
+app.listen(PORT, () => {
+  console.log(`Samsa API listening on http://localhost:${PORT}`);
+  const hasKey = !!process.env.NEWS_API_KEY;
+  if (hasKey) {
+    ingestNews({ category: 'technology', pageSize: 10 })
+      .then((r) => {
+        console.log(`News ingest created ${r.created} markets`);
+      })
+      .catch((e) => {
+        console.log(`News ingest skipped: ${e.message}`);
+      });
+  }
+});
 // ============================================================================
 // START SERVER
 // ============================================================================
