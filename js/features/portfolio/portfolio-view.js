@@ -1,6 +1,7 @@
 // ========================================
 // SAMSA - PORTFOLIO
 // Handles portfolio page rendering and statistics
+// Uses informational language for outcomes
 // ========================================
 
 // Cache for profit/loss history (relative to $0 baseline)
@@ -132,8 +133,8 @@ function renderPortfolioChart() {
           <line x1="0" y1="${height * 0.75}" x2="${width}" y2="${height * 0.75}" stroke="#334155" stroke-width="0.5" stroke-dasharray="4,4" opacity="0.2" />
         </svg>
         <div class="absolute inset-0 flex flex-col items-center justify-center text-center">
-          <p class="text-slate-500 text-lg mb-2">No trades yet</p>
-          <p class="text-slate-600 text-sm">Make your first prediction to start tracking P/L</p>
+          <p class="text-slate-500 text-lg mb-2">No positions yet</p>
+          <p class="text-slate-600 text-sm">Make your first forecast to start tracking performance</p>
         </div>
       </div>
     `;
@@ -181,7 +182,7 @@ function renderPortfolioChart() {
   // Create area path from line to $0 baseline
   const areaPath = `${linePath} L${points[points.length - 1].x},${zeroY} L${points[0].x},${zeroY} Z`;
   
-  // Format P/L value for display
+  // Format P/L value for display (no celebratory language)
   const plText = currentPL >= 0 ? `+$${currentPL.toFixed(2)}` : `-$${Math.abs(currentPL).toFixed(2)}`;
   const plColor = isProfit ? '#22c55e' : '#ef4444';
   
@@ -212,21 +213,17 @@ function renderPortfolioChart() {
         <!-- P/L Line -->
         <path d="${linePath}" fill="none" stroke="${lineColor}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
         
-        <!-- Current point indicator -->
+        <!-- Current point indicator (subtle, not celebratory) -->
         <circle cx="${points[points.length - 1].x}" cy="${points[points.length - 1].y}" r="5" fill="${lineColor}" />
-        <circle cx="${points[points.length - 1].x}" cy="${points[points.length - 1].y}" r="8" fill="${lineColor}" opacity="0.3">
-          <animate attributeName="r" values="8;12;8" dur="2s" repeatCount="indefinite" />
-          <animate attributeName="opacity" values="0.3;0;0.3" dur="2s" repeatCount="indefinite" />
-        </circle>
         
         <!-- $0 label -->
         <text x="12" y="${zeroY - 6}" fill="#64748b" font-size="11" font-family="system-ui">$0</text>
       </svg>
       
-      <!-- P/L indicator badge -->
+      <!-- P/L indicator badge (informational, not celebratory) -->
       <div class="absolute top-2 right-2 px-3 py-1 rounded-lg ${isProfit ? 'bg-green-500/20 border border-green-500/30' : 'bg-red-500/20 border border-red-500/30'}">
         <span class="text-sm font-bold" style="color: ${plColor}">${plText}</span>
-        <span class="text-xs text-slate-400 ml-1">P/L</span>
+        <span class="text-xs text-slate-400 ml-1">Net</span>
       </div>
     </div>
   `;
@@ -262,26 +259,31 @@ function renderPortfolio() {
   const container = document.getElementById('portfolioContent');
   if (!container) return;
   
+  // Get forecaster stats if available
+  const stats = typeof getForecasterStats === 'function' ? getForecasterStats() : { totalPredictions: 0, accuracyScore: '0.0', calibrationScore: '0.0' };
+  
   container.innerHTML = `
-    <!-- Stats Grid -->
+    <!-- Stats Grid - Accuracy-focused, not money-first -->
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
       <div class="bg-slate-900/50 backdrop-blur-xl border border-slate-800 rounded-2xl p-6">
-        <p class="text-slate-400 text-sm mb-1">Total Staked</p>
-        <p class="text-3xl font-bold text-yellow-400">$0.00</p>
-      </div>
-      <div class="bg-slate-900/50 backdrop-blur-xl border border-slate-800 rounded-2xl p-6">
-        <p class="text-slate-400 text-sm mb-1">Active Predictions</p>
+        <p class="text-slate-400 text-sm mb-1">Active Positions</p>
         <p class="text-3xl font-bold text-yellow-400">0</p>
-        <p class="text-xs text-slate-500 mt-1">Potential: $0.00</p>
+        <p class="text-xs text-slate-500 mt-1">Awaiting resolution</p>
       </div>
       <div class="bg-slate-900/50 backdrop-blur-xl border border-slate-800 rounded-2xl p-6">
-        <p class="text-slate-400 text-sm mb-1">Net Profit/Loss</p>
-        <p class="text-3xl font-bold text-slate-400">$0.00</p>
+        <p class="text-slate-400 text-sm mb-1">Accuracy Score</p>
+        <p class="text-3xl font-bold text-green-400">${stats.accuracyScore}%</p>
+        <p class="text-xs text-slate-500 mt-1">Prediction accuracy</p>
       </div>
       <div class="bg-slate-900/50 backdrop-blur-xl border border-slate-800 rounded-2xl p-6">
-        <p class="text-slate-400 text-sm mb-1">Win Rate</p>
-        <p class="text-3xl font-bold text-yellow-400">0%</p>
-        <p class="text-xs text-slate-500 mt-1">0W / 0L</p>
+        <p class="text-slate-400 text-sm mb-1">Calibration</p>
+        <p class="text-3xl font-bold text-blue-400">${stats.calibrationScore}%</p>
+        <p class="text-xs text-slate-500 mt-1">Confidence accuracy</p>
+      </div>
+      <div class="bg-slate-900/50 backdrop-blur-xl border border-slate-800 rounded-2xl p-6">
+        <p class="text-slate-400 text-sm mb-1">Total Forecasts</p>
+        <p class="text-3xl font-bold text-yellow-400">${stats.totalPredictions}</p>
+        <p class="text-xs text-slate-500 mt-1">Lifetime predictions</p>
       </div>
     </div>
 
@@ -291,10 +293,10 @@ function renderPortfolio() {
         Active (0)
       </button>
       <button onclick="filterPortfolio('won')" class="portfolio-tab px-4 py-2 rounded-lg font-semibold text-sm transition-all text-slate-400 border border-slate-700 hover:border-yellow-500/50" data-tab="won">
-        Won (0)
+        Correct (0)
       </button>
       <button onclick="filterPortfolio('lost')" class="portfolio-tab px-4 py-2 rounded-lg font-semibold text-sm transition-all text-slate-400 border border-slate-700 hover:border-yellow-500/50" data-tab="lost">
-        Lost (0)
+        Incorrect (0)
       </button>
     </div>
 
@@ -361,14 +363,20 @@ function filterPortfolio(status) {
 
 /**
  * Render predictions list by status
+ * Uses informational language, not emotional gambling language
  */
 function renderPredictionsList(status) {
   const filteredPredictions = predictions.filter(p => p.status === status);
   
   if (filteredPredictions.length === 0) {
+    const emptyMessages = {
+      active: 'No active positions',
+      won: 'No resolved forecasts yet',
+      lost: 'No resolved forecasts yet'
+    };
     return `
       <div class="bg-slate-900/50 backdrop-blur-xl border border-slate-800 rounded-2xl p-12 text-center">
-        <p class="text-slate-400">No ${status} predictions</p>
+        <p class="text-slate-400">${emptyMessages[status] || 'No predictions'}</p>
       </div>
     `;
   }
@@ -376,6 +384,19 @@ function renderPredictionsList(status) {
   return filteredPredictions.map(prediction => {
     const market = markets.find(m => m.id === prediction.market_id);
     const outcome = market?.outcomes?.find(o => o.id === prediction.outcome_id);
+    
+    // Status labels using informational language
+    const statusLabels = {
+      active: 'Pending Resolution',
+      won: 'Forecast Correct',
+      lost: 'Outcome Differed'
+    };
+    
+    const statusStyles = {
+      active: 'bg-indigo-500/20 text-indigo-400 border border-indigo-500/50',
+      won: 'bg-green-500/20 text-green-400 border border-green-500/50',
+      lost: 'bg-slate-500/20 text-slate-400 border border-slate-500/50'
+    };
     
     return `
       <div class="bg-slate-900/50 backdrop-blur-xl border border-slate-800 hover:border-yellow-500/50 transition-all duration-200 rounded-2xl p-6 cursor-pointer" onclick="showDetail(${prediction.market_id})">
@@ -385,16 +406,16 @@ function renderPredictionsList(status) {
             <p class="text-yellow-400 font-medium mb-3">${outcome?.title || 'Unknown Outcome'}</p>
             <div class="flex flex-wrap gap-4 text-sm">
               <div>
-                <span class="text-slate-400">Stake: </span>
+                <span class="text-slate-400">Position: </span>
                 <span class="text-white font-medium">$${prediction.stake_amount}</span>
               </div>
               ${status === 'active' ? `
-<div>
-                <span class="text-slate-400">Price: </span>
-                <span class="text-white font-medium">${prediction.odds_at_prediction}¢</span>
-              </div>
                 <div>
-                  <span class="text-slate-400">Potential: </span>
+                  <span class="text-slate-400">Entry Probability: </span>
+                  <span class="text-white font-medium">${prediction.odds_at_prediction}%</span>
+                </div>
+                <div>
+                  <span class="text-slate-400">Potential Return: </span>
                   <span class="text-green-400 font-medium">$${prediction.potential_return?.toFixed(2)}</span>
                 </div>
               ` : ''}
@@ -404,28 +425,27 @@ function renderPredictionsList(status) {
                   <span class="text-green-400 font-medium">$${prediction.actual_return?.toFixed(2)}</span>
                 </div>
                 <div>
-                  <span class="text-slate-400">Profit: </span>
+                  <span class="text-slate-400">Net: </span>
                   <span class="text-green-400 font-medium">+$${(prediction.actual_return - prediction.stake_amount).toFixed(2)}</span>
                 </div>
               ` : ''}
               ${status === 'lost' ? `
                 <div>
-                  <span class="text-slate-400">Loss: </span>
-                  <span class="text-red-400 font-medium">-$${prediction.stake_amount}</span>
+                  <span class="text-slate-400">Entry Probability: </span>
+                  <span class="text-white font-medium">${prediction.odds_at_prediction}%</span>
+                </div>
+                <div>
+                  <span class="text-slate-400">Outcome: </span>
+                  <span class="text-slate-400 font-medium">Final result differed from market consensus</span>
                 </div>
               ` : ''}
             </div>
           </div>
-          <span class="px-3 py-1 rounded-full text-xs font-semibold ${
-            status === 'active' ? 'bg-indigo-500/20 text-indigo-400 border border-indigo-500/50' :
-            status === 'won' ? 'bg-green-500/20 text-green-400 border border-green-500/50' :
-            'bg-red-500/20 text-red-400 border border-red-500/50'
-          }">
-            ${status.charAt(0).toUpperCase() + status.slice(1)}
+          <span class="px-3 py-1 rounded-full text-xs font-semibold ${statusStyles[status]}">
+            ${statusLabels[status]}
           </span>
         </div>
       </div>
     `;
   }).join('');
 }
-

@@ -32,15 +32,6 @@
           </div>
           <span class="sidebar-item-text">Explore</span>
         </a>
-        <a href="#" class="sidebar-item" onclick="navigateTo('leaderboard'); return false;">
-          <div class="sidebar-item-icon">
-            <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round"
-                d="M16.5 18.75h-9m9 0a3 3 0 013 3h-15a3 3 0 013-3m9 0v-3.375c0-.621-.503-1.125-1.125-1.125h-.871M7.5 18.75v-3.375c0-.621.504-1.125 1.125-1.125h.872m5.007 0H9.497m5.007 0a7.454 7.454 0 01-.982-3.172M9.497 14.25a7.454 7.454 0 00.981-3.172M5.25 4.236c-.982.143-1.954.317-2.916.52A6.003 6.003 0 007.73 9.728M5.25 4.236V4.5c0 2.108.966 3.99 2.48 5.228M5.25 4.236V2.721C7.456 2.41 9.71 2.25 12 2.25c2.291 0 4.545.16 6.75.47v1.516M7.73 9.728a6.726 6.726 0 002.748 1.35m8.272-6.842V4.5c0 2.108-.966 3.99-2.48 5.228m2.48-5.492a46.32 46.32 0 012.916.52 6.003 6.003 0 01-5.395 4.972m0 0a6.726 6.726 0 01-2.749 1.35m0 0a6.772 6.772 0 01-3.044 0" />
-            </svg>
-          </div>
-          <span class="sidebar-item-text">Leaderboard</span>
-        </a>
         <a href="#" class="sidebar-item" onclick="navigateTo('portfolio'); return false;">
           <div class="sidebar-item-icon">
             <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
@@ -272,15 +263,7 @@
                 <button class="category-option w-full text-left px-4 py-3 text-slate-300 hover:bg-slate-800 transition"
                   data-category="finance">Finance</button>
                 <button class="category-option w-full text-left px-4 py-3 text-slate-300 hover:bg-slate-800 transition"
-                  data-category="crypto">Crypto</button>
-                <button class="category-option w-full text-left px-4 py-3 text-slate-300 hover:bg-slate-800 transition"
                   data-category="technology">Technology</button>
-                <button class="category-option w-full text-left px-4 py-3 text-slate-300 hover:bg-slate-800 transition"
-                  data-category="entertainment">Entertainment</button>
-                <button class="category-option w-full text-left px-4 py-3 text-slate-300 hover:bg-slate-800 transition"
-                  data-category="sports">Sports</button>
-                <button class="category-option w-full text-left px-4 py-3 text-slate-300 hover:bg-slate-800 transition"
-                  data-category="arts_and_culture">Arts and Culture</button>
               </div>
             </div>
           </div>
@@ -463,6 +446,36 @@
                 Withdraw
               </button>
             </div>
+          </div>
+
+          <!-- Forecasting Statistics -->
+          <div class="bg-slate-900/50 border border-slate-800 rounded-xl p-5 mb-8">
+            <div class="flex items-center gap-2 mb-4">
+              <span style="color: rgb(212, 175, 55);">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round"
+                    d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z" />
+                </svg>
+              </span>
+              <span class="text-white font-medium">Your Forecasting Stats</span>
+            </div>
+            <div class="grid grid-cols-3 gap-3">
+              <div class="bg-slate-800/50 rounded-lg p-3 text-center">
+                <p class="text-2xl font-bold text-yellow-400" id="statsPredictions">0</p>
+                <p class="text-slate-500 text-xs">Predictions</p>
+              </div>
+              <div class="bg-slate-800/50 rounded-lg p-3 text-center">
+                <p class="text-2xl font-bold text-green-400" id="statsAccuracy">0%</p>
+                <p class="text-slate-500 text-xs">Accuracy</p>
+              </div>
+              <div class="bg-slate-800/50 rounded-lg p-3 text-center">
+                <p class="text-2xl font-bold text-blue-400" id="statsCalibration">0%</p>
+                <p class="text-slate-500 text-xs">Calibration</p>
+              </div>
+            </div>
+            <p class="text-slate-600 text-xs text-center mt-3">
+              Accuracy = correct predictions • Calibration = confidence matches outcomes
+            </p>
           </div>
 
           <!-- Get More Section -->
@@ -652,40 +665,6 @@
     <!-- Activity View (now redirects to dashboard) -->
     <div id="activityView" class="hidden"></div>
 
-    <!-- Leaderboard View -->
-    <div id="leaderboardView" class="hidden max-w-7xl mx-auto p-6 lg:p-8">
-      <div class="mb-8">
-        <div class="logo-container" onclick="navigateTo('dashboard')" title="Go to Dashboard">
-          <img src="Logo-Title.png" alt="Samsa Prediction Markets" class="h-16 logo-base" />
-          <img src="Logo-Title-Shine-Animation.png" alt="" class="h-16 logo-shine" />
-        </div>
-      </div>
-      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div class="bg-slate-900/50 backdrop-blur-xl border border-slate-800 rounded-2xl p-6">
-          <h3 class="text-xl font-semibold text-white mb-4 flex items-center gap-2"><span
-              style="color: rgb(212, 175, 55);"><svg class="w-5 h-5" fill="none" stroke="currentColor"
-                stroke-width="1.5" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round"
-                  d="M2.25 18L9 11.25l4.306 4.307a11.95 11.95 0 015.814-5.519l2.74-1.22m0 0l-5.94-2.28m5.94 2.28l-2.28 5.941" />
-              </svg></span> Top Markets</h3>
-          <div id="lbMarkets" class="space-y-3">
-            <p class="text-slate-400">Coming soon...</p>
-          </div>
-        </div>
-        <div class="bg-slate-900/50 backdrop-blur-xl border border-slate-800 rounded-2xl p-6">
-          <h3 class="text-xl font-semibold text-white mb-4 flex items-center gap-2"><span
-              style="color: rgb(212, 175, 55);"><svg class="w-5 h-5" fill="none" stroke="currentColor"
-                stroke-width="1.5" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round"
-                  d="M9.568 3H5.25A2.25 2.25 0 003 5.25v4.318c0 .597.237 1.17.659 1.591l9.581 9.581c.699.699 1.78.872 2.607.33a18.095 18.095 0 005.223-5.223c.542-.827.369-1.908-.33-2.607L11.16 3.66A2.25 2.25 0 009.568 3z" />
-                <path stroke-linecap="round" stroke-linejoin="round" d="M6 6h.008v.008H6V6z" />
-              </svg></span> Top Categories</h3>
-          <div id="lbCategories" class="space-y-3">
-            <p class="text-slate-400">Coming soon...</p>
-          </div>
-        </div>
-      </div>
-    </div>
 
     <!-- Interests View -->
     <div id="interestsView" class="hidden max-w-7xl mx-auto p-6 lg:p-8">
@@ -743,15 +722,6 @@
                 <button
                   class="interests-category-btn w-full text-left px-4 py-3 text-slate-300 hover:bg-slate-800 transition"
                   onclick="filterInterestsByCategory('finance')">Finance</button>
-                <button
-                  class="interests-category-btn w-full text-left px-4 py-3 text-slate-300 hover:bg-slate-800 transition"
-                  onclick="filterInterestsByCategory('sports')">Sports</button>
-                <button
-                  class="interests-category-btn w-full text-left px-4 py-3 text-slate-300 hover:bg-slate-800 transition"
-                  onclick="filterInterestsByCategory('social')">Social Issues</button>
-                <button
-                  class="interests-category-btn w-full text-left px-4 py-3 text-slate-300 hover:bg-slate-800 transition"
-                  onclick="filterInterestsByCategory('arts_and_culture')">Arts & Culture</button>
               </div>
             </div>
           </div>
@@ -958,6 +928,81 @@
           </div>
         </div>
 
+        <!-- Risk Management Section -->
+        <div id="riskControlsSection" class="bg-slate-900/50 backdrop-blur-xl border border-slate-800 rounded-2xl p-6">
+          <h2 class="text-xl font-bold text-white mb-6 flex items-center gap-2">
+            <span style="color: rgb(212, 175, 55);">
+              <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round"
+                  d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" />
+              </svg>
+            </span> Risk Management
+          </h2>
+          <p class="text-slate-400 text-sm mb-6">Manage your trading activity with these risk management tools. These
+            features help you trade responsibly.</p>
+
+          <div class="space-y-4">
+            <!-- LIMITS FEATURE - Commented out but preserved for future use -->
+            <!-- Daily Limit
+            <div class="flex items-center justify-between p-4 bg-slate-800/50 rounded-xl">
+              <div class="flex-1">
+                <span class="text-white font-medium">Daily Allocation Limit</span>
+                <p class="text-slate-500 text-sm">Maximum amount you can allocate per day</p>
+                <p class="text-yellow-400 text-xs mt-1" id="dailyLimitStatus"></p>
+              </div>
+              <div class="flex items-center gap-2">
+                <span class="text-slate-500">$</span>
+                <input type="number" id="dailyLimitInput" placeholder="No limit"
+                  class="w-24 bg-slate-700 border border-slate-600 text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-yellow-500" />
+                <button onclick="updateDailyLimit()"
+                  class="px-3 py-2 bg-yellow-500/20 text-yellow-400 rounded-lg text-sm hover:bg-yellow-500/30 transition-colors">Set</button>
+              </div>
+            </div>
+            -->
+
+            <!-- Weekly Limit
+            <div class="flex items-center justify-between p-4 bg-slate-800/50 rounded-xl">
+              <div class="flex-1">
+                <span class="text-white font-medium">Weekly Allocation Limit</span>
+                <p class="text-slate-500 text-sm">Maximum amount you can allocate per week</p>
+                <p class="text-yellow-400 text-xs mt-1" id="weeklyLimitStatus"></p>
+              </div>
+              <div class="flex items-center gap-2">
+                <span class="text-slate-500">$</span>
+                <input type="number" id="weeklyLimitInput" placeholder="No limit"
+                  class="w-24 bg-slate-700 border border-slate-600 text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-yellow-500" />
+                <button onclick="updateWeeklyLimit()"
+                  class="px-3 py-2 bg-yellow-500/20 text-yellow-400 rounded-lg text-sm hover:bg-yellow-500/30 transition-colors">Set</button>
+              </div>
+            </div>
+            -->
+
+            <!-- Observe Only Mode -->
+            <div class="flex items-center justify-between p-4 bg-slate-800/50 rounded-xl">
+              <div>
+                <span class="text-white font-medium">Observe-Only Mode</span>
+                <p class="text-slate-500 text-sm">View markets without the ability to trade</p>
+              </div>
+              <button onclick="toggleObserveMode()" id="observeModeBtn"
+                class="px-4 py-2 rounded-lg text-sm font-medium transition-colors bg-slate-700 text-slate-400 hover:bg-slate-600">
+                Inactive
+              </button>
+            </div>
+
+            <!-- Pause Trading -->
+            <div class="flex items-center justify-between p-4 bg-slate-800/50 rounded-xl">
+              <div>
+                <span class="text-white font-medium">Pause Trading</span>
+                <p class="text-slate-500 text-sm">Temporarily disable position entry</p>
+              </div>
+              <button onclick="toggleTradingPause()" id="tradingPauseBtn"
+                class="px-4 py-2 rounded-lg text-sm font-medium transition-colors bg-slate-700 text-slate-400 hover:bg-slate-600">
+                Trading Active
+              </button>
+            </div>
+          </div>
+        </div>
+
         <!-- Preferences -->
         <div class="bg-slate-900/50 backdrop-blur-xl border border-slate-800 rounded-2xl p-6">
           <h2 class="text-xl font-bold text-white mb-6 flex items-center gap-2">
@@ -1003,6 +1048,22 @@
           </div>
         </div>
 
+        <!-- Platform Disclaimer -->
+        <div class="bg-slate-900/50 backdrop-blur-xl border border-slate-800 rounded-2xl p-6">
+          <h2 class="text-xl font-bold text-white mb-4 flex items-center gap-2">
+            <span>📋</span> About Samsa
+          </h2>
+          <p class="text-slate-300 leading-relaxed">
+            Samsa is a prediction market trading platform designed to help users express beliefs about future events
+            through probability-based positions. Our platform emphasizes forecasting accuracy, calibration, and
+            thoughtful analysis.
+          </p>
+          <p class="text-slate-500 text-sm mt-4">
+            Market probabilities reflect collective beliefs, not certainty. Even high-probability outcomes can resolve
+            unexpectedly. Past performance does not guarantee future results.
+          </p>
+        </div>
+
         <!-- Danger Zone -->
         <div class="bg-slate-900/50 backdrop-blur-xl border border-red-900/50 rounded-2xl p-6">
           <h2 class="text-xl font-bold text-white mb-6 flex items-center gap-2">
@@ -1042,10 +1103,85 @@
   <script src="js/features/interests/subcategories-view.js?v=40"></script>
   <script src="js/features/portfolio/portfolio-view.js?v=28"></script>
   <script src="https://js.stripe.com/v3"></script>
+  <script src="js/features/markets/markets-view.js?v=50"></script>
+  <script src="js/features/trading/predictions-view.js?v=35"></script>
+  <script src="js/features/interests/interests-view.js?v=29"></script>
+  <script src="js/features/interests/subcategories-view.js?v=40"></script>
+  <script src="js/features/portfolio/portfolio-view.js?v=29"></script>
   <script src="js/features/wallet/wallet-view.js?v=3"></script>
+  <script src="js/features/responsible-trading.js?v=1"></script>
 
   <!-- App Init -->
-  <script src="js/core/app.js?v=28"></script>
+  <script src="js/core/app.js?v=29"></script>
+
+  <!-- Settings Page Initialization -->
+  <script>
+    // Update settings page UI when navigating to settings
+    function updateSettingsUI() {
+      if (typeof loadRiskControlState !== 'function') return;
+
+      const state = loadRiskControlState();
+      const stats = typeof getForecasterStats === 'function' ? getForecasterStats() : { totalPredictions: 0, accuracyScore: '0.0', calibrationScore: '0.0' };
+
+      // LIMITS FEATURE - Commented out but preserved for future use
+      // Update limit inputs
+      // const dailyInput = document.getElementById('dailyLimitInput');
+      // const weeklyInput = document.getElementById('weeklyLimitInput');
+      // if (dailyInput) dailyInput.value = state.dailyLimit || '';
+      // if (weeklyInput) weeklyInput.value = state.weeklyLimit || '';
+
+      // Update limit status
+      // const dailyStatus = document.getElementById('dailyLimitStatus');
+      // const weeklyStatus = document.getElementById('weeklyLimitStatus');
+      // if (dailyStatus && state.dailyLimit) {
+      //   dailyStatus.textContent = `Today: $${state.dailySpent?.toFixed(2) || '0.00'} / $${state.dailyLimit.toFixed(2)}`;
+      // }
+      // if (weeklyStatus && state.weeklyLimit) {
+      //   weeklyStatus.textContent = `This week: $${state.weeklySpent?.toFixed(2) || '0.00'} / $${state.weeklyLimit.toFixed(2)}`;
+      // }
+
+      // Update observe mode button
+      const observeBtn = document.getElementById('observeModeBtn');
+      if (observeBtn) {
+        if (state.observeOnlyMode) {
+          observeBtn.className = 'px-4 py-2 rounded-lg text-sm font-medium transition-colors bg-green-500/20 text-green-400 border border-green-500/50';
+          observeBtn.textContent = 'Active';
+        } else {
+          observeBtn.className = 'px-4 py-2 rounded-lg text-sm font-medium transition-colors bg-slate-700 text-slate-400 hover:bg-slate-600';
+          observeBtn.textContent = 'Inactive';
+        }
+      }
+
+      // Update trading pause button
+      const pauseBtn = document.getElementById('tradingPauseBtn');
+      if (pauseBtn) {
+        if (state.tradingPaused) {
+          pauseBtn.className = 'px-4 py-2 rounded-lg text-sm font-medium transition-colors bg-red-500/20 text-red-400 border border-red-500/50';
+          pauseBtn.textContent = 'Trading Paused';
+        } else {
+          pauseBtn.className = 'px-4 py-2 rounded-lg text-sm font-medium transition-colors bg-slate-700 text-slate-400 hover:bg-slate-600';
+          pauseBtn.textContent = 'Trading Active';
+        }
+      }
+
+      // Update stats
+      const statsPredictions = document.getElementById('statsPredictions');
+      const statsAccuracy = document.getElementById('statsAccuracy');
+      const statsCalibration = document.getElementById('statsCalibration');
+      if (statsPredictions) statsPredictions.textContent = stats.totalPredictions;
+      if (statsAccuracy) statsAccuracy.textContent = stats.accuracyScore + '%';
+      if (statsCalibration) statsCalibration.textContent = stats.calibrationScore + '%';
+    }
+
+    // Hook into navigation to update settings UI
+    const originalNavigateTo = window.navigateTo;
+    window.navigateTo = function (page) {
+      if (originalNavigateTo) originalNavigateTo(page);
+      if (page === 'settings') {
+        setTimeout(updateSettingsUI, 100);
+      }
+    };
+  </script>
 </body>
 
 </html>

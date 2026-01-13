@@ -9,18 +9,17 @@
 function hideAllViews() {
   const views = [
     'marketsView',
-    'detailView', 
+    'detailView',
     'interestsView',
     'subcategoryView',
     'leagueDetailView',
     'portfolioView',
     'activityView',
-    'leaderboardView',
     'notificationsView',
     'settingsView',
     'dashboardView'
   ];
-  
+
   views.forEach(viewId => {
     const el = document.getElementById(viewId);
     if (el) el.classList.add('hidden');
@@ -45,9 +44,6 @@ function navigateTo(page) {
     case 'activity':
       showActivity();
       break;
-    case 'leaderboard':
-      showLeaderboard();
-      break;
     case 'notifications':
       showNotifications();
       break;
@@ -60,7 +56,7 @@ function navigateTo(page) {
     default:
       showMarkets();
   }
-  
+
   updateActiveNavItem(page);
 }
 
@@ -70,15 +66,6 @@ function navigateTo(page) {
 function showActivity() {
   // Activity is now combined with dashboard
   showDashboard();
-}
-
-/**
- * Show Leaderboard view
- */
-function showLeaderboard() {
-  hideAllViews();
-  const el = document.getElementById('leaderboardView');
-  if (el) el.classList.remove('hidden');
 }
 
 // Track unread notifications count
@@ -99,13 +86,13 @@ function toggleNotificationsDropdown(event) {
     event.preventDefault();
     event.stopPropagation();
   }
-  
+
   const sidebar = document.getElementById('notificationsSidebar');
   const overlay = document.getElementById('notificationsOverlay');
   if (!sidebar) return;
-  
+
   const isVisible = !sidebar.classList.contains('-translate-x-full');
-  
+
   if (isVisible) {
     closeNotificationsSidebar();
   } else {
@@ -119,7 +106,7 @@ function toggleNotificationsDropdown(event) {
 function openNotificationsSidebar() {
   const sidebar = document.getElementById('notificationsSidebar');
   const overlay = document.getElementById('notificationsOverlay');
-  
+
   if (sidebar) {
     sidebar.classList.remove('-translate-x-full');
   }
@@ -135,7 +122,7 @@ function openNotificationsSidebar() {
 function closeNotificationsSidebar() {
   const sidebar = document.getElementById('notificationsSidebar');
   const overlay = document.getElementById('notificationsOverlay');
-  
+
   if (sidebar) {
     sidebar.classList.add('-translate-x-full');
   }
@@ -167,7 +154,7 @@ function updateNotificationBadge(count) {
  */
 function markAllNotificationsRead() {
   updateNotificationBadge(0);
-  
+
   // Update the notification items UI in sidebar
   const sidebar = document.getElementById('notificationsSidebar');
   if (sidebar) {
@@ -175,7 +162,7 @@ function markAllNotificationsRead() {
     sidebar.querySelectorAll('.notification-item.unread .bg-yellow-500').forEach(dot => {
       dot.remove();
     });
-    
+
     // Mark all items as read (add opacity)
     sidebar.querySelectorAll('.notification-item.unread').forEach(item => {
       item.classList.remove('unread');
@@ -221,18 +208,17 @@ function updateActiveNavItem(activePage) {
   document.querySelectorAll('.sidebar-item').forEach(item => {
     item.classList.remove('active');
   });
-  
+
   // Map page names to their sidebar item text
   const pageToText = {
     'markets': 'Explore',
     'interests': 'Interests',
     'portfolio': 'Dashboard',
     'dashboard': 'Dashboard',
-    'leaderboard': 'Leaderboard',
     'notifications': 'Notifications',
     'settings': 'Settings'
   };
-  
+
   const targetText = pageToText[activePage];
   if (targetText) {
     document.querySelectorAll('.sidebar-item').forEach(item => {

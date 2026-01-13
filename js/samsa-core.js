@@ -14,35 +14,10 @@ const CONFIG = {
   PLATFORM_FEE: 0.01
 };
 
-// Sports & Categories
-const SPORTS = [
-  { id: 'Q2736', name: 'Soccer', icon: '⚽' },
-  { id: 'Q5372', name: 'Basketball', icon: '🏀' },
-  { id: 'Q847', name: 'Tennis', icon: '🎾' },
-  { id: 'Q5369', name: 'Baseball', icon: '⚾' },
-  { id: 'Q1734', name: 'Volleyball', icon: '🏐' },
-  { id: 'Q5375', name: 'Cricket', icon: '🏏' },
-  { id: 'Q41323', name: 'American Football', icon: '🏈' },
-  { id: 'Q41466', name: 'Ice Hockey', icon: '🏒' },
-  { id: 'Q5377', name: 'Golf', icon: '⛳' },
-  { id: 'Q32112', name: 'Combat', icon: '🥊' },
-  { id: 'AUTO_RACING', name: 'Auto Racing', icon: '🏎️' },
-  { id: 'Q3609', name: 'Cycling', icon: '🚴' },
-  { id: 'Q5849', name: 'Rugby', icon: '🏉' },
-  { id: 'MULTI_SPORTS', name: 'Multi-Sports', icon: '🏆' },
-  { id: 'HANDBALL', name: 'Handball', icon: '🤾' },
-  { id: 'LACROSSE', name: 'Lacrosse', icon: '🥍' },
-  { id: 'SOFTBALL', name: 'Softball', icon: '🥎' }
-];
+// Sports & Categories - REMOVED to avoid gambling incentives
+const SPORTS = [];
 
-const SPORT_MAPPINGS = {
-  'soccer': 'Q2736', 'football': 'Q2736', 'basketball': 'Q5372', 'tennis': 'Q847',
-  'baseball': 'Q5369', 'volleyball': 'Q1734', 'cricket': 'Q5375',
-  'american football': 'Q41323', 'ice hockey': 'Q41466', 'golf': 'Q5377',
-  'boxing': 'Q32112', 'mma': 'Q32112', 'wrestling': 'Q32112',
-  'auto racing': 'AUTO_RACING', 'f1': 'AUTO_RACING', 'nascar': 'AUTO_RACING',
-  'cycling': 'Q3609', 'rugby': 'Q5849'
-};
+const SPORT_MAPPINGS = {};
 
 const TOPICS = {
   politics: [
@@ -72,7 +47,6 @@ const TOPICS = {
   ],
   finance: [
     { id: 'Q8142', name: 'Stock Markets', icon: '📈' },
-    { id: 'Q1369352', name: 'Cryptocurrencies', icon: '₿', categories: ['technology'] },
     { id: 'Q192296', name: 'Real Estate', icon: '🏠' },
     { id: 'Q860861', name: 'Commodities', icon: '🛢️' },
     { id: 'USBANK', name: 'Banking', icon: '🏦', categories: ['economics'] },
@@ -110,39 +84,20 @@ const TOPICS = {
     { id: 'Q11016', name: 'Artificial Intelligence', icon: '🤖', categories: ['science'] },
     { id: 'CYBER', name: 'Cybersecurity', icon: '🔒', categories: ['politics'] },
     { id: 'BIGTECH', name: 'Big Tech', icon: '🖥️', categories: ['finance'] },
-    { id: 'SOCIAL', name: 'Social Media', icon: '📱', categories: ['entertainment'] },
+    { id: 'SOCIAL', name: 'Social Media', icon: '📱', categories: ['technology'] },
     { id: 'ELECVEH', name: 'Electric Vehicles', icon: '🚗', categories: ['environment', 'finance'] }
   ],
-  arts_and_culture: [
-    { id: 'Q7889', name: 'Video Games', icon: '🎮', categories: ['technology', 'entertainment'] },
-    { id: 'Q11424', name: 'Film', icon: '🎬', categories: ['entertainment'] },
-    { id: 'Q7565', name: 'Concert Tours', icon: '🎤', categories: ['entertainment'] },
-    { id: 'Q483382', name: 'Music Awards', icon: '🏆', categories: ['entertainment'] },
-    { id: 'Q3305213', name: 'Art', icon: '🎨' }
-  ],
-  social: [
-    { id: 'EDUC', name: 'Education', icon: '🎓', categories: ['politics'] },
-    { id: 'LABOR', name: 'Labor & Unions', icon: '👷', categories: ['politics', 'economics'] },
-    { id: 'HOUS', name: 'Housing', icon: '🏠', categories: ['economics', 'politics'] },
-    { id: 'CRIME', name: 'Crime & Justice', icon: '⚖️', categories: ['politics'] },
-    { id: 'CIVIL', name: 'Civil Rights', icon: '✊', categories: ['politics', 'international'] }
-  ]
 };
 
 const CATEGORY_COLORS = {
   politics: 'from-blue-500 to-indigo-600',
-  sports: 'from-green-500 to-emerald-600',
   international: 'from-cyan-500 to-blue-600',
   finance: 'from-amber-500 to-orange-600',
   environment: 'from-green-600 to-teal-600',
   climate: 'from-sky-500 to-blue-500',
   science: 'from-indigo-500 to-purple-600',
   health: 'from-red-500 to-pink-600',
-  arts_and_culture: 'from-fuchsia-500 to-purple-600',
   technology: 'from-purple-500 to-pink-600',
-  crypto: 'from-orange-500 to-red-600',
-  entertainment: 'from-pink-500 to-rose-600',
-  social: 'from-teal-500 to-cyan-600',
   economics: 'from-yellow-500 to-amber-600',
   law: 'from-slate-500 to-gray-600'
 };
@@ -180,9 +135,9 @@ const SPORT_LABEL_MAPPINGS = SPORT_MAPPINGS;
 let markets = [];
 
 let INTERESTS_DATA = {
-  politics: [], sports: [], international: [], finance: [],
-  environment: [], climate: [], science: [], health: [], arts_and_culture: [],
-  technology: [], social: []
+  politics: [], international: [], finance: [],
+  environment: [], climate: [], science: [], health: [],
+  technology: []
 };
 
 let currentCategory = 'all';
@@ -311,11 +266,11 @@ const dashboardSectionStates = {
 function toggleDashboardSection(section) {
   const contentEl = document.getElementById(`${section}Content`);
   const chevronEl = document.getElementById(`${section}Chevron`);
-  
+
   if (!contentEl || !chevronEl) return;
-  
+
   const isExpanded = dashboardSectionStates[section];
-  
+
   if (isExpanded) {
     // Collapse
     contentEl.style.maxHeight = '0';
@@ -329,7 +284,7 @@ function toggleDashboardSection(section) {
     contentEl.style.paddingBottom = '1.25rem';
     chevronEl.style.transform = 'rotate(180deg)';
   }
-  
+
   dashboardSectionStates[section] = !isExpanded;
 }
 
@@ -649,7 +604,6 @@ async function loadAllInterestsData() {
   }));
 
   INTERESTS_DATA.politics = mapToInterest(TOPICS.politics, 'politics');
-  INTERESTS_DATA.sports = mapToInterest(SPORTS, 'sports');
   INTERESTS_DATA.international = mapToInterest(TOPICS.international, 'international');
   INTERESTS_DATA.finance = mapToInterest(TOPICS.finance, 'finance');
   INTERESTS_DATA.environment = mapToInterest(TOPICS.environment, 'environment');
@@ -657,8 +611,6 @@ async function loadAllInterestsData() {
   INTERESTS_DATA.science = mapToInterest(TOPICS.science, 'science');
   INTERESTS_DATA.health = mapToInterest(TOPICS.health, 'health');
   INTERESTS_DATA.technology = mapToInterest(TOPICS.technology, 'technology');
-  INTERESTS_DATA.arts_and_culture = mapToInterest(TOPICS.arts_and_culture, 'arts_and_culture');
-  INTERESTS_DATA.social = mapToInterest(TOPICS.social, 'social');
 
   const totalCount = Object.values(INTERESTS_DATA).reduce((sum, arr) => sum + arr.length, 0);
   console.log(`Loaded ${totalCount} interests`);
