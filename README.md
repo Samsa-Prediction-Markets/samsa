@@ -139,6 +139,12 @@ samsa/
 | POST | `/api/payments/create-intent` | Create PaymentIntent for wallet deposit |
 | POST | `/api/payments/create-checkout-session` | Create Checkout Session for subscriptions |
 | POST | `/api/stripe/webhook` | Stripe webhook for payment confirmations |
+ 
+## 🔗 Category Routing
+- The “All Markets” dropdown navigates to category routes using hash URLs:
+  - `#category/politics`, `#category/sports`, `#category/finance`, etc.
+- Visiting a category route shows the Markets view filtered to that category and updates the dropdown label.
+- Category badges on market cards are clickable and navigate to the matching category route.
 
 ## 💳 Stripe Integration
 

@@ -259,3 +259,32 @@ function goBack() {
 function createPageUrl(pageName) {
   return `#${pageName.toLowerCase()}`;
 }
+function routeByHash() {
+  const hash = (window.location.hash || '').trim();
+  const catMatch = hash.match(/^#category\/([a-zA-Z0-9_+-]+)$/);
+  if (catMatch && catMatch[1]) {
+    const category = catMatch[1].toLowerCase();
+    showMarkets();
+    if (typeof renderMarkets === 'function') {
+      renderMarkets().then(() => {
+        if (typeof filterByCategory === 'function') {
+          filterByCategory(category);
+        }
+        const label = document.getElementById('selectedCategory');
+        if (label) {
+          label.textContent = category === 'all' ? 'All Markets' : category.charAt(0).toUpperCase() + category.slice(1);
+        }
+        updateActiveNavItem('markets');
+      });
+    } else if (typeof filterByCategory === 'function') {
+      filterByCategory(category);
+      const label = document.getElementById('selectedCategory');
+      if (label) {
+        label.textContent = category === 'all' ? 'All Markets' : category.charAt(0).toUpperCase() + category.slice(1);
+      }
+      updateActiveNavItem('markets');
+    }
+    return;
+  }
+}
+window.addEventListener('hashchange', routeByHash);

@@ -369,6 +369,18 @@ async function renderMarkets() {
 
   // Render suggested interests
   renderSuggestedInterests();
+  
+  // Bind category dropdown options to hash routes
+  const dropdown = document.getElementById('categoryDropdown');
+  if (dropdown && !dropdown.__samsaBound) {
+    dropdown.__samsaBound = true;
+    dropdown.querySelectorAll('.category-option').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const cat = (btn.getAttribute('data-category') || 'all').toLowerCase();
+        window.location.hash = `#category/${cat}`;
+      });
+    });
+  }
 }
 
 /**
@@ -1009,7 +1021,7 @@ function createMarketCardHTML(market) {
       <div class="[grid-area:1/1] p-4 flex flex-col gap-2 z-10">
         <div class="flex items-start justify-between">
           <div class="flex items-center gap-2">
-            <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-gradient-to-r ${CATEGORY_COLORS[market.category] || 'from-slate-500 to-slate-600'} text-white">${market.category}</span>
+            <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-gradient-to-r ${CATEGORY_COLORS[market.category] || 'from-slate-500 to-slate-600'} text-white cursor-pointer" onclick="event.stopPropagation(); window.location.hash = '#category/${market.category}'">${market.category}</span>
             <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium border ${typeLabel.class}">
               <span>${typeLabel.icon}</span>
               <span>${typeLabel.text}</span>
@@ -1307,6 +1319,11 @@ function filterByCategory(category) {
   });
 
   filterMarkets();
+  
+  const label = document.getElementById('selectedCategory');
+  if (label) {
+    label.textContent = category === 'all' ? 'All Markets' : category.charAt(0).toUpperCase() + category.slice(1);
+  }
 }
 
 // Make filterByCategory globally available for sidebar
