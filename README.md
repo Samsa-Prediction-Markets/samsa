@@ -202,7 +202,6 @@ samsa/
 
 | Category | Icon | Description |
 |----------|------|-------------|
-| Politics | 🏛️ | Elections, legislation, government |
 | Sports | ⚽ | Championships, games, tournaments |
 | Crypto | ₿ | Bitcoin, Ethereum, crypto prices |
 | Technology | 💻 | AI, product launches, tech companies |
