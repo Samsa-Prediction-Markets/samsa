@@ -1,6 +1,6 @@
 # 🦋 Samsa Prediction Markets
 
-A modern prediction markets platform where users can trade on the outcomes of real-world events across politics, sports, technology, finance, and more.
+A modern prediction markets platform where users can trade on the outcomes of real-world events across sports, technology, finance, and more.
 
 ![Samsa Logo](Logo-Title.png)
 
