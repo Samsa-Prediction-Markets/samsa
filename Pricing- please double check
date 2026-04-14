@@ -1,5 +1,3 @@
-lib/pricing.js
-
 'use strict';
 
 /**
@@ -9,36 +7,36 @@ lib/pricing.js
  * p = market probability (0 to 1)
  * f = platform fee = 0.01 (1%)
  *
- * Profit          = S × (1 - p) × (1 - f)
- * Winning total   = S + Profit
- * Losing refund   = S × p
- * Loss            = S × (1 - p)
+ * Profit           = S × (1 - p) × (1 - f)
+ * Winning total    = S + Profit
+ * Losing refund    = S × p
+ * Loss             = S × (1 - p)
  * Platform Revenue = S × f × (1 - p)
  */
 
 const PLATFORM_FEE = 0.01;
 
-function calculateBetPreview(stake, probability) {
+function calculateTradePreview(stake, probability) {
   const S = parseFloat(stake);
   const p = parseFloat(probability);
   const f = PLATFORM_FEE;
 
-  if (isNaN(S) || S <= 0)             throw new Error('Stake must be a positive number');
+  if (isNaN(S) || S <= 0)                throw new Error('Stake must be a positive number');
   if (isNaN(p) || p < 0.01 || p > 0.99) throw new Error('Probability must be between 0.01 and 0.99');
 
-  const profit           = S * (1 - p) * (1 - f);   // S × (1-p) × (1-f)
-  const winningTotal     = S + profit;               // S + Profit
-  const losingRefund     = S * p;                    // S × p
-  const loss             = S * (1 - p);              // S × (1-p)
-  const platformRevenue  = S * f * (1 - p);          // S × f × (1-p)
+  const profit          = S * (1 - p) * (1 - f);
+  const winningTotal    = S + profit;
+  const losingRefund    = S * p;
+  const loss            = S * (1 - p);
+  const platformRevenue = S * f * (1 - p);
 
   return {
-    stake:          round(S),
-    probability:    p,
-    profit:         round(profit),
-    winningTotal:   round(winningTotal),
-    losingRefund:   round(losingRefund),
-    loss:           round(loss),
+    stake:           round(S),
+    probability:     p,
+    profit:          round(profit),
+    winningTotal:    round(winningTotal),
+    losingRefund:    round(losingRefund),
+    loss:            round(loss),
     platformRevenue: round(platformRevenue),
   };
 }
@@ -47,5 +45,5 @@ function round(n) {
   return Math.round(n * 100) / 100;
 }
 
-module.exports = { calculateBetPreview, PLATFORM_FEE };
+module.exports = { calculateTradePreview, PLATFORM_FEE };
 
