@@ -1,21 +1,14 @@
-
-lib/payouts.js
-
 'use strict';
 
 /**
- * DOBIUM PAYOUT MODEL
+ * DOBIUM TRADING MODEL — PAYOUTS
  *
- * Runs ONCE when a market resolves (admin picks the winning outcome).
- * Loops through every prediction on that market and calculates:
- *   - Winners get: stake + profit (minus platform fee)
- *   - Losers get:  partial refund (never walk away empty)
- *   - Platform gets: 1% of winning side only
+ * Runs when a market resolves.
+ * Uses entryProb saved at bet time — NOT the final probability.
  *
- * Variables:
- *   S = stake (how much they trade)
- *   p = probability at time of their trade (stored as entryProb)
- *   f = platform fee = 1%
+ * Winner gets:  S + S × (1 - p) × (1 - f)
+ * Loser gets:   S × p                        ← always gets something back
+ * Platform gets: S × f × (1 - p)             ← only from winners, only when p is low
  */
 
 const PLATFORM_FEE = 0.01;
@@ -25,35 +18,40 @@ function resolveMarket(predictions, winningOutcomeId) {
   let totalPlatformRevenue = 0;
 
   for (const pred of predictions) {
-    const S = pred.amount;
-    const p = pred.entryProb;   // probability when they placed the trade
-    const f = PLATFORM_FEE;
+    const S   = pred.amount;
+    const p   = pred.entryProb;  // probability locked in at bet time
+    const f   = PLATFORM_FEE;
     const won = pred.outcomeId === winningOutcomeId;
 
     let userPayout;
-    let platformCut;
+    let platformRevenue;
 
     if (won) {
-      // ── Winner ───────────────────────────────────────────────
-      const profit = S * (1 - p) * (1 - f);
-      userPayout   = round(S + profit);
-      platformCut  = round(S * f * (1 - p));
+      // ── WINNER ───────────────────────────────────────────────
+      // Profit          = S × (1 - p) × (1 - f)
+      // Winning total   = S + Profit
+      // Platform Revenue = S × f × (1 - p)
+      const profit      = S * (1 - p) * (1 - f);
+      userPayout        = round(S + profit);
+      platformRevenue   = round(S * f * (1 - p));
     } else {
-      // ── Loser — always gets partial refund ───────────────────
-      userPayout  = round(S * p);
-      platformCut = 0; // platform only earns on winning side
+      // ── LOSER — never walks away empty ───────────────────────
+      // Losing refund = S × p
+      // Platform earns nothing on losing side
+      userPayout        = round(S * p);
+      platformRevenue   = 0;
     }
 
-    totalPlatformRevenue += platformCut;
+    totalPlatformRevenue += platformRevenue;
 
     payouts.push({
-      predictionId:    pred.id,
-      userId:          pred.userId,
+      predictionId:   pred.id,
+      userId:         pred.userId,
       won,
-      stake:           S,
-      entryProb:       p,
-      payout:          userPayout,
-      platformRevenue: platformCut,
+      stake:          round(S),
+      entryProb:      p,
+      payout:         userPayout,
+      platformRevenue,
     });
   }
 
