@@ -1,0 +1,146 @@
+lib/payoutProcessor.js
+
+'use strict';
+
+/**
+ * DOBIUM PAYOUT PROCESSOR
+ *
+ * This is the engine that actually EXECUTES payouts after resolveMarket() calculates them.
+ * It handles:
+ *   1. Paying winners their winningTotal
+ *   2. Refunding losers their S × p
+ *   3. Recording every transaction
+ *   4. Marking every prediction as won/lost
+ *   5. Marking the market as resolved
+ *   6. Tracking platform revenue
+ */
+
+const { resolveMarket } = require('./payouts');
+
+async function processMarketResolution(
+  marketId,
+  winningOutcomeId,
+  { Market, Outcome, Prediction, User, Transaction, sequelize }
+) {
+  // ── Step 1: Load market with all open predictions ─────────────
+  const market = await Market.findByPk(marketId, {
+    include: [
+      { model: Outcome },
+      {
+        model: Prediction,
+        where: { status: 'open' },
+        required: false,
+      },
+    ],
+  });
+
+  if (!market) throw Object.assign(new Error('Market not found'), { status: 404 });
+  if (market.status !== 'active') throw Object.assign(new Error('Market already resolved'), { status: 400 });
+
+  const winOutcome = market.Outcomes.find((o) => o.id === winningOutcomeId);
+  if (!winOutcome) throw Object.assign(new Error('Invalid winning outcome'), { status: 400 });
+
+  // ── Step 2: Calculate all payouts using Dobium model ──────────
+  const { payouts, totalPlatformRevenue } = resolveMarket(
+    market.Predictions || [],
+    winningOutcomeId
+  );
+
+  // ── Step 3: Execute everything in one atomic DB transaction ───
+  const summary = await sequelize.transaction(async (t) => {
+    let totalPaidToWinners = 0;
+    let totalRefundedToLosers = 0;
+    let winnersCount = 0;
+    let losersCount = 0;
+
+    // Mark market as resolved
+    await market.update(
+      {
+        status:       'resolved',
+        resolvedAt:   new Date(),
+        winOutcomeId: winningOutcomeId,
+      },
+      { transaction: t }
+    );
+
+    // Process each prediction
+    for (const result of payouts) {
+      // Update prediction record
+      await Prediction.update(
+        {
+          status: result.won ? 'won' : 'lost',
+          payout: result.payout,
+        },
+        {
+          where: { id: result.predictionId },
+          transaction: t,
+        }
+      );
+
+      if (result.won) {
+        // ── Pay winner ─────────────────────────────────────────
+        await User.increment('balance', {
+          by: result.payout,
+          where: { id: result.userId },
+          transaction: t,
+        });
+
+        await Transaction.create(
+          {
+            userId: result.userId,
+            type:   'payout',
+            amount: result.payout,
+            note:   `Won "${market.title}" — staked $${result.stake} at ${Math.round(result.entryProb * 100)}%`,
+          },
+          { transaction: t }
+        );
+
+        totalPaidToWinners += result.payout;
+        winnersCount++;
+
+      } else {
+        // ── Refund loser ───────────────────────────────────────
+        if (result.payout > 0) {
+          await User.increment('balance', {
+            by: result.payout,
+            where: { id: result.userId },
+            transaction: t,
+          });
+
+          await Transaction.create(
+            {
+              userId: result.userId,
+              type:   'refund',
+              amount: result.payout,
+              note:   `Refund from "${market.title}" — staked $${result.stake} at ${Math.round(result.entryProb * 100)}%`,
+            },
+            { transaction: t }
+          );
+
+          totalRefundedToLosers += result.payout;
+        }
+        losersCount++;
+      }
+    }
+
+    return {
+      marketId,
+      winningOutcomeId,
+      winningOutcomeLabel: winOutcome.label,
+      totalPredictions:    payouts.length,
+      winnersCount,
+      losersCount,
+      totalPaidToWinners:    round(totalPaidToWinners),
+      totalRefundedToLosers: round(totalRefundedToLosers),
+      totalPlatformRevenue:  round(totalPlatformRevenue),
+    };
+  });
+
+  return summary;
+}
+
+function round(n) {
+  return Math.round(n * 100) / 100;
+}
+
+module.exports = { processMarketResolution };
