@@ -1,0 +1,55 @@
+lib/pricing.js
+
+'use strict';
+
+/**
+ * DOBIUM PRICING MODEL
+ * 
+ * Runs every time a user places a bet.
+ * Shows them exactly what they stand to win or lose BEFORE confirming.
+ * 
+ * Variables:
+ *   S = stake (how much they bet)
+ *   p = current market probability (0 to 1)
+ *   f = platform fee = 1%
+ */
+
+const PLATFORM_FEE = 0.01;
+
+function calculateBetPreview(stake, probability) {
+  const S = parseFloat(stake);
+  const p = parseFloat(probability);
+  const f = PLATFORM_FEE;
+
+  // ── Validation ──────────────────────────────────────────────
+  if (isNaN(S) || S <= 0) {
+    throw new Error('Stake must be a positive number');
+  }
+  if (isNaN(p) || p < 0.01 || p > 0.99) {
+    throw new Error('Probability must be between 0.01 and 0.99');
+  }
+
+  // ── Core formulas ────────────────────────────────────────────
+  const profit          = S * (1 - p) * (1 - f);   // what you earn if you win
+  const winningTotal    = S + profit;                // your stake back + profit
+  const losingRefund    = S * p;                     // what you get back if you lose
+  const loss            = S * (1 - p);               // what you lose if you lose
+  const platformRevenue = S * f * (1 - p);           // what platform takes
+
+  // ── Return everything rounded to 2 decimal places ────────────
+  return {
+    stake:           round(S),
+    probability:     p,
+    profit:          round(profit),
+    winningTotal:    round(winningTotal),   // shown to user as "If Win"
+    losingRefund:    round(losingRefund),   // shown to user as "If Lose"
+    loss:            round(loss),
+    platformRevenue: round(platformRevenue),
+  };
+}
+
+function round(n) {
+  return Math.round(n * 100) / 100;
+}
+
+module.exports = { calculateBetPreview, PLATFORM_FEE };
