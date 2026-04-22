@@ -1,7 +1,11 @@
 // ============================================================================
-// SAMSA - LMSR ENGINE
+// SAMSA - LMSR ENGINE (JavaScript — UI / probability display)
 // Logarithmic Market Scoring Rule with Risk-Weighted Rebate Model
 // ============================================================================
+//
+// ⚠️  CANONICAL IMPLEMENTATION: engine/src/pricing.rs + engine/src/payout.rs (Rust)
+//     This file is used for browser-side probability display and trade previews.
+//     All server-side settlement runs through lib/rust-engine.js → Rust binary.
 //
 // FORMULAS IMPLEMENTED:
 // ─────────────────────────────────────────────────────────────────────────────
@@ -19,11 +23,11 @@
 // Local Probability Change (Approximation):
 //   ∆p ≈ (p(1 − p) / b) · S(1 − p)
 //
-// Settlement (Rebated-Risk Model):
-//   Win profit:       S(1 − p)(1 − f)
-//   Loss:             S(1 − p)
-//   Refund on loss:   Sp
-//   Platform revenue: Sf(1 − p)
+// Settlement (Fee-Free Rebated-Risk Model, f = 0.0):
+//   Win profit:       S(1 − p)     [S(1-p)(1-f) with f=0]
+//   Win total:        S(2 − p)     [S + profit]
+//   Refund on loss:   Sp           [loser always gets something back]
+//   Platform revenue: 0.0          [re-enable by setting PLATFORM_FEE=0.01]
 //
 // Inverse Relationship:
 //   qY − qN = b · ln(p / (1 − p))
@@ -35,7 +39,7 @@
 //   b  : liquidity parameter (dollars of downside risk)
 //   p  : market confidence/probability for YES (0-1)
 //   S  : user stake (dollars)
-//   f  : platform fee fraction (e.g., 0.01 = 1%)
+//   f  : platform fee fraction (0.0 = disabled, 0.01 = 1%)
 //
 // UNITS:
 //   q and b are measured in dollars of downside risk
@@ -227,8 +231,9 @@ class LMSRMarket {
 // ============================================================================
 
 const LMSR = {
-  // Default platform fee (1%)
-  PLATFORM_FEE: 0.01,
+  // Platform fee — set to 0.0 until real money is enabled.
+  // To re-enable: change to 0.01. Mirror of payout::PLATFORM_FEE in Rust.
+  PLATFORM_FEE: 0.0,
 
   /**
    * Calculate win profit
@@ -329,9 +334,13 @@ const LMSR = {
     const p = probability > 1 ? probability / 100 : probability;
     const f = fee;
 
-    // Calculate all values using formulas
+    // Calculate all values using fee-free formulas (f = 0.0)
+    // Win profit  = S(1−p) [= S(1−p)(1−f) with f=0]
+    // Win total   = S(2−p)
+    // Lose refund = Sp
+    // Platform revenue = 0
     const winProfit = S * (1 - p) * (1 - f);      // S(1 − p)(1 − f)
-    const platformRevenue = S * f * (1 - p);      // Sf(1 − p)
+    const platformRevenue = S * f * (1 - p);      // Sf(1 − p) = 0 when f=0
     const loss = S * (1 - p);                      // S(1 − p)
     const refund = S * p;                          // Sp
 
@@ -343,8 +352,8 @@ const LMSR = {
         profit: winProfit,
         totalReturn: S + winProfit,
         userNet: winProfit,
-        platformRevenue: platformRevenue,
-        formula: `Win profit = S(1-p)(1-f) = ${S}×${(1-p).toFixed(4)}×${(1-f).toFixed(4)} = ${winProfit.toFixed(2)}`
+        platformRevenue: platformRevenue,  // 0.0 when f=0
+        formula: `Win: S + S×(1−p) = ${S} + ${S}×${(1-p).toFixed(4)} = ${(S + winProfit).toFixed(2)}`
       };
     } else {
       return {
@@ -355,8 +364,8 @@ const LMSR = {
         refund: refund,
         totalReturn: refund,
         userNet: -loss,
-        platformRevenue: 0, // Platform only earns on wins
-        formula: `Refund = Sp = ${S}×${p.toFixed(4)} = ${refund.toFixed(2)}`
+        platformRevenue: 0,
+        formula: `Refund = S×p = ${S}×${p.toFixed(4)} = ${refund.toFixed(2)}`
       };
     }
   },
@@ -556,7 +565,10 @@ window.lmsrManager = lmsrManager;
 window.LMSRMarketManager = LMSRMarketManager;
 
 // Log initialization with formula summary
-console.log('LMSR Engine initialized with formulas:');
-console.log('  Pricing: p = e^(qY/b) / (e^(qY/b) + e^(qN/b))');
-console.log('  Pressure: ∆q = S(1-p)');
-console.log('  Win: S(1-p)(1-f), Lose refund: Sp');
+console.log('LMSR Engine initialized (JS UI layer):');
+console.log('  Pricing:    p = e^(qY/b) / (e^(qY/b) + e^(qN/b))');
+console.log('  Pressure:   ∆q = S(1−p)');
+console.log('  Win total:  S(2−p)  [fee-free: f=0]');
+console.log('  Lose refund: Sp');
+console.log('  Platform fee: 0.0  (re-enable by setting PLATFORM_FEE=0.01)');
+console.log('  Canonical engine: engine/src/payout.rs (Rust)');

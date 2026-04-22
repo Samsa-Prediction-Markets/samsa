@@ -1,6 +1,15 @@
 """
-SAMSA - LMSR Engine (Python)
-Logarithmic Market Scoring Rule with Risk-Weighted Rebate Model
+SAMSA - LMSR Engine (Python) — Simulation & Research Only
+==========================================================
+⚠️  CANONICAL IMPLEMENTATION: engine/src/pricing.rs + engine/src/payout.rs (Rust)
+This Python module exists purely for simulation, backtesting, and research.
+Do NOT use it for production settlement — use the Rust engine via lib/rust-engine.js.
+
+Model (fee-free, f = 0.0):
+  Profit (win):    S × (1 − p)      [S×(1−p)×(1−f) with f=0]
+  Win total:       S × (2 − p)
+  Lose refund:     S × p
+  Platform rev:    0.0              [re-enable by changing PLATFORM_FEE to 0.01]
 """
 
 import math
@@ -73,7 +82,8 @@ class LMSRMarket:
     with risk-weighted investments and rebated losses
     """
     
-    PLATFORM_FEE = 0.01  # 1% platform fee
+    # Platform fee — set to 0.0 until real money is enabled (mirror of Rust PLATFORM_FEE)
+    PLATFORM_FEE = 0.0
     
     def __init__(self, b: float = 100, initial_probability: float = 0.5):
         """

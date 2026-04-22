@@ -1,4 +1,3 @@
-try { require('dotenv').config(); } catch (e) {}
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
@@ -26,73 +25,6 @@ const USERS_PATH = path.join(DATA_DIR, 'users.json');
 const TRANSACTIONS_PATH = path.join(DATA_DIR, 'transactions.json');
 
 app.use(cors());
-app.post('/api/stripe/webhook', express.raw({ type: 'application/json' }), async (req, res) => {
-  const sig = req.headers['stripe-signature'] || '';
-  const secret = (process.env.STRIPE_WEBHOOK_SECRET || '').trim();
-  let event;
-  try {
-    event = stripe.webhooks.constructEvent(req.body, sig, secret);
-  } catch (err) {
-    return res.status(400).send(`Webhook Error: ${err.message || 'Invalid signature'}`);
-  }
-  try {
-    if (event.type === 'payment_intent.succeeded') {
-      const pi = event.data.object;
-      const transactions = await readJson(TRANSACTIONS_PATH);
-      const existing = transactions.find((t) => t.external_id === pi.id && t.type === 'deposit');
-      if (existing && existing.status !== 'completed') {
-        await writeJson(TRANSACTIONS_PATH, transactions.map((t) => t.id === existing.id ? { ...t, status: 'completed', updated_at: new Date().toISOString() } : t));
-      } else if (!existing) {
-        const userId = pi.metadata && pi.metadata.userId ? pi.metadata.userId : null;
-        if (userId) {
-          const tx = {
-            id: nanoid(12),
-            user_id: userId,
-            type: 'deposit',
-            amount: Math.round((pi.amount_received || 0) / 100),
-            payment_method: 'card',
-            status: 'completed',
-            external_id: pi.id,
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString()
-          };
-          await addTransaction(TRANSACTIONS_PATH, tx);
-        }
-      }
-    }
-    if (event.type === 'payment_intent.payment_failed') {
-      const pi = event.data.object;
-      const transactions = await readJson(TRANSACTIONS_PATH);
-      const existing = transactions.find((t) => t.external_id === pi.id && t.type === 'deposit');
-      if (existing && existing.status !== 'failed') {
-        await writeJson(TRANSACTIONS_PATH, transactions.map((t) => t.id === existing.id ? { ...t, status: 'failed', failure_reason: pi.last_payment_error && pi.last_payment_error.message ? pi.last_payment_error.message : 'Payment failed', updated_at: new Date().toISOString() } : t));
-      }
-    }
-    if (event.type === 'invoice.payment_succeeded') {
-      const invoice = event.data.object;
-      const sub = invoice.subscription;
-      const userId = invoice.metadata && invoice.metadata.userId ? invoice.metadata.userId : null;
-      if (userId) {
-        const tx = {
-          id: nanoid(12),
-          user_id: userId,
-          type: 'deposit',
-          amount: Math.round((invoice.amount_paid || 0) / 100),
-          payment_method: 'card',
-          status: 'completed',
-          external_id: invoice.id,
-          subscription_id: sub || null,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        };
-        await addTransaction(TRANSACTIONS_PATH, tx);
-      }
-    }
-    res.json({ received: true });
-  } catch (e) {
-    res.status(500).json({ error: e.message || 'Webhook handler error' });
-  }
-});
 app.use(express.json());
 app.use(morgan('dev'));
 
@@ -132,7 +64,6 @@ app.get('/config/stripe.js', (req, res) => {
     .type('application/javascript')
     .send(`window.STRIPE_CONFIG = { publishableKey: ${JSON.stringify(publishableKey)}, defaultPriceId: ${JSON.stringify(defaultPriceId)} };`);
 });
-
 // ============================================================================
 // HELPER FUNCTIONS
 // ============================================================================
@@ -171,6 +102,440 @@ async function calculateBalanceFromTransactions(userId) {
 
 app.get('/api/health', (req, res) => {
   res.json({ ok: true, service: 'samsa-api', database: 'postgresql' });
+});
+
+// ============================================================================
+// LEAGUE STATS
+// ============================================================================
+
+app.get('/api/leagues/:leagueId/stats', async (req, res) => {
+  try {
+    const { leagueId } = req.params;
+    
+    // Markets don't have league_id field yet, return defaults
+    const leagueMarkets = await Market.findAll({
+      where: { 
+        status: 'active',
+        // league_id: leagueId  // Add this when markets have league associations
+      }
+    });
+    
+    const activeMarkets = leagueMarkets.length;
+    const totalVolume = leagueMarkets.reduce((sum, m) => sum + parseFloat(m.total_volume || 0), 0);
+    
+    const leagueMarketIds = leagueMarkets.map(m => m.id);
+    const predictionCount = await Prediction.count({
+      where: { market_id: { [Op.in]: leagueMarketIds } }
+    });
+    
+    res.json({
+      league_id: leagueId,
+      active_markets: activeMarkets,
+      total_volume: totalVolume,
+      predictions: predictionCount
+    });
+  } catch (error) {
+    console.error('League stats error:', error);
+    res.status(500).json({ error: 'Failed to fetch league stats' });
+  }
+});
+
+// ============================================================================
+// MARKETS - CURRENT EVENTS / TRENDING
+// ============================================================================
+
+app.get('/api/markets/current-events', async (req, res) => {
+  try {
+    const now = new Date();
+    const sixMonthsFromNow = new Date(now.getTime() + 180 * 24 * 60 * 60 * 1000);
+    
+    const markets = await Market.findAll({
+      where: {
+        status: 'active',
+        [Op.or]: [
+          { close_date: null },
+          {
+            close_date: {
+              [Op.lte]: sixMonthsFromNow,
+              [Op.gt]: now
+            }
+          }
+        ]
+      },
+      include: [{ model: Outcome, as: 'outcomes' }],
+      order: [['total_volume', 'DESC']]
+    });
+    
+    const formatted = markets.map(formatMarketResponse);
+    res.json(formatted);
+  } catch (error) {
+    console.error('Current events error:', error);
+    res.status(500).json({ error: 'Failed to fetch current events' });
+  }
+});
+
+app.get('/api/markets/trending', async (req, res) => {
+  try {
+    const limit = parseInt(req.query.limit) || 10;
+    
+    const markets = await Market.findAll({
+      where: { status: 'active' },
+      include: [{ model: Outcome, as: 'outcomes' }],
+      order: [['total_volume', 'DESC']],
+      limit
+    });
+    
+    const formatted = markets.map(formatMarketResponse);
+    res.json(formatted);
+  } catch (error) {
+    console.error('Trending markets error:', error);
+    res.status(500).json({ error: 'Failed to fetch trending markets' });
+  }
+});
+
+app.get('/api/markets/category/:category', async (req, res) => {
+  try {
+    const { category } = req.params;
+    
+    const markets = await Market.findAll({
+      where: {
+        status: 'active',
+        category: { [Op.iLike]: category }
+      },
+      include: [{ model: Outcome, as: 'outcomes' }]
+    });
+    
+    const formatted = markets.map(formatMarketResponse);
+    res.json(formatted);
+  } catch (error) {
+    console.error('Category markets error:', error);
+    res.status(500).json({ error: 'Failed to fetch category markets' });
+  }
+});
+
+app.get('/api/markets/suggestions', async (req, res) => {
+  // Static suggestions (same as before)
+  const suggestions = [
+    {
+      topic: "Technology",
+      suggestions: [
+        { title: "Will OpenAI release GPT-5 by Q2 2025?", category: "technology" },
+        { title: "Will Apple's Vision Pro 2 launch in 2025?", category: "technology" },
+        { title: "Will TikTok be banned in the US?", category: "technology" }
+      ]
+    },
+    {
+      topic: "Politics",
+      suggestions: [
+        { title: "Will there be a government shutdown in Q1 2025?", category: "politics" },
+        { title: "Will immigration reform pass in 2025?", category: "politics" },
+        { title: "Will the debt ceiling be raised without crisis?", category: "politics" }
+      ]
+    },
+    {
+      topic: "Sports",
+      suggestions: [
+        { title: "Super Bowl LIX predictions", category: "sports" },
+        { title: "2025 NBA All-Star Game MVP", category: "sports" },
+        { title: "College Football Playoff Champion", category: "sports" }
+      ]
+    },
+    {
+      topic: "Entertainment",
+      suggestions: [
+        { title: "2025 Grammy Awards predictions", category: "entertainment" },
+        { title: "Golden Globes Best Picture", category: "entertainment" },
+        { title: "2025 Oscar Best Picture", category: "entertainment" }
+      ]
+    },
+    {
+      topic: "Finance",
+      suggestions: [
+        { title: "Fed interest rate decisions", category: "finance" },
+        { title: "S&P 500 performance predictions", category: "finance" },
+        { title: "Cryptocurrency price predictions", category: "crypto" }
+      ]
+    },
+    {
+      topic: "International",
+      suggestions: [
+        { title: "Ukraine-Russia conflict resolution", category: "international" },
+        { title: "Middle East developments", category: "international" },
+        { title: "Global trade agreements", category: "international" }
+      ]
+    }
+  ];
+  
+  res.json(suggestions);
+});
+
+// ============================================================================
+// MARKETS CRUD
+// ============================================================================
+
+app.get('/api/markets', async (req, res) => {
+  try {
+    const markets = await Market.findAll({
+      include: [{ model: Outcome, as: 'outcomes' }],
+      order: [['created_at', 'DESC']]
+    });
+    
+    const formatted = markets.map(formatMarketResponse);
+    res.json(formatted);
+  } catch (error) {
+    console.error('Get markets error:', error);
+    res.status(500).json({ error: 'Failed to fetch markets' });
+  }
+});
+
+app.get('/api/markets/:id', async (req, res) => {
+  try {
+    const market = await Market.findByPk(req.params.id, {
+      include: [{ model: Outcome, as: 'outcomes' }]
+    });
+    
+    if (!market) {
+      return res.status(404).json({ error: 'Market not found' });
+    }
+    
+    res.json(formatMarketResponse(market));
+  } catch (error) {
+    console.error('Get market error:', error);
+    res.status(500).json({ error: 'Failed to fetch market' });
+  }
+});
+
+app.post('/api/markets', async (req, res) => {
+  try {
+    const {
+      title,
+      description,
+      category,
+      outcomes = [],
+      image_url = '',
+      search_keywords = '',
+      close_date = null,
+      resolution_date = null
+    } = req.body;
+
+    if (!title || !description || !category || !Array.isArray(outcomes) || outcomes.length < 2) {
+      return res.status(400).json({ error: 'Invalid market payload' });
+    }
+
+    // Start transaction
+    const result = await sequelize.transaction(async (t) => {
+      // Create market
+      const market = await Market.create({
+        id: nanoid(12),
+        title,
+        description,
+        category,
+        status: 'active',
+        close_date,
+        resolution_date,
+        total_volume: 0,
+        image_url,
+        winning_outcome_id: null,
+        search_keywords
+      }, { transaction: t });
+
+      // Create outcomes
+      const outcomePromises = outcomes.map((o) =>
+        Outcome.create({
+          id: o.id || nanoid(8),
+          market_id: market.id,
+          title: o.title,
+          probability: typeof o.probability === 'number' ? o.probability : Math.round(100 / outcomes.length),
+          total_stake: typeof o.total_stake === 'number' ? o.total_stake : 0
+        }, { transaction: t })
+      );
+
+      await Promise.all(outcomePromises);
+
+      // Fetch market with outcomes
+      const fullMarket = await Market.findByPk(market.id, {
+        include: [{ model: Outcome, as: 'outcomes' }],
+        transaction: t
+      });
+
+      return fullMarket;
+    });
+
+    res.status(201).json(formatMarketResponse(result));
+  } catch (error) {
+    console.error('Create market error:', error);
+    res.status(500).json({ error: 'Failed to create market' });
+  }
+});
+
+// ============================================================================
+// PREDICTIONS
+// ============================================================================
+
+app.get('/api/predictions', async (req, res) => {
+  try {
+    const { market_id } = req.query;
+    const where = market_id ? { market_id } : {};
+    
+    const predictions = await Prediction.findAll({
+      where,
+      order: [['created_at', 'DESC']]
+    });
+    
+    res.json(predictions);
+  } catch (error) {
+    console.error('Get predictions error:', error);
+    res.status(500).json({ error: 'Failed to fetch predictions' });
+  }
+});
+
+app.post('/api/predictions', async (req, res) => {
+  try {
+    const {
+      market_id,
+      outcome_id,
+      stake_amount,
+      odds_at_prediction,
+      user_id = null
+    } = req.body;
+
+    if (!market_id || !outcome_id || typeof stake_amount !== 'number' || typeof odds_at_prediction !== 'number') {
+      return res.status(400).json({ error: 'Invalid prediction payload' });
+    }
+
+    // Use transaction for atomic operation
+    const result = await sequelize.transaction(async (t) => {
+      // Find market with outcomes
+      const market = await Market.findByPk(market_id, {
+        include: [{ model: Outcome, as: 'outcomes' }],
+        transaction: t
+      });
+
+      if (!market) {
+        throw new Error('Market not found');
+      }
+
+      if (market.status !== 'active') {
+        throw new Error('Market is not active');
+      }
+
+      const outcome = market.outcomes.find((o) => o.id === outcome_id);
+      if (!outcome) {
+        throw new Error('Outcome not found');
+      }
+
+      // Calculate potential return
+      const potential_return = Number((stake_amount * (100 / Math.max(odds_at_prediction, 1))).toFixed(2));
+
+      // Create prediction
+      const prediction = await Prediction.create({
+        id: nanoid(12),
+        market_id,
+        outcome_id,
+        user_id,
+        stake_amount,
+        odds_at_prediction,
+        potential_return,
+        status: 'active',
+        actual_return: 0
+      }, { transaction: t });
+
+      // Update outcome total stake
+      await outcome.update({
+        total_stake: parseFloat(outcome.total_stake) + stake_amount
+      }, { transaction: t });
+
+      // Recalculate market stats
+      const updatedMarket = await Market.findByPk(market_id, {
+        include: [{ model: Outcome, as: 'outcomes' }],
+        transaction: t
+      });
+
+      recomputeMarketStats(updatedMarket);
+
+      // Update market total volume and outcome probabilities
+      await updatedMarket.save({ transaction: t });
+      
+      for (const o of updatedMarket.outcomes) {
+        await o.save({ transaction: t });
+      }
+
+      return prediction;
+    });
+
+    res.status(201).json(result);
+  } catch (error) {
+    console.error('Create prediction error:', error);
+    if (error.message === 'Market not found') {
+      return res.status(404).json({ error: error.message });
+    }
+    if (error.message === 'Market is not active' || error.message === 'Outcome not found') {
+      return res.status(400).json({ error: error.message });
+    }
+    res.status(500).json({ error: 'Failed to create prediction' });
+  }
+});
+
+// ============================================================================
+// MARKET RESOLUTION
+// ============================================================================
+
+app.post('/api/markets/:id/resolve', async (req, res) => {
+  try {
+    const { winning_outcome_id } = req.body;
+
+    const result = await sequelize.transaction(async (t) => {
+      // Find market with outcomes
+      const market = await Market.findByPk(req.params.id, {
+        include: [{ model: Outcome, as: 'outcomes' }],
+        transaction: t
+      });
+
+      if (!market) {
+        throw new Error('Market not found');
+      }
+
+      const winOutcome = market.outcomes.find((o) => o.id === winning_outcome_id);
+      if (!winOutcome) {
+        throw new Error('Invalid winning_outcome_id');
+      }
+
+      // Update market status
+      await market.update({
+        status: 'resolved',
+        winning_outcome_id,
+        resolution_date: new Date()
+      }, { transaction: t });
+
+      // Update all predictions for this market
+      const predictions = await Prediction.findAll({
+        where: { market_id: market.id },
+        transaction: t
+      });
+
+      for (const prediction of predictions) {
+        const won = prediction.outcome_id === winning_outcome_id;
+        await prediction.update({
+          status: won ? 'won' : 'lost',
+          actual_return: won ? prediction.potential_return : 0,
+          resolved_at: new Date()
+        }, { transaction: t });
+      }
+
+      return market;
+    });
+
+    res.json({ ok: true, market: formatMarketResponse(result) });
+  } catch (error) {
+    console.error('Resolve market error:', error);
+    if (error.message === 'Market not found') {
+      return res.status(404).json({ error: error.message });
+    }
+    if (error.message === 'Invalid winning_outcome_id') {
+      return res.status(400).json({ error: error.message });
+    }
+    res.status(500).json({ error: 'Failed to resolve market' });
+  }
 });
 
 // ============================================================================
