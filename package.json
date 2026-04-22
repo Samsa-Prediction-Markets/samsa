@@ -5,7 +5,12 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
+    "start:prod": "npm run web:build && node server.js",
     "dev": "nodemon server.js",
+    "web:dev": "npm --prefix web-react run dev",
+    "web:build": "npm --prefix web-react run build",
+    "web:preview": "npm --prefix web-react run preview",
+    "test": "node --test ./tests/*.test.js",
     "migrate": "node scripts/migrate-json-to-db.js",
     "db:init": "psql -d samsa_dev -f lib/database/schema.sql",
     "build:engine": "cd engine && cargo +stable-x86_64-pc-windows-gnu build --release",
@@ -15,17 +20,21 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@dome-api/sdk": "^0.0.8",
+    "@supabase/supabase-js": "^2.103.0",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
     "express": "^4.21.2",
     "morgan": "^1.10.1",
     "nanoid": "^5.1.6",
     "pg": "^8.11.3",
-    "rustup": "^1.0.10",
-    "sequelize": "^6.37.8"
+    "sequelize": "^6.37.8",
+    "stripe": "^20.1.0"
   },
   "devDependencies": {
-    "nodemon": "^3.1.11"
+    "autocannon": "^8.0.0",
+    "nodemon": "^3.1.11",
+    "supertest": "^7.1.4"
   },
   "directories": {
     "lib": "lib"

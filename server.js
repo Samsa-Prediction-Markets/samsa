@@ -4,14 +4,11 @@ const cors = require('cors');
 const morgan = require('morgan');
 const path = require('path');
 const { nanoid } = require('nanoid');
-const { Op } = require('sequelize');
+const { readJson, writeJson, addTransaction, findTransactionByExternalId, updateTransaction } = require('./lib/datastore');
 
 // Import database models
 const {
   sequelize,
-  Market,
-  Outcome,
-  Prediction,
   User,
   Transaction,
   initializeDatabase
@@ -19,68 +16,57 @@ const {
 
 const app = express();
 const PORT = process.env.PORT || 3001;
+const Stripe = require('stripe');
+const stripeSecret = (process.env.STRIPE_SECRET_KEY || '').trim();
+const stripe = stripeSecret ? Stripe(stripeSecret) : null;
+
+const DATA_DIR = path.join(__dirname, 'data');
+const USERS_PATH = path.join(DATA_DIR, 'users.json');
+const TRANSACTIONS_PATH = path.join(DATA_DIR, 'transactions.json');
 
 app.use(cors());
 app.use(express.json());
 app.use(morgan('dev'));
 
-// Serve the frontend bundle from root
-app.use(express.static(__dirname));
+// Serve the frontend bundle from web/
+app.use(express.static(path.join(__dirname, 'web')));
 
 // Root route to load the app
 app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'index.html'));
+  res.sendFile(path.join(__dirname, 'web', 'index.html'));
 });
 
+app.get('/config/supabase.js', (req, res) => {
+  const url =
+    process.env.SUPABASE_URL ||
+    process.env.NEXT_PUBLIC_SUPABASE_URL ||
+    process.env.VITE_SUPABASE_URL ||
+    '';
+  const anonKey =
+    process.env.SUPABASE_ANON_KEY ||
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
+    process.env.VITE_SUPABASE_ANON_KEY ||
+    '';
+  res.type('application/javascript').send(`window.SUPABASE_CONFIG = { url: ${JSON.stringify(url)}, anonKey: ${JSON.stringify(anonKey)} };`);
+});
+app.get('/config/stripe.js', (req, res) => {
+  const publishableKey =
+    process.env.STRIPE_PUBLISHABLE_KEY ||
+    process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY ||
+    process.env.VITE_STRIPE_PUBLISHABLE_KEY ||
+    '';
+  const defaultPriceId =
+    process.env.STRIPE_DEFAULT_PRICE_ID ||
+    process.env.NEXT_PUBLIC_STRIPE_DEFAULT_PRICE_ID ||
+    process.env.VITE_STRIPE_DEFAULT_PRICE_ID ||
+    '';
+  res
+    .type('application/javascript')
+    .send(`window.STRIPE_CONFIG = { publishableKey: ${JSON.stringify(publishableKey)}, defaultPriceId: ${JSON.stringify(defaultPriceId)} };`);
+});
 // ============================================================================
 // HELPER FUNCTIONS
 // ============================================================================
-
-/**
- * Format market with outcomes for API response
- */
-function formatMarketResponse(market) {
-  const plain = market.toJSON();
-  return {
-    id: plain.id,
-    title: plain.title,
-    description: plain.description,
-    category: plain.category,
-    status: plain.status,
-    close_date: plain.close_date,
-    resolution_date: plain.resolution_date,
-    total_volume: parseFloat(plain.total_volume || 0),
-    image_url: plain.image_url,
-    winning_outcome_id: plain.winning_outcome_id,
-    search_keywords: plain.search_keywords,
-    outcomes: (plain.outcomes || []).map(o => ({
-      id: o.id,
-      title: o.title,
-      probability: parseInt(o.probability || 0),
-      total_stake: parseFloat(o.total_stake || 0)
-    })),
-    created_at: plain.created_at,
-    updated_at: plain.updated_at
-  };
-}
-
-/**
- * Recompute market stats based on outcome stakes
- */
-function recomputeMarketStats(market) {
-  const outcomes = market.outcomes || [];
-  const totalStake = outcomes.reduce((sum, o) => sum + parseFloat(o.total_stake || 0), 0);
-  
-  market.total_volume = totalStake;
-  
-  if (totalStake > 0) {
-    outcomes.forEach((o) => {
-      o.probability = Math.round((parseFloat(o.total_stake || 0) / totalStake) * 100);
-    });
-  }
-  
-  return market;
-}
 
 /**
  * Calculate user balance from transactions
@@ -89,34 +75,24 @@ async function calculateBalanceFromTransactions(userId) {
   const transactions = await Transaction.findAll({
     where: { user_id: userId }
   });
-  
-  const predictions = await Prediction.findAll({
-    where: { user_id: userId }
-  });
-  
+
   // Sum deposits (completed only)
   const totalDeposits = transactions
     .filter(t => t.type === 'deposit' && t.status === 'completed')
     .reduce((sum, t) => sum + parseFloat(t.amount || 0), 0);
-  
+
   // Sum withdrawals (completed only)
   const totalWithdrawals = transactions
     .filter(t => t.type === 'withdrawal' && t.status === 'completed')
     .reduce((sum, t) => sum + parseFloat(t.amount || 0), 0);
-  
-  // Sum active prediction stakes (money locked in trades)
-  const activePredictionStakes = predictions
-    .filter(p => p.status === 'active')
-    .reduce((sum, p) => sum + parseFloat(p.stake_amount || 0), 0);
-  
-  // Balance = deposits - withdrawals - active stakes
-  const balance = totalDeposits - totalWithdrawals - activePredictionStakes;
-  
+
+  // Balance = deposits - withdrawals
+  const balance = totalDeposits - totalWithdrawals;
+
   return {
     balance: Math.max(0, balance),
     totalDeposits,
-    totalWithdrawals,
-    activePredictionStakes
+    totalWithdrawals
   };
 }
 
@@ -569,7 +545,7 @@ app.post('/api/markets/:id/resolve', async (req, res) => {
 app.get('/api/users/:id/balance', async (req, res) => {
   try {
     let user = await User.findByPk(req.params.id);
-    
+
     if (!user) {
       // Create default user if not found
       user = await User.create({
@@ -578,20 +554,82 @@ app.get('/api/users/:id/balance', async (req, res) => {
         email: ''
       });
     }
-    
+
     // Calculate balance from transactions
     const balanceInfo = await calculateBalanceFromTransactions(req.params.id);
-    
+
     res.json({
       balance: balanceInfo.balance,
       total_deposited: balanceInfo.totalDeposits,
       total_withdrawn: balanceInfo.totalWithdrawals,
-      active_stakes: balanceInfo.activePredictionStakes,
       user
     });
   } catch (error) {
     console.error('Get balance error:', error);
     res.status(500).json({ error: 'Failed to fetch balance' });
+  }
+});
+
+app.delete('/api/users/:id', async (req, res) => {
+  try {
+    const userId = req.params.id;
+    console.log(`\n🗑️  DELETE /api/users/${userId} — Account deletion requested`);
+    
+    // Delete user transactions from local DB
+    try {
+      await Transaction.destroy({ where: { user_id: userId } });
+      console.log('  ✓ Transactions deleted from local DB');
+    } catch (e) { console.log('  ✗ Transaction cleanup:', e.message); }
+    
+    // Delete user from local DB
+    try {
+      await User.destroy({ where: { id: userId } });
+      console.log('  ✓ User deleted from local DB');
+    } catch (e) { console.log('  ✗ User cleanup:', e.message); }
+
+    // Delete from Supabase auth (requires service role key)
+    const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || '';
+    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
+    
+    console.log(`  Supabase URL: ${supabaseUrl ? '✓ found' : '✗ MISSING'}`);
+    console.log(`  Service Role Key: ${serviceRoleKey ? '✓ found (' + serviceRoleKey.substring(0, 20) + '...)' : '✗ MISSING'}`);
+    
+    if (supabaseUrl && serviceRoleKey) {
+      try {
+        const { createClient } = require('@supabase/supabase-js');
+        const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
+          auth: { autoRefreshToken: false, persistSession: false }
+        });
+        
+        // Delete profile data from Supabase tables
+        const profileRes = await supabaseAdmin.from('profiles').delete().eq('id', userId);
+        console.log(`  Profiles delete: ${profileRes.error ? '✗ ' + profileRes.error.message : '✓ done'}`);
+        
+        const usersRes = await supabaseAdmin.from('users').delete().eq('id', userId);
+        console.log(`  Users table delete: ${usersRes.error ? '✗ ' + usersRes.error.message : '✓ done'}`);
+        
+        // Delete the auth user entirely
+        console.log(`  Deleting auth user ${userId}...`);
+        const { data, error } = await supabaseAdmin.auth.admin.deleteUser(userId);
+        if (error) {
+          console.error(`  ✗ Supabase auth.admin.deleteUser FAILED: ${error.message}`);
+          console.error('    Full error:', JSON.stringify(error));
+        } else {
+          console.log(`  ✅ User ${userId} FULLY DELETED from Supabase auth`);
+        }
+      } catch (e) {
+        console.error('  ✗ Supabase admin error:', e.message);
+        console.error('    Stack:', e.stack);
+      }
+    } else {
+      console.warn('  ⚠️  SUPABASE_SERVICE_ROLE_KEY not set — auth user NOT deleted');
+    }
+
+    console.log('  → Sending success response\n');
+    res.json({ success: true, message: 'Account deleted successfully' });
+  } catch (error) {
+    console.error('Delete user error:', error);
+    res.status(500).json({ error: 'Failed to delete account' });
   }
 });
 
@@ -606,11 +644,10 @@ app.post('/api/users/:id/deposit', async (req, res) => {
     if (amount > 10000) {
       return res.status(400).json({ error: 'Maximum deposit is $10,000' });
     }
-
     const result = await sequelize.transaction(async (t) => {
       // Get or create user
       let user = await User.findByPk(req.params.id, { transaction: t });
-      
+
       if (!user) {
         user = await User.create({
           id: req.params.id,
@@ -647,6 +684,71 @@ app.post('/api/users/:id/deposit', async (req, res) => {
   }
 });
 
+app.post('/api/payments/create-intent', async (req, res) => {
+  const { userId, amount, currency = 'usd' } = req.body;
+  if (typeof amount !== 'number' || amount <= 0) {
+    return res.status(400).json({ error: 'Invalid amount' });
+  }
+  if (!userId || typeof userId !== 'string') {
+    return res.status(400).json({ error: 'Invalid userId' });
+  }
+  if (!stripe) {
+    return res.status(500).json({ error: 'Stripe not configured' });
+  }
+  const cents = Math.round(amount * 100);
+  if (cents > 100000000) {
+    return res.status(400).json({ error: 'Amount too large' });
+  }
+  let pi;
+  try {
+    pi = await stripe.paymentIntents.create({
+      amount: cents,
+      currency,
+      automatic_payment_methods: { enabled: true },
+      metadata: { userId },
+      description: 'Wallet deposit'
+    });
+  } catch (e) {
+    return res.status(400).json({ error: e.message || 'Failed to create intent' });
+  }
+  const tx = {
+    id: nanoid(12),
+    user_id: userId,
+    type: 'deposit',
+    amount,
+    payment_method: 'card',
+    status: 'pending',
+    external_id: pi.id,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString()
+  };
+  await addTransaction(TRANSACTIONS_PATH, tx);
+  res.json({ client_secret: pi.client_secret, intent_id: pi.id });
+});
+
+app.post('/api/payments/create-checkout-session', async (req, res) => {
+  const { userId, priceId, quantity = 1 } = req.body;
+  if (!userId || typeof userId !== 'string') {
+    return res.status(400).json({ error: 'Invalid userId' });
+  }
+  if (!priceId || typeof priceId !== 'string') {
+    return res.status(400).json({ error: 'Invalid priceId' });
+  }
+  const origin = `${req.protocol}://${req.get('host')}`;
+  try {
+    const session = await stripe.checkout.sessions.create({
+      mode: 'subscription',
+      line_items: [{ price: priceId, quantity }],
+      success_url: `${origin}/?checkout=success&session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${origin}/?checkout=canceled`,
+      subscription_data: { metadata: { userId } }
+    });
+    res.json({ id: session.id, url: session.url || null });
+  } catch (e) {
+    res.status(400).json({ error: e.message || 'Failed to create checkout session' });
+  }
+});
+
 app.post('/api/users/:id/withdraw', async (req, res) => {
   try {
     const { amount, withdrawal_method = 'bank' } = req.body;
@@ -665,7 +767,7 @@ app.post('/api/users/:id/withdraw', async (req, res) => {
     const result = await sequelize.transaction(async (t) => {
       // Ensure user exists
       let user = await User.findByPk(req.params.id, { transaction: t });
-      
+
       if (!user) {
         user = await User.create({
           id: req.params.id,
@@ -708,7 +810,7 @@ app.get('/api/users/:id/transactions', async (req, res) => {
       where: { user_id: req.params.id },
       order: [['created_at', 'DESC']]
     });
-    
+
     res.json(transactions);
   } catch (error) {
     console.error('Get transactions error:', error);
@@ -720,25 +822,20 @@ app.get('/api/users/:id/transactions', async (req, res) => {
 // START SERVER
 // ============================================================================
 
-async function startServer() {
+async function initDatabase() {
   try {
-    // Test database connection
     await sequelize.authenticate();
     console.log('✅ Database connection established');
-    
-    // Sync models (create tables if they don't exist)
-    await sequelize.sync({ alter: false }); // Don't auto-alter in production
+    await sequelize.sync({ alter: false });
     console.log('✅ Database synchronized');
-    
-    // Start listening
-    app.listen(PORT, () => {
-      console.log(`🚀 Samsa API listening on http://localhost:${PORT}`);
-      console.log(`📊 Using PostgreSQL database`);
-    });
   } catch (error) {
-    console.error('❌ Failed to start server:', error);
-    process.exit(1);
+    // Keep server alive with JSON file fallback when DB is unavailable.
+    console.warn('⚠️  Database unavailable, running in file-based mode: ', error.message || '');
   }
 }
 
-startServer();
+app.listen(PORT, () => {
+  console.log(`Samsa API listening on http://localhost:${PORT}`);
+});
+
+initDatabase();
