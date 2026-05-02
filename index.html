@@ -18,7 +18,55 @@
   <script src="/config/stripe.js"></script>
 </head>
 
-<body class="min-h-screen" style="background: rgb(2, 6, 23);">
+<body class="min-h-screen" style="background: rgb(2, 6, 23);"> 
+
+  <!-- Disclaimer Banner -->
+<div id="disclaimer-banner" style="
+  background: #1a1d26;
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+  padding: 10px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  position: sticky;
+  top: 0;
+  z-index: 9999;
+">
+  <p style="
+    margin: 0;
+    font-size: 13px;
+    color: rgba(255,255,255,0.6);
+    text-align: center;
+    flex: 1;
+  ">
+  ⚠️ This is a paper trading simulation. No real money is involved. Real money trading is coming soon.
+  </p>
+  <button
+    onclick="
+      document.getElementById('disclaimer-banner').style.display='none';
+      localStorage.setItem('banner-dismissed', 'true');
+    "
+    style="
+      background: none;
+      border: 1px solid rgba(255,255,255,0.15);
+      color: rgba(255,255,255,0.4);
+      border-radius: 6px;
+      padding: 4px 10px;
+      font-size: 11px;
+      cursor: pointer;
+      white-space: nowrap;
+    "
+  >
+    Dismiss
+  </button>
+</div>
+
+<script>
+  if (localStorage.getItem('banner-dismissed') === 'true') {
+    document.getElementById('disclaimer-banner').style.display = 'none';
+  }
+</script>
   <!-- Sidebar -->
   <div class="sidebar">
     <div class="sidebar-content">
