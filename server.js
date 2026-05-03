@@ -14,7 +14,20 @@ const PREDICTIONS_PATH = path.join(DATA_DIR, 'predictions.json');
 const USERS_PATH = path.join(DATA_DIR, 'users.json');
 const TRANSACTIONS_PATH = path.join(DATA_DIR, 'transactions.json');
 
-app.use(cors());
+// CORS configuration - allow requests from Railway frontend
+const corsOptions = {
+  origin: [
+    'http://localhost:5173',
+    'http://localhost:3000',
+    'https://dobium.up.railway.app',
+    /\.railway\.app$/  // Allow all Railway domains
+  ],
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+};
+
+app.use(cors(corsOptions));
 app.use(express.json());
 app.use(morgan('dev'));
 
@@ -49,20 +62,20 @@ app.get('/api/leagues/:leagueId/stats', async (req, res) => {
   const { leagueId } = req.params;
   const markets = await readJson(MARKETS_PATH);
   const predictions = await readJson(PREDICTIONS_PATH);
-  
+
   // Filter markets that belong to this league (by matching league ID in market data)
   // For now, markets don't have league_id, so we return aggregated defaults
   // When markets have league associations, filter by: m.league_id === leagueId
   const leagueMarkets = markets.filter(m => m.league_id === leagueId && m.status === 'active');
-  
+
   // Calculate stats
   const activeMarkets = leagueMarkets.length;
   const totalVolume = leagueMarkets.reduce((sum, m) => sum + (m.total_volume || 0), 0);
-  
+
   // Count predictions for league markets
   const leagueMarketIds = leagueMarkets.map(m => m.id);
   const leaguePredictions = predictions.filter(p => leagueMarketIds.includes(p.market_id)).length;
-  
+
   res.json({
     league_id: leagueId,
     active_markets: activeMarkets,
@@ -80,7 +93,7 @@ app.get('/api/markets/current-events', async (req, res) => {
   const markets = await readJson(MARKETS_PATH);
   const now = new Date();
   const sixMonthsFromNow = new Date(now.getTime() + 180 * 24 * 60 * 60 * 1000);
-  
+
   // Filter markets that are:
   // 1. Active
   // 2. Closing within the next 6 months (timely)
@@ -98,13 +111,13 @@ app.get('/api/markets/current-events', async (req, res) => {
       const bClose = new Date(b.close_date || '2099-12-31');
       const aUrgency = (aClose - now) / (1000 * 60 * 60 * 24); // days until close
       const bUrgency = (bClose - now) / (1000 * 60 * 60 * 24);
-      
+
       // Score: higher volume + sooner closing = higher score
       const aScore = (a.total_volume || 0) / 1000 - aUrgency / 10;
       const bScore = (b.total_volume || 0) / 1000 - bUrgency / 10;
       return bScore - aScore;
     });
-  
+
   res.json(currentEventMarkets);
 });
 
@@ -112,12 +125,12 @@ app.get('/api/markets/current-events', async (req, res) => {
 app.get('/api/markets/trending', async (req, res) => {
   const markets = await readJson(MARKETS_PATH);
   const limit = parseInt(req.query.limit) || 10;
-  
+
   const trendingMarkets = markets
     .filter(m => m.status === 'active')
     .sort((a, b) => (b.total_volume || 0) - (a.total_volume || 0))
     .slice(0, limit);
-  
+
   res.json(trendingMarkets);
 });
 
@@ -125,12 +138,12 @@ app.get('/api/markets/trending', async (req, res) => {
 app.get('/api/markets/category/:category', async (req, res) => {
   const markets = await readJson(MARKETS_PATH);
   const { category } = req.params;
-  
-  const categoryMarkets = markets.filter(m => 
-    m.status === 'active' && 
+
+  const categoryMarkets = markets.filter(m =>
+    m.status === 'active' &&
     m.category.toLowerCase() === category.toLowerCase()
   );
-  
+
   res.json(categoryMarkets);
 });
 
@@ -163,7 +176,7 @@ app.get('/api/markets/suggestions', async (req, res) => {
       ]
     },
     {
-      topic: "Entertainment", 
+      topic: "Entertainment",
       suggestions: [
         { title: "2025 Grammy Awards predictions", category: "entertainment" },
         { title: "Golden Globes Best Picture", category: "entertainment" },
@@ -187,7 +200,7 @@ app.get('/api/markets/suggestions', async (req, res) => {
       ]
     }
   ];
-  
+
   res.json(suggestions);
 });
 
@@ -350,40 +363,40 @@ app.post('/api/markets/:id/resolve', async (req, res) => {
 async function calculateBalanceFromTransactions(userId) {
   let transactions = [];
   let predictions = [];
-  
+
   try {
     transactions = await readJson(TRANSACTIONS_PATH);
   } catch (e) {
     transactions = [];
   }
-  
+
   try {
     predictions = await readJson(PREDICTIONS_PATH);
   } catch (e) {
     predictions = [];
   }
-  
+
   // Filter transactions for this user
   const userTransactions = transactions.filter(t => t.user_id === userId);
-  
+
   // Sum deposits (completed only)
   const totalDeposits = userTransactions
     .filter(t => t.type === 'deposit' && t.status === 'completed')
     .reduce((sum, t) => sum + (t.amount || 0), 0);
-  
+
   // Sum withdrawals (completed only)
   const totalWithdrawals = userTransactions
     .filter(t => t.type === 'withdrawal' && t.status === 'completed')
     .reduce((sum, t) => sum + (t.amount || 0), 0);
-  
+
   // Sum active prediction stakes (money locked in trades)
   const activePredictionStakes = predictions
     .filter(p => p.user_id === userId && p.status === 'active')
     .reduce((sum, p) => sum + (p.stake_amount || 0), 0);
-  
+
   // Balance = deposits - withdrawals - active stakes
   const balance = totalDeposits - totalWithdrawals - activePredictionStakes;
-  
+
   return {
     balance: Math.max(0, balance), // Never negative
     totalDeposits,
@@ -396,7 +409,7 @@ async function calculateBalanceFromTransactions(userId) {
 app.get('/api/users/:id/balance', async (req, res) => {
   const users = await readJson(USERS_PATH);
   let user = users.find((u) => u.id === req.params.id);
-  
+
   if (!user) {
     // Create default user if not found
     user = {
@@ -408,16 +421,16 @@ app.get('/api/users/:id/balance', async (req, res) => {
     users.push(user);
     await writeJson(USERS_PATH, users);
   }
-  
+
   // Calculate balance from transactions (not stored value)
   const balanceInfo = await calculateBalanceFromTransactions(req.params.id);
-  
-  res.json({ 
-    balance: balanceInfo.balance, 
+
+  res.json({
+    balance: balanceInfo.balance,
     total_deposited: balanceInfo.totalDeposits,
     total_withdrawn: balanceInfo.totalWithdrawals,
     active_stakes: balanceInfo.activePredictionStakes,
-    user 
+    user
   });
 });
 
@@ -548,7 +561,7 @@ app.get('/api/users/:id/transactions', async (req, res) => {
   } catch (e) {
     transactions = [];
   }
-  
+
   const userTransactions = transactions.filter((t) => t.user_id === req.params.id);
   res.json(userTransactions);
 });
