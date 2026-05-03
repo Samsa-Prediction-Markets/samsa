@@ -316,16 +316,33 @@ export default function MarketDetailPage() {
                       style={{ width: `${(o.probability || 0).toFixed(2)}%` }}
                     />
                   </div>
-                  {userPositions[o.id] > 0 && (
+                  {userPositions[o.id] > 0 && (() => {
+                    const S = userPositions[o.id];
+                    const pEntry   = (userAvgEntry[o.id] || 50) / 100;
+                    const pCurrent = (o.probability || 50) / 100;
+                    const winPayout  = S * (2 - pEntry);  // S + S(1−p_entry)
+                    const lossRefund = S * pEntry;         // S − S(1−p_entry)
+                    const mtmValue   = pCurrent * winPayout + (1 - pCurrent) * lossRefund;
+                    const unrealizedPnl = mtmValue - S;
+                    return (
                     <div onClick={e => e.stopPropagation()}>
                       <div className="flex items-center justify-between mt-2">
-                        <div className="text-xs text-yellow-400 font-medium">
-                          Your position: ${userPositions[o.id].toFixed(2)}
+                        <div className="text-xs font-medium">
+                          <span className="text-slate-400">Cost: </span>
+                          <span className="text-slate-300">${S.toFixed(2)}</span>
                           {userAvgEntry[o.id] && (
-                            <span className="text-slate-500 ml-1">
-                              @ {userAvgEntry[o.id].toFixed(1)}% entry
-                            </span>
+                            <span className="text-slate-500 ml-1">@ {userAvgEntry[o.id].toFixed(1)}%</span>
                           )}
+                          <span className="mx-1 text-slate-600">·</span>
+                          <span className="text-slate-400">Value: </span>
+                          <span className={`font-semibold ${
+                            mtmValue < S ? 'text-red-400' : mtmValue > S ? 'text-green-400' : 'text-slate-300'
+                          }`}>${mtmValue.toFixed(2)}</span>
+                          <span className={`ml-1 text-[10px] ${
+                            unrealizedPnl < 0 ? 'text-red-500' : unrealizedPnl > 0 ? 'text-green-500' : 'text-slate-500'
+                          }`}>
+                            ({unrealizedPnl >= 0 ? '+' : ''}${unrealizedPnl.toFixed(2)})
+                          </span>
                         </div>
                         {market.status === 'active' && (
                           <button
@@ -422,7 +439,8 @@ export default function MarketDetailPage() {
                         </form>
                       )}
                     </div>
-                  )}
+                    );
+                  })()}
                 </div>
               );
             })}
