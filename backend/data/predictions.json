@@ -376,8 +376,9 @@
     "stake_amount": 50,
     "odds_at_prediction": 45.45,
     "potential_return": 77.28,
-    "status": "active",
-    "actual_return": 0,
-    "created_at": "2026-05-03T08:08:59.405Z"
+    "status": "sold",
+    "actual_return": 56.13,
+    "created_at": "2026-05-03T08:08:59.405Z",
+    "sold_at": "2026-05-03T08:10:20.036Z"
   }
 ]

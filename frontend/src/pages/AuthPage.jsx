@@ -55,6 +55,15 @@ export default function AuthPage() {
           <>
             <h1 className="auth-title">Welcome back</h1>
             <p className="auth-subtitle">Sign in to your account</p>
+
+            {/* Google — primary CTA */}
+            <button className="btn-google" onClick={handleGoogle} disabled={loading}>
+              <GoogleIcon />
+              <span>Continue with Google</span>
+            </button>
+
+            <div className="auth-divider">or sign in with email</div>
+
             <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
               <div className="form-group">
                 <label className="form-label">Email</label>
@@ -70,10 +79,6 @@ export default function AuthPage() {
                 {loading ? 'Signing in…' : 'Sign in'}
               </button>
             </form>
-            <div className="auth-divider">or</div>
-            <button className="btn btn-secondary btn-full" onClick={handleGoogle} disabled={loading}>
-              <GoogleIcon /> Continue with Google
-            </button>
             <div style={{ marginTop: 20, textAlign: 'center', fontSize: 13, color: 'var(--text-secondary)' }}>
               <button className="link-btn" onClick={() => { clear(); setView('reset'); }}>Forgot password?</button>
               {'  ·  '}
@@ -86,6 +91,15 @@ export default function AuthPage() {
           <>
             <h1 className="auth-title">Create account</h1>
             <p className="auth-subtitle">Join Samsa prediction markets</p>
+
+            {/* Google — primary CTA */}
+            <button className="btn-google" onClick={handleGoogle} disabled={loading}>
+              <GoogleIcon />
+              <span>Sign up with Google</span>
+            </button>
+
+            <div className="auth-divider">or sign up with email</div>
+
             <form onSubmit={handleSignup} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
               <div className="form-group">
                 <label className="form-label">Email</label>
@@ -137,6 +151,16 @@ export default function AuthPage() {
       <style>{`
         .link-btn { background: none; border: none; color: var(--accent); cursor: pointer; font-size: 13px; padding: 0; }
         .link-btn:hover { text-decoration: underline; }
+        .btn-google {
+          display: flex; align-items: center; justify-content: center; gap: 10px;
+          width: 100%; padding: 11px 16px; border-radius: 10px;
+          background: #fff; border: 1.5px solid #e2e8f0; color: #1a1a2e;
+          font-size: 14px; font-weight: 600; cursor: pointer;
+          transition: background 0.15s, box-shadow 0.15s;
+          box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+        }
+        .btn-google:hover:not(:disabled) { background: #f8fafc; box-shadow: 0 2px 8px rgba(0,0,0,0.12); }
+        .btn-google:disabled { opacity: 0.6; cursor: not-allowed; }
       `}</style>
     </div>
   );

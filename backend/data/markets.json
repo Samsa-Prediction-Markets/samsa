@@ -12,17 +12,17 @@
       {
         "id": "yes",
         "title": "Yes",
-        "probability": 48.98,
+        "probability": 54.55,
         "total_stake": 40
       },
       {
         "id": "no",
         "title": "No",
-        "probability": 51.02,
-        "total_stake": 50
+        "probability": 45.45,
+        "total_stake": 0
       }
     ],
-    "total_volume": 90,
+    "total_volume": 40,
     "image_url": "https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=800",
     "winning_outcome_id": null,
     "search_keywords": "drake iceman album release date music hip hop rap",
@@ -95,6 +95,13 @@
         "prices": {
           "yes": 100,
           "no": 0
+        }
+      },
+      {
+        "timestamp": "2026-05-03T08:10:20.054Z",
+        "prices": {
+          "yes": 54.55,
+          "no": 45.45
         }
       }
     ]
