@@ -54,10 +54,17 @@ COPY --from=rust-builder /engine/target/release/samsa-engine \
      ./backend/engine/target/release/samsa-engine
 RUN chmod +x ./backend/engine/target/release/samsa-engine
 
+# Bake default data files into the image (read-only reference copy).
+# The startup script seeds these into /app/backend/data ONLY on first boot.
+# On subsequent redeploys the live volume data is left untouched.
+COPY backend/data/ ./backend/data-defaults/
+
+# Startup script — seeds volume on first boot, then starts the server
+COPY start.sh ./start.sh
+RUN chmod +x ./start.sh
+
 ENV NODE_ENV=production
-# PORT is intentionally NOT hardcoded here — Railway injects its own PORT env
-# var at runtime, and the server already reads process.env.PORT || 3001.
-# Hardcoding EXPOSE 3001 causes Railway's health check to probe the wrong port.
+# PORT is intentionally NOT hardcoded — Railway injects its own PORT at runtime.
 EXPOSE 3001
 
-CMD ["node", "backend/server.js"]
+CMD ["./start.sh"]
