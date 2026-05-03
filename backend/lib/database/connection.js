@@ -4,6 +4,10 @@
 // Manages PostgreSQL connection using Sequelize ORM
 
 const { Sequelize } = require('sequelize');
+const dns = require('dns');
+
+// Force IPv4 — Railway cannot reach Supabase over IPv6
+dns.setDefaultResultOrder('ipv4first');
 
 // Load environment variables
 require('dotenv').config();
