@@ -140,15 +140,20 @@ export default function DashboardPage() {
   const netProfitLoss = totalReturned - settledStake;
   const availableBalance = startingBalance + netProfitLoss - totalStaked;
 
-  // Mark-to-market value of all active positions using current market prices
-  // Formula: stake × (currentProb / entryProb), capped at 2× — mirrors the sell endpoint exactly
+  // Mark-to-market: expected value using FIXED entry payouts weighted by current probability
+  // win_payout  = S + S(1−p_entry)  = S(2−p_entry)   [fixed at trade time]
+  // loss_refund = S − S(1−p_entry)  = S × p_entry     [fixed at trade time]
+  // current_value = p_current × win_payout + (1−p_current) × loss_refund
+  // → value always stays between loss_refund and win_payout floors/ceilings
   const activeMtmValue = predictions.reduce((sum, p) => {
     const market = markets.find(m => m.id === p.market_id);
     const outcome = market?.outcomes?.find(o => o.id === p.outcome_id);
-    const currentProb = outcome?.probability ?? p.odds_at_prediction ?? 50;
-    const entryProb = p.odds_at_prediction || 50;
-    const raw = (p.stake_amount || 0) * (currentProb / entryProb);
-    return sum + Math.min(raw, (p.stake_amount || 0) * 2); // cap at 2× like backend
+    const pCurrent = (outcome?.probability ?? p.odds_at_prediction ?? 50) / 100;
+    const pEntry   = (p.odds_at_prediction || 50) / 100;
+    const S = p.stake_amount || 0;
+    const winPayout   = S * (2 - pEntry);   // S + S(1−p_entry)
+    const lossRefund  = S * pEntry;          // S − S(1−p_entry)
+    return sum + pCurrent * winPayout + (1 - pCurrent) * lossRefund;
   }, 0);
 
   const portfolioValue = availableBalance + activeMtmValue;
@@ -431,10 +436,14 @@ export default function DashboardPage() {
                             const outcome = market?.outcomes?.find(o => o.id === outcomeId);
                             const currentProb = outcome?.probability ?? 50;
                             const avgEntry = data.totalStake > 0 ? data.weightedOdds / data.totalStake : 50;
-                            // Formula: stake × (currentProb / avgEntry), capped at 2× — matches backend sell
-                            const rawMtm = data.totalStake * (currentProb / avgEntry);
-                            const mtmValue = Math.min(rawMtm, data.totalStake * 2);
-                            const unrealizedPnl = mtmValue - data.totalStake;
+                            // Expected value using FIXED entry payouts, weighted by current probability
+                            const pCurrent = currentProb / 100;
+                            const pEntry   = avgEntry / 100;
+                            const S = data.totalStake;
+                            const winPayout  = S * (2 - pEntry);   // S + S(1−p_entry)
+                            const lossRefund = S * pEntry;          // S × p_entry
+                            const mtmValue = pCurrent * winPayout + (1 - pCurrent) * lossRefund;
+                            const unrealizedPnl = mtmValue - S;
                             const sellKey = `${marketId}__${outcomeId}`;
                             const isSelling = sellingKey === sellKey;
                             const sellAmt = parseFloat(sellAmount) || 0;
