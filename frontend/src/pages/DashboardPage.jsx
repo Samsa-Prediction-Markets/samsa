@@ -199,13 +199,11 @@ export default function DashboardPage() {
   const settledCount = settledPredictions.length;
   const accuracyPercent = settledCount > 0 ? Math.round((wonCount / settledCount) * 100) : 0;
 
-  // Build equity curve:
-  //  - Only resolved trades (won/lost) create real equity steps, plotted at
-  //    their creation timestamp.
-  //  - Active positions do NOT add intermediate points. Their live value is
-  //    captured by the final pin to portfolioValue (same EV formula as header).
-  //    The old per-position MTM loop used a different formula, creating false spikes.
-  //  - Final point pinned to portfolioValue at now → chart always matches header.
+  // Build equity curve — one data point per trade placed throughout the day.
+  // For each trade (sorted by time), we compute the full portfolio value AT
+  // that moment: settled P&L + MTM of all active positions up to that point.
+  // MTM uses current market probabilities (best available — no historical prices stored).
+  // This gives a proper N-point line graph instead of a flat 2-point line.
   const buildEquityPoints = (preds) => {
     if (!preds.length) return [];
 
@@ -213,23 +211,45 @@ export default function DashboardPage() {
       .filter(p => p.created_at)
       .sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
 
-    const firstDate = sorted[0].created_at;
-    let runningValue = startingBalance;
-    const points = [{ date: firstDate, value: runningValue }];
+    // Helper: EV of a position using current market probability
+    const getMtm = (p) => {
+      const market = markets.find(m => m.id === p.market_id);
+      const outcome = market?.outcomes?.find(o => o.id === p.outcome_id);
+      const pCurrent = (outcome?.probability ?? p.odds_at_prediction ?? 50) / 100;
+      const pEntry   = (p.odds_at_prediction || 50) / 100;
+      const S        = p.stake_amount || 0;
+      return pCurrent * S * (2 - pEntry) + (1 - pCurrent) * S * pEntry;
+    };
 
-    // Only resolved trades change real equity
-    sorted.forEach(p => {
-      if (p.status === 'won') {
-        runningValue += (p.actual_return || 0) - (p.stake_amount || 0);
-        points.push({ date: p.created_at, value: runningValue });
-      } else if (p.status === 'lost') {
-        runningValue -= (p.stake_amount || 0) - (p.actual_return || 0);
-        points.push({ date: p.created_at, value: runningValue });
-      }
-      // active: no equity change until resolved
-    });
+    // Anchor at start of the day of the first trade
+    const startOfDay = new Date(sorted[0].created_at);
+    startOfDay.setHours(0, 0, 0, 0);
+    const points = [{ date: startOfDay.toISOString(), value: startingBalance }];
 
-    // Pin to portfolioValue at now — single source of truth for live valuation
+    // One point per trade — portfolio value at that moment in time
+    for (let i = 0; i < sorted.length; i++) {
+      const tradesUpTo = sorted.slice(0, i + 1);
+
+      let settledPnL  = 0;
+      let stakedSoFar = 0;
+      let activeMtm   = 0;
+
+      tradesUpTo.forEach(p => {
+        if (p.status === 'won') {
+          settledPnL += (p.actual_return || 0) - (p.stake_amount || 0);
+        } else if (p.status === 'lost') {
+          settledPnL -= (p.stake_amount || 0) - (p.actual_return || 0);
+        } else if (p.status === 'active') {
+          stakedSoFar += p.stake_amount || 0;
+          activeMtm   += getMtm(p);
+        }
+      });
+
+      const equity = (startingBalance + settledPnL - stakedSoFar) + activeMtm;
+      points.push({ date: sorted[i].created_at, value: equity });
+    }
+
+    // Final point pinned to portfolioValue now — chart always matches header
     points.push({ date: new Date().toISOString(), value: portfolioValue });
     return points;
   };
