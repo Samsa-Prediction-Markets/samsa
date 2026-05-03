@@ -26,6 +26,7 @@
     "@dome-api/sdk": "^0.0.8",
     "@supabase/supabase-js": "^2.103.0",
     "cors": "^2.8.5",
+    "dotenv": "^17.4.2",
     "express": "^4.21.2",
     "morgan": "^1.10.1",
     "nanoid": "^5.1.6",
