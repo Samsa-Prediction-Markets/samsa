@@ -22,9 +22,13 @@ const DATA_DIR = path.join(__dirname, '..', 'data');
 
 async function readJson(filePath) {
   try {
+    console.log(`  Reading: ${filePath}`);
     const raw = await fs.readFile(filePath, 'utf-8');
-    return JSON.parse(raw || '[]');
-  } catch {
+    const data = JSON.parse(raw || '[]');
+    console.log(`  Found ${data.length} records`);
+    return data;
+  } catch (err) {
+    console.error(`  ❌ Failed to read ${filePath}: ${err.message}`);
     return [];
   }
 }
@@ -48,47 +52,51 @@ async function seedMarkets() {
       continue;
     }
 
-    await sequelize.transaction(async (t) => {
-      // Create market
-      await Market.create({
-        id: m.id,
-        title: m.title,
-        description: m.description,
-        category: m.category,
-        status: m.status || 'active',
-        close_date: m.close_date,
-        resolution_date: m.resolution_date,
-        market_type: m.market_type || 'binary',
-        total_volume: m.total_volume || 0,
-        image_url: m.image_url,
-        winning_outcome_id: m.winning_outcome_id,
-        search_keywords: m.search_keywords
-      }, { transaction: t });
+    try {
+      await sequelize.transaction(async (t) => {
+        // Create market
+        await Market.create({
+          id: m.id,
+          title: m.title,
+          description: m.description,
+          category: m.category,
+          status: m.status || 'active',
+          close_date: m.close_date,
+          resolution_date: m.resolution_date,
+          market_type: m.market_type || 'binary',
+          total_volume: m.total_volume || 0,
+          image_url: m.image_url,
+          winning_outcome_id: m.winning_outcome_id,
+          search_keywords: m.search_keywords
+        }, { transaction: t });
 
-      // Create outcomes
-      if (m.outcomes && m.outcomes.length > 0) {
-        const outcomeRecords = m.outcomes.map(o => ({
-          id: `${m.id}_${o.id}`,  // Ensure unique outcome IDs across markets
-          market_id: m.id,
-          title: o.title,
-          probability: o.probability || 0,
-          total_stake: o.total_stake || 0
-        }));
-        await Outcome.bulkCreate(outcomeRecords, { transaction: t });
-      }
+        // Create outcomes
+        if (m.outcomes && m.outcomes.length > 0) {
+          const outcomeRecords = m.outcomes.map(o => ({
+            id: `${m.id}_${o.id}`,
+            market_id: m.id,
+            title: o.title,
+            probability: o.probability || 0,
+            total_stake: o.total_stake || 0
+          }));
+          await Outcome.bulkCreate(outcomeRecords, { transaction: t });
+        }
 
-      // Create price history entries
-      if (m.price_history && m.price_history.length > 0) {
-        const phRecords = m.price_history.map(ph => ({
-          market_id: m.id,
-          timestamp: ph.timestamp,
-          prices: ph.prices
-        }));
-        await PriceHistory.bulkCreate(phRecords, { transaction: t });
-      }
+        // Create price history entries
+        if (m.price_history && m.price_history.length > 0) {
+          const phRecords = m.price_history.map(ph => ({
+            market_id: m.id,
+            timestamp: ph.timestamp,
+            prices: ph.prices
+          }));
+          await PriceHistory.bulkCreate(phRecords, { transaction: t });
+        }
 
-      console.log(`  ✅ Market "${m.title}" seeded with ${m.outcomes?.length || 0} outcomes, ${m.price_history?.length || 0} price snapshots`);
-    });
+        console.log(`  ✅ Market "${m.title}" seeded with ${m.outcomes?.length || 0} outcomes, ${m.price_history?.length || 0} price snapshots`);
+      });
+    } catch (err) {
+      console.error(`  ❌ Failed to seed market "${m.title}": ${err.message}`);
+    }
   }
 }
 
