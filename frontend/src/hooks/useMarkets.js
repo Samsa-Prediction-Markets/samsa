@@ -1,0 +1,46 @@
+import { useState, useEffect } from 'react';
+
+export function useMarkets() {
+  const [markets, setMarkets] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    async function loadMarkets() {
+      try {
+        setLoading(true);
+        const response = await fetch('/markets.json');
+        if (!response.ok) throw new Error('Failed to load markets');
+        const data = await response.json();
+        setMarkets(Array.isArray(data) ? data : []);
+        setError(null);
+      } catch (err) {
+        console.error('Error loading markets:', err);
+        setError(err.message);
+        setMarkets([]);
+      } finally {
+        setLoading(false);
+      }
+    }
+    loadMarkets();
+  }, []);
+
+  return { markets, loading, error };
+}
+
+export function useMarket(id) {
+  const [market, setMarket] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    if (!id) return;
+    setLoading(true);
+    api.getMarket(id)
+      .then(data => { setMarket(data); setError(null); })
+      .catch(e => setError(e.message))
+      .finally(() => setLoading(false));
+  }, [id]);
+
+  return { market, loading, error };
+}

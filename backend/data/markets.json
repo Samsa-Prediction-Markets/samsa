@@ -1,0 +1,121 @@
+[
+  {
+    "id": "mkt_cl_winner_2025",
+    "title": "Who will win the 2024-25 UEFA Champions League?",
+    "description": "Predict the winner of the 2024-25 UEFA Champions League final.",
+    "category": "sports",
+    "status": "active",
+    "close_date": "2025-05-31T00:00:00.000Z",
+    "resolution_date": null,
+    "outcomes": [
+      { "id": "real_madrid", "title": "Real Madrid",         "probability": 28, "total_stake": 0 },
+      { "id": "man_city",    "title": "Manchester City",     "probability": 18, "total_stake": 0 },
+      { "id": "arsenal",     "title": "Arsenal",             "probability": 14, "total_stake": 0 },
+      { "id": "psg",         "title": "Paris Saint-Germain", "probability": 12, "total_stake": 0 },
+      { "id": "other",       "title": "Other Club",          "probability": 28, "total_stake": 0 }
+    ],
+    "total_volume": 0,
+    "image_url": "https://images.unsplash.com/photo-1508098682722-e99c43a406b2?w=800",
+    "winning_outcome_id": null,
+    "search_keywords": "champions league ucl football soccer winner 2025 final"
+  },
+  {
+    "id": "mkt_nba_finals_2025",
+    "title": "Who will win the 2024-25 NBA Finals?",
+    "description": "Predict the winner of the 2024-25 NBA Championship series.",
+    "category": "sports",
+    "status": "active",
+    "close_date": "2025-06-22T00:00:00.000Z",
+    "resolution_date": null,
+    "outcomes": [
+      { "id": "celtics",   "title": "Boston Celtics",        "probability": 30, "total_stake": 0 },
+      { "id": "thunder",   "title": "Oklahoma City Thunder", "probability": 22, "total_stake": 0 },
+      { "id": "cavaliers", "title": "Cleveland Cavaliers",   "probability": 18, "total_stake": 0 },
+      { "id": "knicks",    "title": "New York Knicks",       "probability": 14, "total_stake": 0 },
+      { "id": "other",     "title": "Other Team",            "probability": 16, "total_stake": 0 }
+    ],
+    "total_volume": 0,
+    "image_url": "https://images.unsplash.com/photo-1546519638-68e109498ffc?w=800",
+    "winning_outcome_id": null,
+    "search_keywords": "nba finals basketball championship winner 2025"
+  },
+  {
+    "id": "mkt_world_cup_2026",
+    "title": "Who will win the 2026 FIFA World Cup?",
+    "description": "Predict the winner of the 2026 FIFA World Cup hosted in the USA, Canada, and Mexico.",
+    "category": "sports",
+    "status": "active",
+    "close_date": "2026-07-19T00:00:00.000Z",
+    "resolution_date": null,
+    "outcomes": [
+      { "id": "brazil",    "title": "Brazil",       "probability": 19, "total_stake": 0 },
+      { "id": "france",    "title": "France",       "probability": 17, "total_stake": 0 },
+      { "id": "england",   "title": "England",      "probability": 14, "total_stake": 0 },
+      { "id": "argentina", "title": "Argentina",    "probability": 13, "total_stake": 0 },
+      { "id": "spain",     "title": "Spain",        "probability": 12, "total_stake": 0 },
+      { "id": "other",     "title": "Other Nation", "probability": 25, "total_stake": 0 }
+    ],
+    "total_volume": 0,
+    "image_url": "https://images.unsplash.com/photo-1574629810360-7efbbe195018?w=800",
+    "winning_outcome_id": null,
+    "search_keywords": "fifa world cup 2026 soccer football winner champion"
+  },
+  {
+    "id": "mkt_drake_iceman_features",
+    "title": "Who will be featured on Drake's 'Iceman' album?",
+    "description": "Predict which artist will have a feature on Drake's upcoming 'Iceman' album.",
+    "category": "entertainment",
+    "status": "active",
+    "close_date": "2025-12-31T00:00:00.000Z",
+    "resolution_date": null,
+    "outcomes": [
+      { "id": "weeknd",       "title": "The Weeknd",   "probability": 35, "total_stake": 0 },
+      { "id": "lil_wayne",    "title": "Lil Wayne",    "probability": 25, "total_stake": 0 },
+      { "id": "travis_scott", "title": "Travis Scott", "probability": 20, "total_stake": 0 },
+      { "id": "other",        "title": "Other Artist", "probability": 20, "total_stake": 0 }
+    ],
+    "total_volume": 0,
+    "image_url": "https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=800",
+    "winning_outcome_id": null,
+    "search_keywords": "drake iceman album features collab music rap"
+  },
+  {
+    "id": "mkt_drake_iceman_release",
+    "title": "When will Drake's 'Iceman' album be released?",
+    "description": "Predict in which quarter Drake will officially release his 'Iceman' album.",
+    "category": "entertainment",
+    "status": "active",
+    "close_date": "2025-12-31T00:00:00.000Z",
+    "resolution_date": null,
+    "outcomes": [
+      { "id": "q2_2025", "title": "Q2 2025 (Apr–Jun)", "probability": 20, "total_stake": 0 },
+      { "id": "q3_2025", "title": "Q3 2025 (Jul–Sep)", "probability": 35, "total_stake": 0 },
+      { "id": "q4_2025", "title": "Q4 2025 (Oct–Dec)", "probability": 30, "total_stake": 0 },
+      { "id": "2026",    "title": "2026 or later",     "probability": 15, "total_stake": 0 }
+    ],
+    "total_volume": 0,
+    "image_url": "https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=800",
+    "winning_outcome_id": null,
+    "search_keywords": "drake iceman album release date music 2025"
+  },
+  {
+    "id": "mkt_spotify_june_2025",
+    "title": "Who will be the most-streamed Spotify artist in June 2025?",
+    "description": "Predict which artist will have the most total streams on Spotify globally during June 2025.",
+    "category": "entertainment",
+    "status": "active",
+    "close_date": "2025-07-01T00:00:00.000Z",
+    "resolution_date": null,
+    "outcomes": [
+      { "id": "taylor_swift", "title": "Taylor Swift", "probability": 30, "total_stake": 0 },
+      { "id": "drake",        "title": "Drake",         "probability": 25, "total_stake": 0 },
+      { "id": "bad_bunny",    "title": "Bad Bunny",     "probability": 20, "total_stake": 0 },
+      { "id": "weeknd",       "title": "The Weeknd",    "probability": 15, "total_stake": 0 },
+      { "id": "other",        "title": "Other Artist",  "probability": 10, "total_stake": 0 }
+    ],
+    "total_volume": 0,
+    "image_url": "https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=800",
+    "winning_outcome_id": null,
+    "search_keywords": "spotify most streamed artist june 2025 music streaming"
+  }
+]
