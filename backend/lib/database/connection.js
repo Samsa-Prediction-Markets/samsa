@@ -6,8 +6,22 @@
 const { Sequelize } = require('sequelize');
 const dns = require('dns');
 
-// Force IPv4 — Railway cannot reach Supabase over IPv6
+// Force ALL DNS lookups to IPv4 — Railway cannot reach Supabase over IPv6
 dns.setDefaultResultOrder('ipv4first');
+const origLookup = dns.lookup;
+dns.lookup = function (hostname, options, callback) {
+  if (typeof options === 'function') {
+    callback = options;
+    options = { family: 4 };
+  } else if (typeof options === 'number') {
+    options = { family: 4 };
+  } else if (typeof options === 'object') {
+    options = { ...options, family: 4 };
+  } else {
+    options = { family: 4 };
+  }
+  return origLookup.call(this, hostname, options, callback);
+};
 
 // Load environment variables
 require('dotenv').config();
