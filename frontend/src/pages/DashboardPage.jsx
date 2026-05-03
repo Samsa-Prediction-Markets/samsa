@@ -141,13 +141,14 @@ export default function DashboardPage() {
   const availableBalance = startingBalance + netProfitLoss - totalStaked;
 
   // Mark-to-market value of all active positions using current market prices
-  // Formula: stake × (currentProb / entryProb) — mirrors the sell endpoint
+  // Formula: stake × (currentProb / entryProb), capped at 2× — mirrors the sell endpoint exactly
   const activeMtmValue = predictions.reduce((sum, p) => {
     const market = markets.find(m => m.id === p.market_id);
     const outcome = market?.outcomes?.find(o => o.id === p.outcome_id);
     const currentProb = outcome?.probability ?? p.odds_at_prediction ?? 50;
     const entryProb = p.odds_at_prediction || 50;
-    return sum + (p.stake_amount || 0) * (currentProb / entryProb);
+    const raw = (p.stake_amount || 0) * (currentProb / entryProb);
+    return sum + Math.min(raw, (p.stake_amount || 0) * 2); // cap at 2× like backend
   }, 0);
 
   const portfolioValue = availableBalance + activeMtmValue;
@@ -430,14 +431,15 @@ export default function DashboardPage() {
                             const outcome = market?.outcomes?.find(o => o.id === outcomeId);
                             const currentProb = outcome?.probability ?? 50;
                             const avgEntry = data.totalStake > 0 ? data.weightedOdds / data.totalStake : 50;
-                            // Mark-to-market: current value based on live price vs entry
-                            const mtmValue = data.totalStake * (currentProb / avgEntry);
+                            // Formula: stake × (currentProb / avgEntry), capped at 2× — matches backend sell
+                            const rawMtm = data.totalStake * (currentProb / avgEntry);
+                            const mtmValue = Math.min(rawMtm, data.totalStake * 2);
                             const unrealizedPnl = mtmValue - data.totalStake;
                             const sellKey = `${marketId}__${outcomeId}`;
                             const isSelling = sellingKey === sellKey;
                             const sellAmt = parseFloat(sellAmount) || 0;
                             const previewReturn = isSelling && sellAmt > 0
-                              ? (sellAmt * (currentProb / avgEntry)).toFixed(2)
+                              ? Math.min(sellAmt * (currentProb / avgEntry), sellAmt * 2).toFixed(2)
                               : null;
                             const previewPnl = previewReturn !== null
                               ? (parseFloat(previewReturn) - sellAmt).toFixed(2)
