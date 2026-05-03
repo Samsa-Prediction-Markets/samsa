@@ -29,7 +29,7 @@ const Outcome = sequelize.define('Outcome', {
     }
   },
   probability: {
-    type: DataTypes.INTEGER,
+    type: DataTypes.DECIMAL(7, 2),
     defaultValue: 0,
     validate: {
       min: 0,

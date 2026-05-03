@@ -29,8 +29,8 @@ const Market = sequelize.define('Market', {
     allowNull: false,
     validate: {
       isIn: [[
-        'politics', 'sports', 'crypto', 'technology', 
-        'finance', 'entertainment', 'international', 
+        'politics', 'sports', 'crypto', 'technology',
+        'finance', 'entertainment', 'international',
         'climate', 'science', 'health', 'environment',
         'arts_and_culture'
       ]]
@@ -69,6 +69,13 @@ const Market = sequelize.define('Market', {
   search_keywords: {
     type: DataTypes.TEXT,
     allowNull: true
+  },
+  market_type: {
+    type: DataTypes.STRING(30),
+    defaultValue: 'binary',
+    validate: {
+      isIn: [['binary', 'multi_single', 'multi_multiple']]
+    }
   }
 }, {
   tableName: 'markets',

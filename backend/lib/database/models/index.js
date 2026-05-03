@@ -6,20 +6,38 @@
 const { sequelize } = require('../connection');
 const User = require('./User');
 const Transaction = require('./Transaction');
+const Market = require('./Market');
+const Outcome = require('./Outcome');
+const Prediction = require('./Prediction');
+const PriceHistory = require('./PriceHistory');
 
 // ============================================================================
 // DEFINE RELATIONSHIPS
 // ============================================================================
 
 // User has many Transactions
-User.hasMany(Transaction, {
-  foreignKey: 'user_id',
-  as: 'transactions'
-});
-Transaction.belongsTo(User, {
-  foreignKey: 'user_id',
-  as: 'user'
-});
+User.hasMany(Transaction, { foreignKey: 'user_id', as: 'transactions' });
+Transaction.belongsTo(User, { foreignKey: 'user_id', as: 'user' });
+
+// Market has many Outcomes
+Market.hasMany(Outcome, { foreignKey: 'market_id', as: 'outcomes', onDelete: 'CASCADE' });
+Outcome.belongsTo(Market, { foreignKey: 'market_id', as: 'market' });
+
+// Market has many Predictions
+Market.hasMany(Prediction, { foreignKey: 'market_id', as: 'predictions', onDelete: 'CASCADE' });
+Prediction.belongsTo(Market, { foreignKey: 'market_id', as: 'market' });
+
+// Outcome has many Predictions
+Outcome.hasMany(Prediction, { foreignKey: 'outcome_id', as: 'predictions' });
+Prediction.belongsTo(Outcome, { foreignKey: 'outcome_id', as: 'outcome' });
+
+// Market has many PriceHistory entries
+Market.hasMany(PriceHistory, { foreignKey: 'market_id', as: 'price_history', onDelete: 'CASCADE' });
+PriceHistory.belongsTo(Market, { foreignKey: 'market_id', as: 'market' });
+
+// User has many Predictions
+User.hasMany(Prediction, { foreignKey: 'user_id', as: 'predictions' });
+Prediction.belongsTo(User, { foreignKey: 'user_id', as: 'user' });
 
 // ============================================================================
 // SYNC DATABASE (Create tables if they don't exist)
@@ -55,5 +73,9 @@ module.exports = {
   sequelize,
   User,
   Transaction,
+  Market,
+  Outcome,
+  Prediction,
+  PriceHistory,
   initializeDatabase
 };

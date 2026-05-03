@@ -15,6 +15,7 @@
     "frontend:preview": "npm --prefix frontend run preview",
     "test": "node --test ./tests/*.test.js",
     "migrate": "node scripts/migrate-json-to-db.js",
+    "seed": "node backend/scripts/seed-from-json.js",
     "db:init": "psql -d samsa_dev -f backend/lib/database/schema.sql",
     "build:engine": "cd backend/engine && cargo +stable-x86_64-pc-windows-gnu build --release",
     "test:engine": "cd backend/engine && cargo +stable-x86_64-pc-windows-gnu test"
