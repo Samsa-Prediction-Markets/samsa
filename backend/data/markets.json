@@ -12,141 +12,21 @@
       {
         "id": "yes",
         "title": "Yes",
-        "probability": 19.46,
-        "total_stake": 90
+        "probability": 50,
+        "total_stake": 0
       },
       {
         "id": "no",
         "title": "No",
-        "probability": 80.54,
-        "total_stake": 1000
+        "probability": 50,
+        "total_stake": 0
       }
     ],
-    "total_volume": 1090,
+    "total_volume": 0,
     "image_url": "https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=800",
     "winning_outcome_id": null,
     "search_keywords": "drake iceman album release date music hip hop rap",
-    "price_history": [
-      {
-        "timestamp": "2026-05-03T06:02:55.352002Z",
-        "prices": {
-          "yes": 50,
-          "no": 50
-        }
-      },
-      {
-        "timestamp": "2026-05-03T06:20:23.868854Z",
-        "prices": {
-          "yes": 51,
-          "no": 49
-        }
-      },
-      {
-        "timestamp": "2026-05-03T06:29:11.903321Z",
-        "prices": {
-          "yes": 52,
-          "no": 48
-        }
-      },
-      {
-        "timestamp": "2026-05-03T06:33:02.276725Z",
-        "prices": {
-          "yes": 53,
-          "no": 47
-        }
-      },
-      {
-        "timestamp": "2026-05-03T06:33:53.257238Z",
-        "prices": {
-          "yes": 54,
-          "no": 46
-        }
-      },
-      {
-        "timestamp": "2026-05-03T06:38:57.379508Z",
-        "prices": {
-          "yes": 52,
-          "no": 48
-        }
-      },
-      {
-        "timestamp": "2026-05-03T06:42:06.083279Z",
-        "prices": {
-          "yes": 50,
-          "no": 50
-        }
-      },
-      {
-        "timestamp": "2026-05-03T06:43:58.878487Z",
-        "prices": {
-          "yes": 45,
-          "no": 55
-        }
-      },
-      {
-        "timestamp": "2026-05-03T07:14:22.802541Z",
-        "prices": {
-          "yes": 47,
-          "no": 53
-        }
-      },
-      {
-        "timestamp": "2026-05-03T07:43:14.149Z",
-        "prices": {
-          "yes": 100,
-          "no": 0
-        }
-      },
-      {
-        "timestamp": "2026-05-03T08:10:20.054Z",
-        "prices": {
-          "yes": 54.55,
-          "no": 45.45
-        }
-      },
-      {
-        "timestamp": "2026-05-03T08:14:55.537Z",
-        "prices": {
-          "yes": 62.96,
-          "no": 37.04
-        }
-      },
-      {
-        "timestamp": "2026-05-03T08:16:37.985Z",
-        "prices": {
-          "yes": 22.08,
-          "no": 77.92
-        }
-      },
-      {
-        "timestamp": "2026-05-03T08:19:07.339Z",
-        "prices": {
-          "yes": 16.67,
-          "no": 83.33
-        }
-      },
-      {
-        "timestamp": "2026-05-03T08:19:23.349Z",
-        "prices": {
-          "yes": 54.55,
-          "no": 45.45
-        }
-      },
-      {
-        "timestamp": "2026-05-03T08:22:38.404Z",
-        "prices": {
-          "yes": 59.18,
-          "no": 40.82
-        }
-      },
-      {
-        "timestamp": "2026-05-03T08:23:08.596Z",
-        "prices": {
-          "yes": 19.46,
-          "no": 80.54
-        }
-      }
-    ]
+    "price_history": []
   },
   {
     "id": "drake_iceman_sales",
@@ -187,35 +67,7 @@
     "image_url": "https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=800",
     "winning_outcome_id": null,
     "search_keywords": "drake iceman album sales first week units music",
-    "price_history": [
-      {
-        "timestamp": "2026-05-03T06:02:55.352523Z",
-        "prices": {
-          "under_300k": 25,
-          "300k_500k": 25,
-          "500k_700k": 25,
-          "over_700k": 25
-        }
-      },
-      {
-        "timestamp": "2026-05-03T07:10:22.077121Z",
-        "prices": {
-          "under_300k": 23.33,
-          "300k_500k": 23.33,
-          "500k_700k": 23.33,
-          "over_700k": 30
-        }
-      },
-      {
-        "timestamp": "2026-05-03T07:43:03.557Z",
-        "prices": {
-          "under_300k": 25,
-          "300k_500k": 25,
-          "500k_700k": 25,
-          "over_700k": 25
-        }
-      }
-    ]
+    "price_history": []
   },
   {
     "id": "drake_iceman_streaming",
@@ -244,15 +96,7 @@
     "image_url": "https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=800",
     "winning_outcome_id": null,
     "search_keywords": "drake iceman streaming record spotify apple music 24 hours",
-    "price_history": [
-      {
-        "timestamp": "2026-05-03T06:02:55.352523Z",
-        "prices": {
-          "yes": 50,
-          "no": 50
-        }
-      }
-    ]
+    "price_history": []
   },
   {
     "id": "drake_iceman_features",
@@ -293,16 +137,6 @@
     "image_url": "https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=800",
     "winning_outcome_id": null,
     "search_keywords": "drake iceman features collaborations kendrick travis 21savage future",
-    "price_history": [
-      {
-        "timestamp": "2026-05-03T06:06:35.983713Z",
-        "prices": {
-          "kendrick": 25,
-          "travis": 25,
-          "21savage": 25,
-          "future": 25
-        }
-      }
-    ]
+    "price_history": []
   }
 ]

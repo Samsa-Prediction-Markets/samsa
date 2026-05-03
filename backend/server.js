@@ -1007,13 +1007,16 @@ async function initDatabase() {
     await sequelize.sync({ alter: true });
     console.log('✅ Database synchronized (all tables created/updated)');
 
-    // Auto-seed markets from JSON if database is empty
+    // Clear and reseed markets (remove after first successful deploy)
     const marketCount = await Market.count();
     console.log(`📊 Markets in database: ${marketCount}`);
-    if (marketCount === 0) {
-      console.log('🌱 Database empty — seeding from JSON...');
-      await seedMarketsFromJson();
-    }
+    console.log('🧹 Clearing old market data for fresh seed...');
+    await PriceHistory.destroy({ where: {} });
+    await Prediction.destroy({ where: {} });
+    await Outcome.destroy({ where: {} });
+    await Market.destroy({ where: {} });
+    console.log('🌱 Seeding fresh markets from JSON...');
+    await seedMarketsFromJson();
   } catch (error) {
     console.error('❌ Database initialization failed:', error.message);
     console.error('   Markets, predictions, and positions require a PostgreSQL database.');
