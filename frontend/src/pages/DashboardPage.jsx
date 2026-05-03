@@ -10,6 +10,15 @@ function EquityChart({ equityPoints, startingBalance, currentValue }) {
   const [hover, setHover] = useState(null);
   const W = 800, H = 200, PX = 0, PY = 16;
 
+  // CSS for pulsing live dot animation
+  const pulseStyle = `
+    @keyframes eq-pulse {
+      0%, 100% { opacity: 0.7; r: 10; }
+      50%       { opacity: 0;   r: 18; }
+    }
+    .eq-pulse-ring { animation: eq-pulse 2s ease-in-out infinite; transform-box: fill-box; transform-origin: center; }
+  `;
+
   if (!equityPoints || equityPoints.length < 2) {
     return (
       <div className="h-full flex items-center justify-center">
@@ -57,6 +66,7 @@ function EquityChart({ equityPoints, startingBalance, currentValue }) {
         onMouseMove={handleMouseMove}
       >
         <defs>
+          <style>{pulseStyle}</style>
           <linearGradient id="eq-grad-profit" x1="0%" y1="0%" x2="0%" y2="100%">
             <stop offset="0%" style={{ stopColor: '#22c55e', stopOpacity: 0.25 }} />
             <stop offset="100%" style={{ stopColor: '#22c55e', stopOpacity: 0 }} />
@@ -86,6 +96,21 @@ function EquityChart({ equityPoints, startingBalance, currentValue }) {
             <circle cx={hover.x} cy={hover.y} r="5" fill={lineColor} stroke="#0f172a" strokeWidth="2" />
           </>
         )}
+
+        {/* Live current-value dot — hidden while scrubbing */}
+        {!hover && points.length > 0 && (() => {
+          const last = points[points.length - 1];
+          return (
+            <>
+              {/* Pulse ring */}
+              <circle className="eq-pulse-ring" cx={last.x} cy={last.y} r="10"
+                fill={lineColor} opacity="0.35" />
+              {/* Solid dot */}
+              <circle cx={last.x} cy={last.y} r="5"
+                fill={lineColor} stroke="#0f172a" strokeWidth="2" />
+            </>
+          );
+        })()}
       </svg>
 
       {/* Hover tooltip */}
