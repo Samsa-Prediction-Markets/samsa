@@ -55,8 +55,9 @@ COPY --from=rust-builder /engine/target/release/samsa-engine \
 RUN chmod +x ./backend/engine/target/release/samsa-engine
 
 ENV NODE_ENV=production
-ENV PORT=3001
-
+# PORT is intentionally NOT hardcoded here — Railway injects its own PORT env
+# var at runtime, and the server already reads process.env.PORT || 3001.
+# Hardcoding EXPOSE 3001 causes Railway's health check to probe the wrong port.
 EXPOSE 3001
 
 CMD ["node", "backend/server.js"]
