@@ -139,8 +139,20 @@ export default function DashboardPage() {
   const settledStake = settledPredictions.reduce((sum, p) => sum + (p.stake_amount || 0), 0);
   const netProfitLoss = totalReturned - settledStake;
   const availableBalance = startingBalance + netProfitLoss - totalStaked;
-  const portfolioValue = availableBalance + totalStaked;
-  const todayChange = netProfitLoss;
+
+  // Mark-to-market value of all active positions using current market prices
+  // Formula: stake × (currentProb / entryProb) — mirrors the sell endpoint
+  const activeMtmValue = predictions.reduce((sum, p) => {
+    const market = markets.find(m => m.id === p.market_id);
+    const outcome = market?.outcomes?.find(o => o.id === p.outcome_id);
+    const currentProb = outcome?.probability ?? p.odds_at_prediction ?? 50;
+    const entryProb = p.odds_at_prediction || 50;
+    return sum + (p.stake_amount || 0) * (currentProb / entryProb);
+  }, 0);
+
+  const portfolioValue = availableBalance + activeMtmValue;
+  const unrealizedPnl = activeMtmValue - totalStaked;
+  const todayChange = netProfitLoss + unrealizedPnl;
   const todayChangePercent = startingBalance > 0 ? (todayChange / startingBalance) * 100 : 0;
 
   // Forecasting stats
@@ -175,6 +187,19 @@ export default function DashboardPage() {
         points.push({ date: p.created_at, value: runningValue });
       }
       // active positions: no equity change, skip
+    });
+
+    // Add MTM step for each active position so chart reflects live price moves
+    predictions.forEach(p => {
+      const market = markets.find(m => m.id === p.market_id);
+      const outcome = market?.outcomes?.find(o => o.id === p.outcome_id);
+      const currentProb = outcome?.probability ?? p.odds_at_prediction ?? 50;
+      const entryProb = p.odds_at_prediction || 50;
+      const mtmDelta = (p.stake_amount || 0) * ((currentProb / entryProb) - 1);
+      if (Math.abs(mtmDelta) > 0.01) {
+        runningValue += mtmDelta;
+        points.push({ date: p.created_at, value: runningValue });
+      }
     });
 
     // Pin final point to now at exact portfolioValue so chart == header

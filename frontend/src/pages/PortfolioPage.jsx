@@ -114,22 +114,35 @@ export default function PortfolioPage() {
   const settledPredictions = [...wonPredictions, ...lostPredictions];
 
   const startingBalance = 100000; // Paper trading starting balance
-  const activePredictionsValue = activePredictions.reduce((sum, p) => sum + (p.stake_amount || 0), 0);
   const totalReturned = predictions.reduce((sum, p) => sum + (p.actual_return || 0), 0);
   const settledStake = settledPredictions.reduce((sum, p) => sum + (p.stake_amount || 0), 0);
   const netProfitLoss = totalReturned - settledStake;
-  const portfolioValue = balance + activePredictionsValue;
+
+  // Mark-to-market: value each active position at current market price
+  // Formula: stake × (currentProb / entryProb) — same as sell endpoint
+  const activeMtmValue = activePredictions.reduce((sum, p) => {
+    const market = markets.find(m => m.id === p.market_id);
+    const outcome = market?.outcomes?.find(o => o.id === p.outcome_id);
+    const currentProb = outcome?.probability ?? p.odds_at_prediction ?? 50;
+    const entryProb = p.odds_at_prediction || 50;
+    const mtm = (p.stake_amount || 0) * (currentProb / entryProb);
+    return sum + mtm;
+  }, 0);
+
+  const portfolioValue = balance + activeMtmValue;
   const hasStartedTrading = predictions.length > 0;
 
   // Generate balance history over time (Robinhood-style)
+  // Uses actual realized P&L progression + current MTM for final point
   const balanceHistory = Array.from({ length: 30 }, (_, i) => {
     const progress = i / 29;
-    const currentBalance = startingBalance + (netProfitLoss * progress);
-    // Add small random fluctuations for realism
-    const fluctuation = (Math.random() - 0.5) * Math.abs(netProfitLoss) * 0.05;
-    return currentBalance + fluctuation;
+    const baseValue = startingBalance + (netProfitLoss * progress);
+    // Active positions contribute MTM proportional to progress
+    const mtmContribution = activeMtmValue * progress;
+    const fluctuation = (Math.random() - 0.5) * Math.abs(netProfitLoss + activeMtmValue) * 0.03;
+    return baseValue + mtmContribution + fluctuation;
   });
-  balanceHistory[29] = portfolioValue; // Set final value to actual current portfolio value
+  balanceHistory[29] = portfolioValue; // Anchor final point to live portfolio value
 
   const totalSettled = wonPredictions.length + lostPredictions.length;
   const accuracyScore = totalSettled > 0 ? Math.round((wonPredictions.length / totalSettled) * 100) : 0;
@@ -340,7 +353,7 @@ export default function PortfolioPage() {
                           <p className="text-slate-400 font-medium mb-3">{outcome?.title || 'Unknown Outcome'}</p>
                           <div className="flex flex-wrap gap-4 text-sm">
                             <div>
-                              <span className="text-slate-400">Total Position: </span>
+                              <span className="text-slate-400">Position Cost: </span>
                               <span className="text-white font-semibold">${position.stake_amount.toFixed(2)}</span>
                             </div>
                             {position._tradeCount > 1 && (
@@ -349,20 +362,40 @@ export default function PortfolioPage() {
                                 <span className="text-slate-300 font-medium">{position._tradeCount}</span>
                               </div>
                             )}
-                            {position.status === 'active' && (
-                              <>
-                                <div>
-                                  <span className="text-slate-400">Avg Entry: </span>
-                                  <span className="text-white font-medium">{position.odds_at_prediction}%</span>
-                                </div>
-                                <div>
-                                  <span className="text-slate-400">Current: </span>
-                                  <span className={`font-medium ${currentProb > position.odds_at_prediction ? 'text-green-400' : currentProb < position.odds_at_prediction ? 'text-red-400' : 'text-white'}`}>
-                                    {currentProb.toFixed(1)}%
-                                  </span>
-                                </div>
-                              </>
-                            )}
+                            {position.status === 'active' && (() => {
+                              const entryProb = position.odds_at_prediction || 50;
+                              const mtmValue = position.stake_amount * (currentProb / entryProb);
+                              const unrealizedPnl = mtmValue - position.stake_amount;
+                              const winPayout = position.potential_return || (position.stake_amount + position.stake_amount * (1 - entryProb / 100));
+                              return (
+                                <>
+                                  <div>
+                                    <span className="text-slate-400">Avg Entry: </span>
+                                    <span className="text-white font-medium">{entryProb.toFixed(1)}%</span>
+                                  </div>
+                                  <div>
+                                    <span className="text-slate-400">Current: </span>
+                                    <span className={`font-medium ${currentProb > entryProb ? 'text-green-400' : currentProb < entryProb ? 'text-red-400' : 'text-white'}`}>
+                                      {currentProb.toFixed(1)}%
+                                    </span>
+                                  </div>
+                                  <div>
+                                    <span className="text-slate-400">Mkt Value: </span>
+                                    <span className="text-yellow-400 font-semibold">${mtmValue.toFixed(2)}</span>
+                                  </div>
+                                  <div>
+                                    <span className="text-slate-400">Unrealized P&L: </span>
+                                    <span className={`font-semibold ${unrealizedPnl >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                      {unrealizedPnl >= 0 ? '+' : ''}${unrealizedPnl.toFixed(2)}
+                                    </span>
+                                  </div>
+                                  <div>
+                                    <span className="text-slate-400">If Correct: </span>
+                                    <span className="text-white font-medium">${winPayout.toFixed(2)}</span>
+                                  </div>
+                                </>
+                              );
+                            })()}
                             {position.status === 'won' && (
                               <>
                                 <div>
