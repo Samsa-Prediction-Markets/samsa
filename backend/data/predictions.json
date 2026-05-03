@@ -354,5 +354,30 @@
     "actual_return": 50,
     "created_at": "2026-05-03T07:50:07.267Z",
     "sold_at": "2026-05-03T07:50:12.913Z"
+  },
+  {
+    "id": "siJ9MK3KHGOv",
+    "market_id": "drake_iceman_release",
+    "outcome_id": "no",
+    "user_id": "6055333e-739c-478c-a85b-24b49a7fcd76",
+    "stake_amount": 50,
+    "odds_at_prediction": 45.45,
+    "potential_return": 154.55,
+    "status": "sold",
+    "actual_return": 56.13,
+    "created_at": "2026-05-03T08:07:35.807Z",
+    "sold_at": "2026-05-03T08:08:13.565Z"
+  },
+  {
+    "id": "vPX-k6EvDceH",
+    "market_id": "drake_iceman_release",
+    "outcome_id": "no",
+    "user_id": "6055333e-739c-478c-a85b-24b49a7fcd76",
+    "stake_amount": 50,
+    "odds_at_prediction": 45.45,
+    "potential_return": 77.28,
+    "status": "active",
+    "actual_return": 0,
+    "created_at": "2026-05-03T08:08:59.405Z"
   }
 ]

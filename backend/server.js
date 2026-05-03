@@ -423,7 +423,7 @@ app.post('/api/predictions', async (req, res) => {
     predictions.push(prediction);
     await writeJson(PREDICTIONS_PATH, predictions);
 
-    // Update outcome total_stake, market total_volume, and recalculate prices
+    // Update outcome total_stake, market total_volume, recalculate prices, and record snapshot
     const updatedMarkets = markets.map(m => {
       if (m.id !== market_id) return m;
       const updatedOutcomes = (m.outcomes || []).map(o => {
@@ -432,7 +432,15 @@ app.post('/api/predictions', async (req, res) => {
       });
       const newVolume = (m.total_volume || 0) + stake_amount;
       const pricedOutcomes = recomputeProbabilities(updatedOutcomes, newVolume, m.market_type);
-      return { ...m, outcomes: pricedOutcomes, total_volume: newVolume };
+
+      // Append a new price history snapshot so charts update in real time
+      const snapshot = {
+        timestamp: new Date().toISOString(),
+        prices: Object.fromEntries(pricedOutcomes.map(o => [o.id, o.probability]))
+      };
+      const priceHistory = [...(m.price_history || []), snapshot];
+
+      return { ...m, outcomes: pricedOutcomes, total_volume: newVolume, price_history: priceHistory };
     });
     await writeJson(MARKETS_PATH, updatedMarkets);
 
@@ -523,7 +531,14 @@ app.post('/api/positions/sell', async (req, res) => {
       // Use liquidity-smoothed pricing — prevents extreme 0/100% swings
       const pricedOutcomes = recomputeProbabilities(updatedOutcomes, newTotalVolume, m.market_type);
 
-      return { ...m, outcomes: pricedOutcomes, total_volume: newTotalVolume };
+      // Append a new price history snapshot so charts update in real time
+      const snapshot = {
+        timestamp: new Date().toISOString(),
+        prices: Object.fromEntries(pricedOutcomes.map(o => [o.id, o.probability]))
+      };
+      const priceHistory = [...(m.price_history || []), snapshot];
+
+      return { ...m, outcomes: pricedOutcomes, total_volume: newTotalVolume, price_history: priceHistory };
     });
 
     await writeJson(MARKETS_PATH, updatedMarkets);
