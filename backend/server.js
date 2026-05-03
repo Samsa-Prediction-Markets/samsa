@@ -3,6 +3,7 @@ const express = require('express');
 const cors = require('cors');
 const morgan = require('morgan');
 const path = require('path');
+const fs = require('fs').promises;
 const { nanoid } = require('nanoid');
 const { Op } = require('sequelize');
 
@@ -951,12 +952,68 @@ app.get('*', (req, res) => {
 // START SERVER
 // ============================================================================
 
+async function seedMarketsFromJson() {
+  const marketsPath = path.join(__dirname, 'data', 'markets.json');
+  try {
+    const raw = await fs.readFile(marketsPath, 'utf-8');
+    const markets = JSON.parse(raw || '[]');
+    console.log(`📦 Found ${markets.length} markets in JSON, checking database...`);
+
+    for (const m of markets) {
+      const existing = await Market.findByPk(m.id);
+      if (existing) {
+        console.log(`  ⏭️  "${m.title}" already in DB`);
+        continue;
+      }
+      try {
+        await sequelize.transaction(async (t) => {
+          await Market.create({
+            id: m.id, title: m.title, description: m.description,
+            category: m.category, status: m.status || 'active',
+            close_date: m.close_date, resolution_date: m.resolution_date,
+            market_type: m.market_type || 'binary', total_volume: m.total_volume || 0,
+            image_url: m.image_url, winning_outcome_id: m.winning_outcome_id,
+            search_keywords: m.search_keywords
+          }, { transaction: t });
+
+          if (m.outcomes && m.outcomes.length > 0) {
+            await Outcome.bulkCreate(m.outcomes.map(o => ({
+              id: `${m.id}_${o.id}`, market_id: m.id, title: o.title,
+              probability: o.probability || 0, total_stake: o.total_stake || 0
+            })), { transaction: t });
+          }
+
+          if (m.price_history && m.price_history.length > 0) {
+            await PriceHistory.bulkCreate(m.price_history.map(ph => ({
+              market_id: m.id, timestamp: ph.timestamp, prices: ph.prices
+            })), { transaction: t });
+          }
+
+          console.log(`  ✅ Seeded "${m.title}" (${m.outcomes?.length || 0} outcomes)`);
+        });
+      } catch (err) {
+        console.error(`  ❌ Failed "${m.title}": ${err.message}`);
+      }
+    }
+  } catch (err) {
+    console.log(`⚠️  No markets.json found or read error: ${err.message}`);
+  }
+}
+
 async function initDatabase() {
   try {
     await sequelize.authenticate();
     console.log('✅ Database connection established');
     await sequelize.sync({ alter: true });
     console.log('✅ Database synchronized (all tables created/updated)');
+
+    // Auto-seed markets from JSON if database is empty
+    const marketCount = await Market.count();
+    console.log(`📊 Markets in database: ${marketCount}`);
+    if (marketCount === 0) {
+      console.log('🌱 Database empty — seeding from JSON...');
+      await seedMarketsFromJson();
+    }
   } catch (error) {
     console.error('❌ Database initialization failed:', error.message);
     console.error('   Markets, predictions, and positions require a PostgreSQL database.');
