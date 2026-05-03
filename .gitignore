@@ -12,10 +12,31 @@ venv/
 env/
 .venv/
 
-# Environment variables
+# ============================================================
+# Secret / Sensitive files — NEVER commit these
+# ============================================================
+
+# Environment variables (keep .env.example as the safe template)
 .env
 .env.local
 .env.*.local
+frontend/.env
+frontend/.env.local
+frontend/.env.*.local
+backend/.env
+backend/.env.local
+
+# ============================================================
+# User data — JSON files may contain PII / financial records
+# ============================================================
+backend/data/users.json
+backend/data/transactions.json
+backend/data/predictions.json
+
+# ============================================================
+# Rust engine build artifacts
+# ============================================================
+backend/engine/target/
 
 # IDE
 .vscode/
@@ -43,3 +64,7 @@ build/
 *.temp
 .temp/
 .tmp/
+
+# Deployment archives
+*.zip
+*.tar.gz
