@@ -24,7 +24,20 @@ const DATA_DIR = path.join(__dirname, 'data');
 const USERS_PATH = path.join(DATA_DIR, 'users.json');
 const TRANSACTIONS_PATH = path.join(DATA_DIR, 'transactions.json');
 
-app.use(cors());
+// CORS configuration - allow requests from Railway frontend
+const corsOptions = {
+  origin: [
+    'http://localhost:5173',
+    'http://localhost:3000',
+    'https://dobium.up.railway.app',
+    /\.railway\.app$/  // Allow all Railway domains
+  ],
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+};
+
+app.use(cors(corsOptions));
 app.use(express.json());
 app.use(morgan('dev'));
 
