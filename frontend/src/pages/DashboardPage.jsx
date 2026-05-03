@@ -115,7 +115,7 @@ export default function DashboardPage() {
   const [sellLoading, setSellLoading] = useState(false);
   const [sellMsg, setSellMsg] = useState('');
 
-  useEffect(() => {
+  const fetchPredictions = () => {
     api.getPredictions()
       .then(data => {
         const allPreds = Array.isArray(data) ? data : [];
@@ -129,6 +129,13 @@ export default function DashboardPage() {
         setPredictions([]);
         setAllPredictions([]);
       });
+  };
+
+  useEffect(() => {
+    fetchPredictions();
+    // Auto-refresh every 60 seconds so the chart and portfolio value stay live
+    const interval = setInterval(fetchPredictions, 60_000);
+    return () => clearInterval(interval);
   }, [session]);
 
   // Calculate portfolio metrics
@@ -167,9 +174,11 @@ export default function DashboardPage() {
   const settledCount = settledPredictions.length;
   const accuracyPercent = settledCount > 0 ? Math.round((wonCount / settledCount) * 100) : 0;
 
-  // Build equity curve — only changes when trades RESOLVE (win/loss).
-  // Placing an active trade just repositions cash; net worth is unchanged.
-  // Final point is always pinned to portfolioValue so chart and header always match.
+  // Build equity curve:
+  //  - Resolved trades (won/lost) are plotted at their creation timestamp.
+  //  - Active positions contribute a live MTM step stamped at the current time,
+  //    so the right side of the chart always reflects today's valuation.
+  //  - The final point is pinned to portfolioValue so chart == header number.
   const buildEquityPoints = (preds) => {
     if (!preds.length) return [];
 
@@ -182,20 +191,21 @@ export default function DashboardPage() {
     let runningValue = startingBalance;
     const points = [{ date: firstDate, value: runningValue }];
 
+    // Plot each resolved trade at the time it was made
     sorted.forEach(p => {
       if (p.status === 'won') {
-        // Net profit = return - stake
         runningValue += (p.actual_return || 0) - (p.stake_amount || 0);
         points.push({ date: p.created_at, value: runningValue });
       } else if (p.status === 'lost') {
-        // Net loss = stake - refund (actual_return on loss is the refund)
         runningValue -= (p.stake_amount || 0) - (p.actual_return || 0);
         points.push({ date: p.created_at, value: runningValue });
       }
-      // active positions: no equity change, skip
+      // active positions: cash is just repositioned, no equity change yet
     });
 
-    // Add MTM step for each active position so chart reflects live price moves
+    // MTM step for active positions — stamped NOW so the chart shows the
+    // current live valuation on the right side of the time axis
+    const now = new Date().toISOString();
     predictions.forEach(p => {
       const market = markets.find(m => m.id === p.market_id);
       const outcome = market?.outcomes?.find(o => o.id === p.outcome_id);
@@ -204,12 +214,12 @@ export default function DashboardPage() {
       const mtmDelta = (p.stake_amount || 0) * ((currentProb / entryProb) - 1);
       if (Math.abs(mtmDelta) > 0.01) {
         runningValue += mtmDelta;
-        points.push({ date: p.created_at, value: runningValue });
+        points.push({ date: now, value: runningValue });
       }
     });
 
-    // Pin final point to now at exact portfolioValue so chart == header
-    points.push({ date: new Date().toISOString(), value: portfolioValue });
+    // Pin final point to exact portfolioValue so chart == header
+    points.push({ date: now, value: portfolioValue });
     return points;
   };
 
