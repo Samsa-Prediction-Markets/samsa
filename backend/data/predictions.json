@@ -380,5 +380,17 @@
     "actual_return": 56.13,
     "created_at": "2026-05-03T08:08:59.405Z",
     "sold_at": "2026-05-03T08:10:20.036Z"
+  },
+  {
+    "id": "jvFYUm79R3qx",
+    "market_id": "drake_iceman_release",
+    "outcome_id": "yes",
+    "user_id": "2801b19f-f575-4c73-bc03-3ff65ac2d0f9",
+    "stake_amount": 100,
+    "odds_at_prediction": 54.55,
+    "potential_return": 145.45,
+    "status": "active",
+    "actual_return": 0,
+    "created_at": "2026-05-03T08:14:55.529Z"
   }
 ]
