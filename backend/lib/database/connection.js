@@ -41,6 +41,7 @@ function resolveIPv4(dbUrl) {
 
 const dbUrl = resolveIPv4(rawUrl);
 console.log(`🔗 Database: ${isRemote ? 'remote (SSL)' : 'local'}`);
+console.log(`🔗 Connecting to: ${dbUrl.substring(0, 50)}...`);
 
 // Create Sequelize instance with resolved IPv4 URL
 const sequelize = new Sequelize(dbUrl, {
