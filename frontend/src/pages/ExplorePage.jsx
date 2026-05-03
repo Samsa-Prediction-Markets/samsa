@@ -3,6 +3,68 @@ import { useNavigate } from 'react-router-dom';
 import MarketCard from '../components/MarketCard';
 import { useMarkets } from '../hooks/useMarkets';
 
+function TrendingMiniChart({ market }) {
+  const width = 400;
+  const height = 100;
+  const outcomes = market.outcomes || [];
+  const priceHistory = market.price_history || [];
+
+  const trends = outcomes.slice(0, 3).map((o, idx) => {
+    let data;
+
+    if (priceHistory.length > 0) {
+      // Use real price history
+      data = priceHistory.map(snapshot => snapshot.prices[o.id] || o.probability || 20);
+
+      // Ensure minimum 2 points
+      if (data.length < 2) {
+        data = [o.probability || 20, o.probability || 20];
+      }
+    } else {
+      // No history - flat line
+      data = [o.probability || 20, o.probability || 20];
+    }
+
+    return {
+      data: data,
+      color: o.title?.toLowerCase() === 'yes' ? '#22c55e' : o.title?.toLowerCase() === 'no' ? '#ef4444' : ['#3b82f6', '#f59e0b', '#8b5cf6'][idx]
+    };
+  });
+
+  const allValues = trends.flatMap(t => t.data);
+  const minVal = Math.min(...allValues);
+  const maxVal = Math.max(...allValues);
+  const range = maxVal - minVal || 1;
+
+  const getY = (val) => ((maxVal - val) / range) * height;
+  const getX = (idx, total) => (idx / (total - 1)) * width;
+
+  return (
+    <svg className="w-full" viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="xMidYMid meet">
+      {trends.map((trend, idx) => {
+        const points = trend.data.map((val, i) => ({
+          x: getX(i, trend.data.length),
+          y: getY(val)
+        }));
+        const path = points.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x},${p.y}`).join(' ');
+
+        return (
+          <path
+            key={idx}
+            d={path}
+            fill="none"
+            stroke={trend.color}
+            strokeWidth="1.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            opacity="0.8"
+          />
+        );
+      })}
+    </svg>
+  );
+}
+
 const CATEGORIES = ['all', 'politics', 'international', 'environment', 'climate', 'science', 'health', 'finance', 'technology'];
 
 export default function ExplorePage() {
@@ -110,21 +172,60 @@ export default function ExplorePage() {
           </div>
         </div>
 
-        <div className="relative overflow-hidden rounded-2xl bg-slate-900/50 backdrop-blur-xl border border-slate-800 min-h-[320px]">
+        <div className="relative overflow-hidden rounded-2xl bg-slate-900/50 backdrop-blur-xl border border-slate-800">
           {trending.length > 0 && trending[trendingIndex] && (
-            <div className="p-8 animate-fadeIn">
-              <div className="max-w-3xl">
-                <span className="inline-block text-xs font-semibold uppercase tracking-wide px-2.5 py-1 rounded-full bg-yellow-500/20 text-yellow-400 mb-4">
-                  {trending[trendingIndex].category}
-                </span>
-                <h3 className="text-3xl font-bold text-white mb-4">{trending[trendingIndex].title}</h3>
-                <p className="text-slate-400 mb-6">{trending[trendingIndex].description}</p>
-                <button
-                  onClick={() => navigate(`/markets/${trending[trendingIndex].id}`)}
-                  className="px-6 py-3 bg-gradient-to-r from-yellow-500 to-yellow-600 text-slate-950 font-semibold rounded-xl hover:brightness-110 transition"
-                >
-                  View Market
-                </button>
+            <div className="p-6 animate-fadeIn">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* Left: Info & Chart */}
+                <div>
+                  <div className="flex items-center gap-2 mb-3">
+                    <span className="inline-block text-xs font-semibold uppercase tracking-wide px-2.5 py-1 rounded-full bg-yellow-500/20 text-yellow-400">
+                      {trending[trendingIndex].category}
+                    </span>
+                    <span className="flex items-center gap-1.5 text-xs text-green-400 font-medium">
+                      <span className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></span>
+                      Live
+                    </span>
+                  </div>
+                  <h3 className="text-2xl font-bold text-white mb-3 cursor-pointer hover:text-yellow-400 transition-colors" onClick={() => navigate(`/markets/${trending[trendingIndex].id}`)}>
+                    {trending[trendingIndex].title}
+                  </h3>
+                  <p className="text-slate-400 text-sm mb-4">{trending[trendingIndex].description}</p>
+
+                  {/* Mini Chart */}
+                  <div className="bg-slate-800/30 rounded-xl p-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-xs text-slate-400">30-Day Trend</span>
+                    </div>
+                    <TrendingMiniChart market={trending[trendingIndex]} />
+                  </div>
+                </div>
+
+                {/* Right: Outcome Buttons */}
+                <div className="flex flex-col justify-center">
+                  <h4 className="text-sm font-semibold text-slate-400 mb-3">Trade Outcomes</h4>
+                  <div className="space-y-2">
+                    {trending[trendingIndex].outcomes?.slice(0, 4).map((outcome, idx) => {
+                      const isYes = outcome.title?.toLowerCase() === 'yes';
+                      const isNo = outcome.title?.toLowerCase() === 'no';
+                      const colorClass = isYes ? 'bg-green-500/10 border-green-500/50 hover:border-green-500 text-green-400' : isNo ? 'bg-red-500/10 border-red-500/50 hover:border-red-500 text-red-400' : 'bg-blue-500/10 border-blue-500/50 hover:border-blue-500 text-blue-400';
+
+                      return (
+                        <button
+                          key={outcome.id}
+                          onClick={() => navigate(`/markets/${trending[trendingIndex].id}`)}
+                          className={`w-full flex items-center justify-between px-4 py-3 rounded-lg border transition-all ${colorClass}`}
+                        >
+                          <span className="text-white font-medium text-sm">{outcome.title}</span>
+                          <span className="text-lg font-bold">{Math.round(outcome.probability || 0)}¢</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {trending[trendingIndex].outcomes?.length > 4 && (
+                    <p className="text-xs text-slate-500 text-center mt-2">+{trending[trendingIndex].outcomes.length - 4} more options</p>
+                  )}
+                </div>
               </div>
             </div>
           )}
@@ -149,7 +250,7 @@ export default function ExplorePage() {
           <div className="w-8 h-8 border-3 border-slate-700 border-t-yellow-400 rounded-full animate-spin" />
         </div>
       ) : (
-        <div className="columns-1 md:columns-2 lg:columns-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 auto-rows-auto">
           {filtered.map(m => <MarketCard key={m.id} market={m} />)}
         </div>
       )}

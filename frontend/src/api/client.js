@@ -1,4 +1,4 @@
-const API_BASE = import.meta.env.VITE_API_URL || '/api';
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
 
 async function request(endpoint, options = {}) {
   const res = await fetch(`${API_BASE}${endpoint}`, {
@@ -31,6 +31,8 @@ export const api = {
     request(`/predictions${marketId ? `?market_id=${marketId}` : ''}`),
   createPrediction: (data) =>
     request('/predictions', { method: 'POST', body: JSON.stringify(data) }),
+  sellPosition: (data) =>
+    request('/positions/sell', { method: 'POST', body: JSON.stringify(data) }),
 
   // Wallet
   getBalance: (userId) => request(`/users/${userId}/balance`),

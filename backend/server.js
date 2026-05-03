@@ -141,9 +141,52 @@ app.get('/api/leagues/:leagueId/stats', async (req, res) => {
 // ============================================================================
 
 const MARKETS_PATH = path.join(DATA_DIR, 'markets.json');
+const PREDICTIONS_PATH = path.join(DATA_DIR, 'predictions.json');
+
+// Virtual liquidity added to every outcome to prevent extreme 0%/100% prices.
+// Higher value = prices move less on each trade (more stable).
+const BASE_LIQUIDITY = 200;
+
+/**
+ * Recompute outcome probabilities.
+ *
+ * - binary / multi_single: liquidity-smoothed proportional formula, sums to 100%
+ *     prob_i = (B + stake_i) / (n·B + total_volume)
+ *
+ * - multi_multiple: each outcome is an independent binary question anchored at 50%
+ *     prob_i = (B + stake_i) / (2·B + stake_i)
+ *   Outcomes do NOT need to sum to 100% — they are each their own yes/no market.
+ */
+function recomputeProbabilities(outcomes, totalVolume, marketType) {
+  if (marketType === 'multi_multiple') {
+    // Independent binary model — base anchors each outcome at 50%
+    return outcomes.map(o => ({
+      ...o,
+      probability: parseFloat(
+        ((BASE_LIQUIDITY + (o.total_stake || 0)) / (2 * BASE_LIQUIDITY + (o.total_stake || 0)) * 100).toFixed(2)
+      )
+    }));
+  }
+
+  // Proportional model (binary / multi_single) — must sum to 100%
+  const n = outcomes.length;
+  const denom = n * BASE_LIQUIDITY + totalVolume;
+  const raw = outcomes.map(o => (BASE_LIQUIDITY + (o.total_stake || 0)) / denom * 100);
+  // Normalize to exactly 100 (fix floating-point drift)
+  const sum = raw.reduce((a, b) => a + b, 0);
+  return outcomes.map((o, i) => ({
+    ...o,
+    probability: parseFloat((raw[i] + (i === outcomes.length - 1 ? 100 - sum : 0)).toFixed(2))
+  }));
+}
 
 async function getMarkets() {
   try { return await readJson(MARKETS_PATH); }
+  catch { return []; }
+}
+
+async function getPredictions() {
+  try { return await readJson(PREDICTIONS_PATH); }
   catch { return []; }
 }
 
@@ -323,13 +366,12 @@ app.post('/api/markets', async (req, res) => {
 app.get('/api/predictions', async (req, res) => {
   try {
     const { market_id } = req.query;
-    const where = market_id ? { market_id } : {};
-
-    const predictions = await Prediction.findAll({
-      where,
-      order: [['created_at', 'DESC']]
-    });
-
+    let predictions = await getPredictions();
+    if (market_id) {
+      predictions = predictions.filter(p => p.market_id === market_id);
+    }
+    // Sort newest first
+    predictions.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
     res.json(predictions);
   } catch (error) {
     console.error('Get predictions error:', error);
@@ -351,76 +393,154 @@ app.post('/api/predictions', async (req, res) => {
       return res.status(400).json({ error: 'Invalid prediction payload' });
     }
 
-    // Use transaction for atomic operation
-    const result = await sequelize.transaction(async (t) => {
-      // Find market with outcomes
-      const market = await Market.findByPk(market_id, {
-        include: [{ model: Outcome, as: 'outcomes' }],
-        transaction: t
+    // Validate market exists and is active
+    const markets = await getMarkets();
+    const market = markets.find(m => m.id === market_id);
+    if (!market) return res.status(404).json({ error: 'Market not found' });
+    if (market.status !== 'active') return res.status(400).json({ error: 'Market is not active' });
+
+    const outcome = (market.outcomes || []).find(o => o.id === outcome_id);
+    if (!outcome) return res.status(400).json({ error: 'Outcome not found' });
+
+    // Calculate potential return using S(1-p) formula
+    const p = odds_at_prediction / 100;
+    const potential_return = Number((stake_amount + stake_amount * (1 - p)).toFixed(2));
+
+    const prediction = {
+      id: nanoid(12),
+      market_id,
+      outcome_id,
+      user_id,
+      stake_amount,
+      odds_at_prediction,
+      potential_return,
+      status: 'active',
+      actual_return: 0,
+      created_at: new Date().toISOString()
+    };
+
+    const predictions = await getPredictions();
+    predictions.push(prediction);
+    await writeJson(PREDICTIONS_PATH, predictions);
+
+    // Update outcome total_stake, market total_volume, and recalculate prices
+    const updatedMarkets = markets.map(m => {
+      if (m.id !== market_id) return m;
+      const updatedOutcomes = (m.outcomes || []).map(o => {
+        if (o.id !== outcome_id) return o;
+        return { ...o, total_stake: (o.total_stake || 0) + stake_amount };
       });
-
-      if (!market) {
-        throw new Error('Market not found');
-      }
-
-      if (market.status !== 'active') {
-        throw new Error('Market is not active');
-      }
-
-      const outcome = market.outcomes.find((o) => o.id === outcome_id);
-      if (!outcome) {
-        throw new Error('Outcome not found');
-      }
-
-      // Calculate potential return
-      const potential_return = Number((stake_amount * (100 / Math.max(odds_at_prediction, 1))).toFixed(2));
-
-      // Create prediction
-      const prediction = await Prediction.create({
-        id: nanoid(12),
-        market_id,
-        outcome_id,
-        user_id,
-        stake_amount,
-        odds_at_prediction,
-        potential_return,
-        status: 'active',
-        actual_return: 0
-      }, { transaction: t });
-
-      // Update outcome total stake
-      await outcome.update({
-        total_stake: parseFloat(outcome.total_stake) + stake_amount
-      }, { transaction: t });
-
-      // Recalculate market stats
-      const updatedMarket = await Market.findByPk(market_id, {
-        include: [{ model: Outcome, as: 'outcomes' }],
-        transaction: t
-      });
-
-      recomputeMarketStats(updatedMarket);
-
-      // Update market total volume and outcome probabilities
-      await updatedMarket.save({ transaction: t });
-
-      for (const o of updatedMarket.outcomes) {
-        await o.save({ transaction: t });
-      }
-
-      return prediction;
+      const newVolume = (m.total_volume || 0) + stake_amount;
+      const pricedOutcomes = recomputeProbabilities(updatedOutcomes, newVolume, m.market_type);
+      return { ...m, outcomes: pricedOutcomes, total_volume: newVolume };
     });
+    await writeJson(MARKETS_PATH, updatedMarkets);
 
-    res.status(201).json(result);
+    res.status(201).json(prediction);
   } catch (error) {
     console.error('Create prediction error:', error);
-    if (error.message === 'Market not found') {
-      return res.status(404).json({ error: error.message });
-    }
-    if (error.message === 'Market is not active' || error.message === 'Outcome not found') {
-      return res.status(400).json({ error: error.message });
-    }
     res.status(500).json({ error: 'Failed to create prediction' });
+  }
+});
+
+// ============================================================================
+// SELL POSITION
+// ============================================================================
+
+app.post('/api/positions/sell', async (req, res) => {
+  try {
+    const { market_id, outcome_id, user_id, sell_amount } = req.body;
+
+    if (!market_id || !outcome_id || !user_id || typeof sell_amount !== 'number' || sell_amount <= 0) {
+      return res.status(400).json({ error: 'Invalid sell payload' });
+    }
+
+    // Get current market probability for this outcome
+    const markets = await getMarkets();
+    const market = markets.find(m => m.id === market_id);
+    if (!market) return res.status(404).json({ error: 'Market not found' });
+    if (market.status !== 'active') return res.status(400).json({ error: 'Cannot sell on a resolved market' });
+
+    const outcome = (market.outcomes || []).find(o => o.id === outcome_id);
+    if (!outcome) return res.status(400).json({ error: 'Outcome not found' });
+
+    const currentProb = outcome.probability || 50; // current market probability (0-100)
+
+    // Find all active predictions for this user/market/outcome
+    const allPredictions = await getPredictions();
+    const userPositions = allPredictions.filter(
+      p => p.user_id === user_id && p.market_id === market_id && p.outcome_id === outcome_id && p.status === 'active'
+    );
+
+    const totalStake = userPositions.reduce((sum, p) => sum + (p.stake_amount || 0), 0);
+    if (totalStake === 0) return res.status(400).json({ error: 'No active position to sell' });
+    if (sell_amount > totalStake) return res.status(400).json({ error: `Cannot sell more than your position ($${totalStake.toFixed(2)})` });
+
+    // Weighted average entry probability
+    const weightedOddsSum = userPositions.reduce((sum, p) => sum + (p.odds_at_prediction || 50) * (p.stake_amount || 0), 0);
+    const avgEntryProb = weightedOddsSum / totalStake;
+
+    // Sell return = sell_amount × (current_prob / avg_entry_prob)
+    // Capped at 2× sell_amount to prevent absurd returns
+    const sellReturn = Math.min(
+      parseFloat((sell_amount * (currentProb / avgEntryProb)).toFixed(2)),
+      sell_amount * 2
+    );
+
+    // Reduce stakes across predictions (oldest first) until sell_amount is consumed
+    let remaining = sell_amount;
+    const updatedPredictions = allPredictions.map(p => {
+      if (remaining <= 0) return p;
+      if (p.user_id !== user_id || p.market_id !== market_id || p.outcome_id !== outcome_id || p.status !== 'active') return p;
+
+      const stake = p.stake_amount || 0;
+      if (stake <= remaining) {
+        // Sell entire prediction
+        remaining -= stake;
+        return { ...p, status: 'sold', actual_return: parseFloat((stake * (currentProb / avgEntryProb)).toFixed(2)), sold_at: new Date().toISOString() };
+      } else {
+        // Partial sell — reduce stake, keep remainder active
+        const soldPortion = remaining;
+        remaining = 0;
+        return { ...p, stake_amount: parseFloat((stake - soldPortion).toFixed(2)) };
+      }
+    });
+
+    await writeJson(PREDICTIONS_PATH, updatedPredictions);
+
+    // Update market: reduce total_stake on the sold outcome and total_volume,
+    // then recalculate probabilities for all outcomes proportionally.
+    const updatedMarkets = markets.map(m => {
+      if (m.id !== market_id) return m;
+
+      const updatedOutcomes = (m.outcomes || []).map(o => {
+        if (o.id !== outcome_id) return o;
+        return { ...o, total_stake: Math.max(0, (o.total_stake || 0) - sell_amount) };
+      });
+
+      const newTotalVolume = Math.max(0, (m.total_volume || 0) - sell_amount);
+
+      // Use liquidity-smoothed pricing — prevents extreme 0/100% swings
+      const pricedOutcomes = recomputeProbabilities(updatedOutcomes, newTotalVolume, m.market_type);
+
+      return { ...m, outcomes: pricedOutcomes, total_volume: newTotalVolume };
+    });
+
+    await writeJson(MARKETS_PATH, updatedMarkets);
+    const updatedMarket = updatedMarkets.find(m => m.id === market_id);
+
+    res.json({
+      ok: true,
+      sell_amount,
+      sell_return: sellReturn,
+      net_pnl: parseFloat((sellReturn - sell_amount).toFixed(2)),
+      current_probability: currentProb,
+      avg_entry_probability: parseFloat(avgEntryProb.toFixed(2)),
+      market: updatedMarket,
+    });
+  } catch (error) {
+    console.error('Sell position error:', error);
+    res.status(500).json({ error: 'Failed to sell position' });
   }
 });
 

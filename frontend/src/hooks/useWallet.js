@@ -5,7 +5,7 @@ import { useAuth } from './useAuth';
 export function useWallet() {
   const { session } = useAuth();
   const userId = session?.user?.id || 'demo';
-  const [balance, setBalance] = useState(0);
+  const [balance, setBalance] = useState(100000); // Paper trading starting balance
   const [transactions, setTransactions] = useState([]);
   const [loading, setLoading] = useState(false);
 
@@ -13,8 +13,8 @@ export function useWallet() {
     try {
       setLoading(true);
       const data = await api.getBalance(userId);
-      setBalance(data.balance || 0);
-    } catch { setBalance(0); } finally { setLoading(false); }
+      setBalance(data.balance || 100000); // Default to $100K for paper trading
+    } catch { setBalance(100000); } finally { setLoading(false); }
   }, [userId]);
 
   const fetchTransactions = useCallback(async () => {

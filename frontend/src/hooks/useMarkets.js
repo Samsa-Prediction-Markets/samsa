@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { api } from '../api/client';
 
 export function useMarkets() {
   const [markets, setMarkets] = useState([]);
@@ -9,13 +10,11 @@ export function useMarkets() {
     async function loadMarkets() {
       try {
         setLoading(true);
-        const response = await fetch('/markets.json');
-        if (!response.ok) throw new Error('Failed to load markets');
-        const data = await response.json();
+        const data = await api.getMarkets();
         setMarkets(Array.isArray(data) ? data : []);
         setError(null);
       } catch (err) {
-        console.error('Error loading markets:', err);
+        console.error('Error loading markets from API:', err);
         setError(err.message);
         setMarkets([]);
       } finally {

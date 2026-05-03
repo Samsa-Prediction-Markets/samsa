@@ -188,14 +188,27 @@ def get_or_create_market(market_id: str, b: float = 100, initial_prob: float = 0
 # HELPER FUNCTIONS
 # ============================================================================
 
+def update_price(p: float, trade_size: float, direction: str) -> float:
+    """Update price based on trade size and direction"""
+    k = 0.001  # sensitivity
+    
+    if direction == "YES":
+        p += k * trade_size
+    else:
+        p -= k * trade_size
+    
+    return max(0.01, min(0.99, p))
+
 def recompute_market_stats(market: dict) -> None:
     """Recompute market statistics after a trade"""
     total_stake = sum(o.get('total_stake', 0) for o in market['outcomes'])
     market['total_volume'] = total_stake
     
-    if total_stake > 0:
+    # Normalize probabilities to ensure they sum to 100%
+    total_prob = sum(o.get('probability', 0) for o in market['outcomes'])
+    if total_prob > 0:
         for outcome in market['outcomes']:
-            outcome['probability'] = round((outcome.get('total_stake', 0) / total_stake) * 100)
+            outcome['probability'] = round((outcome.get('probability', 0) / total_prob) * 100, 2)
 
 # ============================================================================
 # STATIC FILE ROUTES
@@ -261,14 +274,16 @@ def create_market():
     
     markets = read_json(MARKETS_PATH)
     
-    # Normalize outcomes
+    # Normalize outcomes - all start with equal probabilities
     normalized_outcomes = []
-    for o in outcomes:
+    equal_prob = round(100 / len(outcomes), 2)  # Equal probability for all outcomes
+    
+    for i, o in enumerate(outcomes):
         normalized_outcomes.append({
             'id': o.get('id') or generate_id(8),
             'title': o.get('title'),
-            'probability': o.get('probability') if isinstance(o.get('probability'), (int, float)) else round(100 / len(outcomes)),
-            'total_stake': o.get('total_stake') if isinstance(o.get('total_stake'), (int, float)) else 0
+            'probability': equal_prob,
+            'total_stake': 0
         })
     
     market = {
@@ -283,7 +298,11 @@ def create_market():
         'total_volume': 0,
         'image_url': image_url,
         'winning_outcome_id': None,
-        'search_keywords': search_keywords
+        'search_keywords': search_keywords,
+        'price_history': [{
+            'timestamp': datetime.utcnow().isoformat() + 'Z',
+            'prices': {o['id']: o['probability'] for o in normalized_outcomes}
+        }]
     }
     
     recompute_market_stats(market)
@@ -356,66 +375,101 @@ def get_predictions():
 @app.route('/api/predictions', methods=['POST'])
 def create_prediction():
     """Create a new prediction (place a trade)"""
-    data = request.get_json()
-    
-    market_id = data.get('market_id')
-    outcome_id = data.get('outcome_id')
-    stake_amount = data.get('stake_amount')
-    odds_at_prediction = data.get('odds_at_prediction')
-    user_id = data.get('user_id')
-    
-    # Validation
-    if not market_id or not outcome_id or not isinstance(stake_amount, (int, float)) or not isinstance(odds_at_prediction, (int, float)):
-        return jsonify({'error': 'Invalid prediction payload'}), 400
-    
-    markets = read_json(MARKETS_PATH)
-    predictions = read_json(PREDICTIONS_PATH)
-    
-    market = next((m for m in markets if m['id'] == market_id), None)
-    if not market:
-        return jsonify({'error': 'Market not found'}), 404
-    
-    if market['status'] != 'active':
-        return jsonify({'error': 'Market is not active'}), 400
-    
-    outcome = next((o for o in market['outcomes'] if o['id'] == outcome_id), None)
-    if not outcome:
-        return jsonify({'error': 'Outcome not found'}), 404
-    
-    # Get LMSR breakdown
-    breakdown = LMSRMarket.get_trade_breakdown(stake_amount, odds_at_prediction)
-    
-    # Update LMSR market state
-    lmsr_market = get_or_create_market(market_id, 100, odds_at_prediction / 100)
-    side = 'YES' if outcome_id == market['outcomes'][0]['id'] else 'NO'
-    new_probability = lmsr_market.invest(side, stake_amount)
-    
-    prediction = {
-        'id': generate_id(12),
-        'market_id': market_id,
-        'outcome_id': outcome_id,
-        'stake_amount': stake_amount,
-        'odds_at_prediction': odds_at_prediction,
-        'potential_return': round(breakdown['win']['total_return'], 2),
-        'potential_profit': round(breakdown['win']['profit'], 2),
-        'potential_refund': round(breakdown['lose']['refund'], 2),
-        'status': 'active',
-        'actual_return': 0,
-        'user_id': user_id,
-        'created_at': datetime.utcnow().isoformat() + 'Z',
-        'lmsr_breakdown': breakdown
-    }
-    
-    predictions.append(prediction)
-    
-    # Update market outcome stake
-    outcome['total_stake'] = outcome.get('total_stake', 0) + stake_amount
-    recompute_market_stats(market)
-    
-    write_json(PREDICTIONS_PATH, predictions)
-    write_json(MARKETS_PATH, markets)
-    
-    return jsonify(prediction), 201
+    try:
+        data = request.get_json()
+        
+        market_id = data.get('market_id')
+        outcome_id = data.get('outcome_id')
+        stake_amount = data.get('stake_amount')
+        odds_at_prediction = data.get('odds_at_prediction')
+        user_id = data.get('user_id')
+        
+        print(f"Creating prediction: market={market_id}, outcome={outcome_id}, stake={stake_amount}")
+        
+        # Validation
+        if not market_id or not outcome_id or not isinstance(stake_amount, (int, float)) or not isinstance(odds_at_prediction, (int, float)):
+            return jsonify({'error': 'Invalid prediction payload'}), 400
+        
+        markets = read_json(MARKETS_PATH)
+        predictions = read_json(PREDICTIONS_PATH)
+        
+        market = next((m for m in markets if m['id'] == market_id), None)
+        if not market:
+            return jsonify({'error': 'Market not found'}), 404
+        
+        if market['status'] != 'active':
+            return jsonify({'error': 'Market is not active'}), 400
+        
+        outcome = next((o for o in market['outcomes'] if o['id'] == outcome_id), None)
+        if not outcome:
+            return jsonify({'error': 'Outcome not found'}), 404
+        
+        # Update price dynamically based on trade
+        current_prob = outcome.get('probability', 50) / 100.0
+        new_prob = update_price(current_prob, stake_amount, "YES")
+        outcome['probability'] = round(new_prob * 100, 2)
+        
+        # Adjust other outcomes proportionally
+        remaining_prob = 100 - outcome['probability']
+        other_outcomes = [o for o in market['outcomes'] if o['id'] != outcome_id]
+        if other_outcomes:
+            total_other_prob = sum(o.get('probability', 0) for o in other_outcomes)
+            if total_other_prob > 0:
+                for other in other_outcomes:
+                    other['probability'] = round((other.get('probability', 0) / total_other_prob) * remaining_prob, 2)
+        
+        # Record price history snapshot
+        if 'price_history' not in market:
+            market['price_history'] = []
+        
+        # Add current snapshot with timestamp
+        snapshot = {
+            'timestamp': datetime.utcnow().isoformat() + 'Z',
+            'prices': {o['id']: o['probability'] for o in market['outcomes']}
+        }
+        market['price_history'].append(snapshot)
+        
+        # Keep only last 100 snapshots to avoid bloat
+        if len(market['price_history']) > 100:
+            market['price_history'] = market['price_history'][-100:]
+        
+        # Get LMSR breakdown for payout calculation
+        breakdown = LMSRMarket.get_trade_breakdown(stake_amount, outcome['probability'])
+        
+        prediction = {
+            'id': generate_id(12),
+            'market_id': market_id,
+            'outcome_id': outcome_id,
+            'stake_amount': stake_amount,
+            'odds_at_prediction': odds_at_prediction,
+            'potential_return': round(breakdown['win']['total_return'], 2),
+            'potential_profit': round(breakdown['win']['profit'], 2),
+            'potential_refund': round(breakdown['lose']['refund'], 2),
+            'status': 'active',
+            'actual_return': 0,
+            'user_id': user_id,
+            'created_at': datetime.utcnow().isoformat() + 'Z',
+            'lmsr_breakdown': breakdown
+        }
+        
+        predictions.append(prediction)
+        
+        # Update market outcome stake
+        outcome['total_stake'] = outcome.get('total_stake', 0) + stake_amount
+        
+        # Recalculate all probabilities from LMSR state
+        recompute_market_stats(market)
+        
+        write_json(PREDICTIONS_PATH, predictions)
+        write_json(MARKETS_PATH, markets)
+        
+        print(f"Prediction created successfully: {prediction['id']}")
+        return jsonify(prediction), 201
+    except Exception as e:
+        print(f"Error creating prediction: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': f'Failed to create prediction: {str(e)}'}), 500
 
 # --- LMSR API ---
 
