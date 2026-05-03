@@ -1,4 +1,9 @@
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+// Use relative URL in production (same domain), absolute for local dev
+const API_BASE = import.meta.env.VITE_API_URL || (
+  typeof window !== 'undefined' && window.location.hostname !== 'localhost'
+    ? '/api'  // Production: relative URL (same domain)
+    : 'http://localhost:3001/api'  // Development: absolute URL
+);
 
 async function request(endpoint, options = {}) {
   const res = await fetch(`${API_BASE}${endpoint}`, {
