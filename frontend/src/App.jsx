@@ -5,7 +5,6 @@ import AuthPage from './pages/AuthPage';
 import DashboardPage from './pages/DashboardPage';
 import ExplorePage from './pages/ExplorePage';
 import MarketDetailPage from './pages/MarketDetailPage';
-import PortfolioPage from './pages/PortfolioPage';
 import NewsPage from './pages/NewsPage';
 import SettingsPage from './pages/SettingsPage';
 
@@ -37,13 +36,13 @@ function AppRoutes() {
       <Routes>
         <Route path="/auth" element={<Navigate to="/" replace />} />
         <Route element={<Layout />}>
-          <Route path="/"          element={<DashboardPage />} />
-          <Route path="/explore"   element={<ExplorePage />} />
-          <Route path="/portfolio" element={<PortfolioPage />} />
+          <Route path="/"           element={<DashboardPage />} />
+          <Route path="/explore"    element={<ExplorePage />} />
+          <Route path="/portfolio"  element={<Navigate to="/" replace />} />
           <Route path="/markets/:id" element={<MarketDetailPage />} />
-          <Route path="/news"      element={<NewsPage />} />
-          <Route path="/settings"  element={<SettingsPage />} />
-          <Route path="*"          element={<Navigate to="/" replace />} />
+          <Route path="/news"       element={<NewsPage />} />
+          <Route path="/settings"   element={<SettingsPage />} />
+          <Route path="*"           element={<Navigate to="/" replace />} />
         </Route>
       </Routes>
     </BrowserRouter>
