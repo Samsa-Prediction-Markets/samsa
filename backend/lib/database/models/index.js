@@ -31,6 +31,13 @@ Transaction.belongsTo(User, {
  */
 async function initializeDatabase(force = false) {
   try {
+    // SAFETY: Never allow force=true in production
+    if (force && process.env.NODE_ENV === 'production') {
+      console.error('❌ PREVENTED: Cannot reset database in production environment');
+      console.error('   To reset production database, you must do it manually');
+      force = false;
+    }
+
     await sequelize.sync({ force, alter: !force });
     console.log(`✅ Database ${force ? 'reset' : 'synchronized'} successfully`);
     return true;
