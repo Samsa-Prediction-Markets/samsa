@@ -175,10 +175,12 @@ export default function DashboardPage() {
   const accuracyPercent = settledCount > 0 ? Math.round((wonCount / settledCount) * 100) : 0;
 
   // Build equity curve:
-  //  - Resolved trades (won/lost) are plotted at their creation timestamp.
-  //  - Active positions contribute a live MTM step stamped at the current time,
-  //    so the right side of the chart always reflects today's valuation.
-  //  - The final point is pinned to portfolioValue so chart == header number.
+  //  - Only resolved trades (won/lost) create real equity steps, plotted at
+  //    their creation timestamp.
+  //  - Active positions do NOT add intermediate points. Their live value is
+  //    captured by the final pin to portfolioValue (same EV formula as header).
+  //    The old per-position MTM loop used a different formula, creating false spikes.
+  //  - Final point pinned to portfolioValue at now → chart always matches header.
   const buildEquityPoints = (preds) => {
     if (!preds.length) return [];
 
@@ -186,12 +188,11 @@ export default function DashboardPage() {
       .filter(p => p.created_at)
       .sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
 
-    // Anchor: starting balance at the time of the very first prediction
     const firstDate = sorted[0].created_at;
     let runningValue = startingBalance;
     const points = [{ date: firstDate, value: runningValue }];
 
-    // Plot each resolved trade at the time it was made
+    // Only resolved trades change real equity
     sorted.forEach(p => {
       if (p.status === 'won') {
         runningValue += (p.actual_return || 0) - (p.stake_amount || 0);
@@ -200,26 +201,11 @@ export default function DashboardPage() {
         runningValue -= (p.stake_amount || 0) - (p.actual_return || 0);
         points.push({ date: p.created_at, value: runningValue });
       }
-      // active positions: cash is just repositioned, no equity change yet
+      // active: no equity change until resolved
     });
 
-    // MTM step for active positions — stamped NOW so the chart shows the
-    // current live valuation on the right side of the time axis
-    const now = new Date().toISOString();
-    predictions.forEach(p => {
-      const market = markets.find(m => m.id === p.market_id);
-      const outcome = market?.outcomes?.find(o => o.id === p.outcome_id);
-      const currentProb = outcome?.probability ?? p.odds_at_prediction ?? 50;
-      const entryProb = p.odds_at_prediction || 50;
-      const mtmDelta = (p.stake_amount || 0) * ((currentProb / entryProb) - 1);
-      if (Math.abs(mtmDelta) > 0.01) {
-        runningValue += mtmDelta;
-        points.push({ date: now, value: runningValue });
-      }
-    });
-
-    // Pin final point to exact portfolioValue so chart == header
-    points.push({ date: now, value: portfolioValue });
+    // Pin to portfolioValue at now — single source of truth for live valuation
+    points.push({ date: new Date().toISOString(), value: portfolioValue });
     return points;
   };
 
