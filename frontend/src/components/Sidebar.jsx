@@ -73,34 +73,50 @@ export default function Sidebar() {
           </nav>
 
           {/* Avatar button — replaces Settings + Logout */}
-          <div className="sidebar-footer" style={{ position: 'relative' }}>
+          <div className="sidebar-footer" style={{ position: 'relative', overflow: 'visible' }}>
             <button
               ref={avatarRef}
               onClick={() => setMenuOpen(v => !v)}
               className="sidebar-item"
-              style={{ padding: '8px', position: 'relative' }}
+              style={{
+                padding: '8px',
+                position: 'relative',
+                width: '100%',
+                justifyContent: 'flex-start'
+              }}
               title={displayName}
             >
-              <div className="sidebar-item-icon">
+              <div className="sidebar-item-icon" style={{ minWidth: 40, width: 40, height: 40 }}>
                 {avatarUrl ? (
                   <img
                     src={avatarUrl}
                     alt={displayName}
                     style={{
-                      width: 36, height: 36, borderRadius: '50%',
+                      width: 40,
+                      height: 40,
+                      borderRadius: '50%',
                       objectFit: 'cover',
                       border: menuOpen ? '2px solid rgb(212,175,55)' : '2px solid transparent',
                       transition: 'border-color 0.2s',
+                      display: 'block',
+                      flexShrink: 0
                     }}
                   />
                 ) : (
                   <div style={{
-                    width: 36, height: 36, borderRadius: '50%',
+                    width: 40,
+                    height: 40,
+                    borderRadius: '50%',
                     background: 'linear-gradient(135deg, rgb(212,175,55), #f59e0b)',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    fontSize: 14, fontWeight: 700, color: '#0f172a',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: 14,
+                    fontWeight: 700,
+                    color: '#0f172a',
                     border: menuOpen ? '2px solid rgb(212,175,55)' : '2px solid transparent',
                     transition: 'border-color 0.2s',
+                    flexShrink: 0
                   }}>
                     {initials}
                   </div>
@@ -116,16 +132,16 @@ export default function Sidebar() {
               <div
                 ref={menuRef}
                 style={{
-                  position: 'absolute',
-                  bottom: 0,
-                  left: 'calc(100% + 12px)',
+                  position: 'fixed',
+                  bottom: 24,
+                  left: 96,
                   background: '#1e293b',
                   border: '1px solid #334155',
                   borderRadius: 12,
                   padding: '8px',
                   minWidth: 200,
                   boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
-                  zIndex: 1000,
+                  zIndex: 9999,
                   animation: 'slideInLeft 0.15s ease-out',
                 }}
               >
