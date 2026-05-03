@@ -1,24 +1,206 @@
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { api } from '../api/client';
 import { useMarkets } from '../hooks/useMarkets';
 
-// Robinhood-style equity chart
+// ============================================================================
+// Robinhood-style dual-canvas equity chart
+// Base canvas:    bezier curve + gradient fill  (redraws only when data changes)
+// Overlay canvas: pulsing live dot + crosshair  (requestAnimationFrame, 60fps)
+// ============================================================================
 function EquityChart({ equityPoints, startingBalance, currentValue }) {
-  const svgRef = useRef(null);
-  const [hover, setHover] = useState(null);
-  const W = 800, H = 200, PX = 0, PY = 16;
+  const baseRef    = useRef(null);
+  const overlayRef = useRef(null);
+  const hoverRef   = useRef(null);   // shared between RAF loop and mouse handler
+  const animRef    = useRef(null);
+  const scaleRef   = useRef(null);   // cached scale data so RAF doesn't recompute
+  const [tooltip, setTooltip] = useState(null);
 
-  // CSS for pulsing live dot animation
-  const pulseStyle = `
-    @keyframes eq-pulse {
-      0%, 100% { opacity: 0.7; r: 10; }
-      50%       { opacity: 0;   r: 18; }
-    }
-    .eq-pulse-ring { animation: eq-pulse 2s ease-in-out infinite; transform-box: fill-box; transform-origin: center; }
-  `;
+  const isProfit  = currentValue >= startingBalance;
+  const lineColor = isProfit ? '#22c55e' : '#ef4444';
+  const colorRgb  = isProfit ? '34,197,94' : '239,68,68';
+  const PAD       = { t: 20, r: 8, b: 8, l: 8 };
 
+  // ── Compute pixel coordinates from data ──────────────────────────────────
+  const computeScale = useCallback((w, h) => {
+    if (!equityPoints || equityPoints.length < 2) return null;
+    const gw = w - PAD.l - PAD.r;
+    const gh = h - PAD.t - PAD.b;
+    const vals     = equityPoints.map(p => p.value);
+    const allVals  = [startingBalance, ...vals];
+    const dataMin  = Math.min(...allVals);
+    const dataMax  = Math.max(...allVals);
+    const pad      = Math.max((dataMax - dataMin) * 0.15, 50);
+    const min      = dataMin - pad;
+    const max      = dataMax + pad;
+    const range    = max - min || 1;
+    const xs       = equityPoints.map((_, i) => PAD.l + (i / (equityPoints.length - 1)) * gw);
+    const ys       = equityPoints.map(p  => PAD.t + (1 - (p.value - min) / range) * gh);
+    const baselineY = PAD.t + (1 - (startingBalance - min) / range) * gh;
+    return { xs, ys, baselineY, w, h, gw, gh };
+  }, [equityPoints, startingBalance, PAD.l, PAD.r, PAD.t, PAD.b]);
+
+  // ── Draw bezier line + gradient fill on base canvas ──────────────────────
+  useEffect(() => {
+    const canvas = baseRef.current;
+    if (!canvas || !equityPoints || equityPoints.length < 2) return;
+
+    const rect = canvas.getBoundingClientRect();
+    const dpr  = window.devicePixelRatio || 1;
+    canvas.width  = rect.width  * dpr;
+    canvas.height = rect.height * dpr;
+    const ctx = canvas.getContext('2d');
+    ctx.scale(dpr, dpr);
+
+    const W = rect.width;
+    const H = rect.height;
+    const scale = computeScale(W, H);
+    if (!scale) return;
+    scaleRef.current = scale;   // cache for RAF loop
+
+    const { xs, ys, baselineY } = scale;
+    ctx.clearRect(0, 0, W, H);
+
+    // Dashed baseline at starting balance
+    ctx.beginPath();
+    ctx.setLineDash([6, 4]);
+    ctx.strokeStyle = '#475569';
+    ctx.lineWidth   = 1;
+    ctx.globalAlpha = 0.5;
+    ctx.moveTo(0, baselineY);
+    ctx.lineTo(W, baselineY);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.globalAlpha = 1;
+
+    // ── Bezier path (Robinhood S-curve) ─────────────────────────────────────
+    // Both control points share the midpoint x — one anchored to prev y,
+    // one to next y. Produces the characteristic smooth but data-faithful curve.
+    const buildPath = (ctx) => {
+      ctx.moveTo(xs[0], ys[0]);
+      for (let i = 1; i < xs.length; i++) {
+        const cpx = (xs[i - 1] + xs[i]) / 2;
+        ctx.bezierCurveTo(cpx, ys[i - 1], cpx, ys[i], xs[i], ys[i]);
+      }
+    };
+
+    // Gradient fill below the curve
+    const grad = ctx.createLinearGradient(0, PAD.t, 0, H - PAD.b);
+    grad.addColorStop(0, `rgba(${colorRgb}, 0.22)`);
+    grad.addColorStop(1, `rgba(${colorRgb}, 0)`);
+    ctx.beginPath();
+    buildPath(ctx);
+    ctx.lineTo(xs[xs.length - 1], H - PAD.b);
+    ctx.lineTo(xs[0], H - PAD.b);
+    ctx.closePath();
+    ctx.fillStyle = grad;
+    ctx.fill();
+
+    // Stroke the curve on top
+    ctx.beginPath();
+    buildPath(ctx);
+    ctx.strokeStyle = lineColor;
+    ctx.lineWidth   = 2.5;
+    ctx.lineJoin    = 'round';
+    ctx.lineCap     = 'round';
+    ctx.stroke();
+  }, [equityPoints, startingBalance, lineColor, colorRgb, computeScale]);
+
+  // ── Overlay: pulsing dot + crosshair at 60fps ─────────────────────────────
+  useEffect(() => {
+    const overlay = overlayRef.current;
+    if (!overlay) return;
+    let phase = 0;
+
+    const frame = () => {
+      const rect = overlay.getBoundingClientRect();
+      const dpr  = window.devicePixelRatio || 1;
+      overlay.width  = rect.width  * dpr;
+      overlay.height = rect.height * dpr;
+      const ctx = overlay.getContext('2d');
+      ctx.scale(dpr, dpr);
+
+      const W = rect.width;
+      const H = rect.height;
+      ctx.clearRect(0, 0, W, H);
+
+      // Re-compute scale if not cached yet
+      const scale = scaleRef.current || computeScale(W, H);
+      if (!scale) { animRef.current = requestAnimationFrame(frame); return; }
+
+      const { xs, ys } = scale;
+      const lastX = xs[xs.length - 1];
+      const lastY = ys[ys.length - 1];
+      const hover  = hoverRef.current;
+
+      if (!hover) {
+        // ── Pulsing live dot ──────────────────────────────────────────────
+        phase += 0.04;
+        const pulse  = (Math.sin(phase) + 1) / 2;          // 0 → 1
+        const ring   = 7 + pulse * 9;                       // 7px → 16px
+        const alpha  = 0.45 * (1 - pulse);                  // fades as ring grows
+        ctx.beginPath();
+        ctx.arc(lastX, lastY, ring, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(${colorRgb}, ${alpha})`;
+        ctx.fill();
+
+        ctx.beginPath();
+        ctx.arc(lastX, lastY, 5, 0, Math.PI * 2);
+        ctx.fillStyle   = lineColor;
+        ctx.fill();
+        ctx.strokeStyle = '#0f172a';
+        ctx.lineWidth   = 2;
+        ctx.stroke();
+      } else {
+        // ── Crosshair ─────────────────────────────────────────────────────
+        ctx.beginPath();
+        ctx.setLineDash([3, 3]);
+        ctx.strokeStyle = '#94a3b8';
+        ctx.lineWidth   = 1;
+        ctx.globalAlpha = 0.6;
+        ctx.moveTo(hover.x, PAD.t);
+        ctx.lineTo(hover.x, H - PAD.b);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.globalAlpha = 1;
+
+        // Dot on the line
+        ctx.beginPath();
+        ctx.arc(hover.x, hover.y, 5, 0, Math.PI * 2);
+        ctx.fillStyle   = lineColor;
+        ctx.fill();
+        ctx.strokeStyle = '#0f172a';
+        ctx.lineWidth   = 2;
+        ctx.stroke();
+      }
+
+      animRef.current = requestAnimationFrame(frame);
+    };
+
+    animRef.current = requestAnimationFrame(frame);
+    return () => { if (animRef.current) cancelAnimationFrame(animRef.current); };
+  }, [equityPoints, lineColor, colorRgb, computeScale]);
+
+  // ── Mouse interaction ─────────────────────────────────────────────────────
+  const handleMouseMove = useCallback((e) => {
+    const overlay = overlayRef.current;
+    if (!overlay || !equityPoints || !scaleRef.current) return;
+    const rect   = overlay.getBoundingClientRect();
+    const xRatio = (e.clientX - rect.left) / rect.width;
+    const { xs, ys } = scaleRef.current;
+    const idx  = Math.max(0, Math.min(Math.round(xRatio * (xs.length - 1)), xs.length - 1));
+    const data = { x: xs[idx], y: ys[idx], value: equityPoints[idx].value, date: equityPoints[idx].date, pct: xs[idx] / rect.width };
+    hoverRef.current = data;
+    setTooltip(data);
+  }, [equityPoints]);
+
+  const handleMouseLeave = useCallback(() => {
+    hoverRef.current = null;
+    setTooltip(null);
+  }, []);
+
+  // ── Empty state ───────────────────────────────────────────────────────────
   if (!equityPoints || equityPoints.length < 2) {
     return (
       <div className="h-full flex items-center justify-center">
@@ -27,100 +209,35 @@ function EquityChart({ equityPoints, startingBalance, currentValue }) {
     );
   }
 
-  const values = equityPoints.map(p => p.value);
-  const allValues = [startingBalance, ...values];
-  const minVal = Math.min(...allValues);
-  const maxVal = Math.max(...allValues);
-  const pad = Math.max((maxVal - minVal) * 0.2, 500);
-  const chartMin = minVal - pad;
-  const chartMax = maxVal + pad;
-  const range = chartMax - chartMin || 1;
-
-  const getX = (i) => PX + (i / (equityPoints.length - 1)) * (W - PX * 2);
-  const getY = (v) => PY + (1 - (v - chartMin) / range) * (H - PY * 2);
-
-  const points = equityPoints.map((p, i) => ({ x: getX(i), y: getY(p.value), ...p }));
-  const baselineY = getY(startingBalance);
-  const isProfit = currentValue >= startingBalance;
-  const lineColor = isProfit ? '#22c55e' : '#ef4444';
-  const gradId = isProfit ? 'eq-grad-profit' : 'eq-grad-loss';
-
-  const linePath = points.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
-  const areaPath = `${linePath} L${points[points.length-1].x},${H} L${points[0].x},${H} Z`;
-
-  const handleMouseMove = (e) => {
-    const rect = svgRef.current?.getBoundingClientRect();
-    if (!rect) return;
-    const xRatio = (e.clientX - rect.left) / rect.width;
-    const idx = Math.min(Math.round(xRatio * (points.length - 1)), points.length - 1);
-    setHover(points[Math.max(0, idx)]);
-  };
-
   return (
-    <div className="relative w-full h-full" onMouseLeave={() => setHover(null)}>
-      <svg
-        ref={svgRef}
-        className="w-full h-full"
-        viewBox={`0 0 ${W} ${H}`}
-        preserveAspectRatio="none"
+    <div
+      className="relative w-full h-full"
+      onMouseLeave={handleMouseLeave}
+      style={{ position: 'relative' }}
+    >
+      {/* Base canvas — chart line drawn once per data change */}
+      <canvas
+        ref={baseRef}
+        style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%' }}
+      />
+      {/* Overlay canvas — crosshair + pulsing dot at 60fps */}
+      <canvas
+        ref={overlayRef}
+        style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', cursor: 'crosshair' }}
         onMouseMove={handleMouseMove}
-      >
-        <defs>
-          <style>{pulseStyle}</style>
-          <linearGradient id="eq-grad-profit" x1="0%" y1="0%" x2="0%" y2="100%">
-            <stop offset="0%" style={{ stopColor: '#22c55e', stopOpacity: 0.25 }} />
-            <stop offset="100%" style={{ stopColor: '#22c55e', stopOpacity: 0 }} />
-          </linearGradient>
-          <linearGradient id="eq-grad-loss" x1="0%" y1="0%" x2="0%" y2="100%">
-            <stop offset="0%" style={{ stopColor: '#ef4444', stopOpacity: 0.25 }} />
-            <stop offset="100%" style={{ stopColor: '#ef4444', stopOpacity: 0 }} />
-          </linearGradient>
-        </defs>
-
-        {/* Baseline */}
-        <line x1={0} y1={baselineY} x2={W} y2={baselineY}
-          stroke="#475569" strokeWidth="1" strokeDasharray="6,4" opacity="0.5" />
-
-        {/* Area fill */}
-        <path d={areaPath} fill={`url(#${gradId})`} />
-
-        {/* Equity line */}
-        <path d={linePath} fill="none" stroke={lineColor} strokeWidth="2.5"
-          strokeLinecap="round" strokeLinejoin="round" />
-
-        {/* Hover scrubber */}
-        {hover && (
-          <>
-            <line x1={hover.x} y1={PY} x2={hover.x} y2={H - PY}
-              stroke="#94a3b8" strokeWidth="1" strokeDasharray="3,3" opacity="0.6" />
-            <circle cx={hover.x} cy={hover.y} r="5" fill={lineColor} stroke="#0f172a" strokeWidth="2" />
-          </>
-        )}
-
-        {/* Live current-value dot — hidden while scrubbing */}
-        {!hover && points.length > 0 && (() => {
-          const last = points[points.length - 1];
-          return (
-            <>
-              {/* Pulse ring */}
-              <circle className="eq-pulse-ring" cx={last.x} cy={last.y} r="10"
-                fill={lineColor} opacity="0.35" />
-              {/* Solid dot */}
-              <circle cx={last.x} cy={last.y} r="5"
-                fill={lineColor} stroke="#0f172a" strokeWidth="2" />
-            </>
-          );
-        })()}
-      </svg>
-
-      {/* Hover tooltip */}
-      {hover && (
+      />
+      {/* Floating tooltip */}
+      {tooltip && (
         <div
-          className="absolute top-2 pointer-events-none px-3 py-1.5 bg-slate-800/90 border border-slate-700 rounded-lg text-xs"
-          style={{ left: `${Math.min(Math.max((hover.x / W) * 100, 5), 75)}%` }}
+          className="absolute top-2 pointer-events-none px-3 py-1.5 bg-slate-800/90 border border-slate-700 rounded-lg text-xs z-10"
+          style={{ left: `${Math.min(Math.max(tooltip.pct * 100, 5), 72)}%` }}
         >
-          <p className="text-white font-semibold">${hover.value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
-          <p className="text-slate-400">{new Date(hover.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>
+          <p className="text-white font-semibold">
+            ${tooltip.value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+          </p>
+          <p className="text-slate-400">
+            {new Date(tooltip.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+          </p>
         </div>
       )}
     </div>
