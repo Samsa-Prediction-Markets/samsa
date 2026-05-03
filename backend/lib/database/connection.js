@@ -4,46 +4,54 @@
 // Manages PostgreSQL connection using Sequelize ORM
 
 const { Sequelize } = require('sequelize');
-const dns = require('dns');
-
-// Force ALL DNS lookups to IPv4 — Railway cannot reach Supabase over IPv6
-dns.setDefaultResultOrder('ipv4first');
-const origLookup = dns.lookup;
-dns.lookup = function (hostname, options, callback) {
-  if (typeof options === 'function') {
-    callback = options;
-    options = { family: 4 };
-  } else if (typeof options === 'number') {
-    options = { family: 4 };
-  } else if (typeof options === 'object') {
-    options = { ...options, family: 4 };
-  } else {
-    options = { family: 4 };
-  }
-  return origLookup.call(this, hostname, options, callback);
-};
+const { execSync } = require('child_process');
 
 // Load environment variables
 require('dotenv').config();
 
-// Determine if we need SSL (any remote database, not just production)
-const dbUrl = process.env.DATABASE_URL || 'postgresql://localhost:5432/samsa_dev';
-const isRemote = !dbUrl.includes('localhost') && !dbUrl.includes('127.0.0.1');
+const rawUrl = process.env.DATABASE_URL || 'postgresql://localhost:5432/samsa_dev';
+const isRemote = !rawUrl.includes('localhost') && !rawUrl.includes('127.0.0.1');
 
-console.log(`🔗 Database URL: ${dbUrl ? dbUrl.substring(0, 30) + '...' : 'NOT SET'}`);
-console.log(`🔒 SSL enabled: ${isRemote}`);
+/**
+ * Resolve a hostname to IPv4 synchronously.
+ * Railway cannot reach Supabase over IPv6, so we resolve to IPv4 first
+ * and replace the hostname in the URL with the IP address.
+ */
+function resolveIPv4(dbUrl) {
+  if (!isRemote) return dbUrl;
+  try {
+    const urlObj = new URL(dbUrl);
+    const hostname = urlObj.hostname;
+    // Spawn a child process to resolve DNS to IPv4
+    const ip = execSync(
+      `node -e "require('dns').resolve4('${hostname}', (e,a) => process.stdout.write(a && a[0] || ''))"`,
+      { encoding: 'utf-8', timeout: 10000 }
+    ).trim();
+    if (ip) {
+      console.log(`🌐 Resolved ${hostname} → ${ip} (IPv4)`);
+      urlObj.hostname = ip;
+      return urlObj.toString();
+    }
+    console.warn(`⚠️  No IPv4 address found for ${hostname}`);
+  } catch (err) {
+    console.warn(`⚠️  IPv4 resolution failed: ${err.message}`);
+  }
+  return dbUrl;
+}
 
-// Create Sequelize instance
+const dbUrl = resolveIPv4(rawUrl);
+console.log(`🔗 Database: ${isRemote ? 'remote (SSL)' : 'local'}`);
+
+// Create Sequelize instance with resolved IPv4 URL
 const sequelize = new Sequelize(dbUrl, {
   dialect: 'postgres',
-  logging: false, // Set to console.log to see SQL queries
+  logging: false,
   pool: {
-    max: 20,        // Maximum number of connections
-    min: 0,         // Minimum number of connections
-    acquire: 30000, // Maximum time (ms) to get connection
-    idle: 10000     // Maximum time (ms) connection can be idle
+    max: 20,
+    min: 0,
+    acquire: 30000,
+    idle: 10000
   },
-  // Enable SSL for any remote database (Supabase, Railway, etc.)
   dialectOptions: isRemote ? {
     ssl: {
       require: true,
