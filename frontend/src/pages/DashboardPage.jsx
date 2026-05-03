@@ -430,6 +430,9 @@ export default function DashboardPage() {
                             const outcome = market?.outcomes?.find(o => o.id === outcomeId);
                             const currentProb = outcome?.probability ?? 50;
                             const avgEntry = data.totalStake > 0 ? data.weightedOdds / data.totalStake : 50;
+                            // Mark-to-market: current value based on live price vs entry
+                            const mtmValue = data.totalStake * (currentProb / avgEntry);
+                            const unrealizedPnl = mtmValue - data.totalStake;
                             const sellKey = `${marketId}__${outcomeId}`;
                             const isSelling = sellingKey === sellKey;
                             const sellAmt = parseFloat(sellAmount) || 0;
@@ -467,7 +470,22 @@ export default function DashboardPage() {
                                 <div className="flex items-center justify-between text-xs">
                                   <span className="text-slate-400">{outcome?.title || 'Unknown'}</span>
                                   <div className="flex items-center gap-2">
-                                    <span className="text-green-400 font-medium">${data.totalStake.toFixed(2)}</span>
+                                    <div className="text-right">
+                                      {/* Live MTM value — red if below cost, green if above */}
+                                      <span className={`font-semibold ${
+                                        mtmValue < data.totalStake ? 'text-red-400' :
+                                        mtmValue > data.totalStake ? 'text-green-400' : 'text-slate-300'
+                                      }`}>
+                                        ${mtmValue.toFixed(2)}
+                                      </span>
+                                      {/* Unrealized P&L delta */}
+                                      <span className={`block text-[10px] leading-tight ${
+                                        unrealizedPnl < 0 ? 'text-red-500' :
+                                        unrealizedPnl > 0 ? 'text-green-500' : 'text-slate-500'
+                                      }`}>
+                                        {unrealizedPnl >= 0 ? '+' : ''}${unrealizedPnl.toFixed(2)}
+                                      </span>
+                                    </div>
                                     <button
                                       onClick={e => {
                                         e.stopPropagation();
