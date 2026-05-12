@@ -1035,15 +1035,10 @@ async function initDatabase() {
     await sequelize.sync({ alter: true });
     console.log('✅ Database synchronized (all tables created/updated)');
 
-    // Clear and reseed markets (remove after first successful deploy)
+    // Only seed markets that don't already exist — never wipe live data
     const marketCount = await Market.count();
     console.log(`📊 Markets in database: ${marketCount}`);
-    console.log('🧹 Clearing old market data for fresh seed...');
-    await PriceHistory.destroy({ where: {} });
-    await Prediction.destroy({ where: {} });
-    await Outcome.destroy({ where: {} });
-    await Market.destroy({ where: {} });
-    console.log('🌱 Seeding fresh markets from JSON...');
+    console.log('🌱 Seeding missing markets from JSON...');
     await seedMarketsFromJson();
   } catch (error) {
     console.error('❌ Database initialization failed:', error.message);
