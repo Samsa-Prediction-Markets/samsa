@@ -27,6 +27,23 @@ export default function SettingsPage() {
       </div>
 
       <div className="max-w-2xl">
+        {/* Paper Trading Disclaimer Section */}
+        <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-xl p-5 mb-4">
+          <h2 className="text-sm font-bold uppercase tracking-wider text-yellow-400 mb-4">⚠️ Paper Trading Mode</h2>
+          <div className="space-y-2 text-sm text-slate-300">
+            <p className="font-semibold text-white">Dobium is currently in paper trading mode.</p>
+            <ul className="list-disc list-inside space-y-1 text-xs">
+              <li>All trades use virtual funds only</li>
+              <li>No real money or assets are involved</li>
+              <li>This is for learning and testing purposes</li>
+              <li>Market data may not be real-time</li>
+            </ul>
+            <p className="text-xs text-slate-400 mt-3">
+              When live trading becomes available, you will be notified and real capital will be required.
+            </p>
+          </div>
+        </div>
+
         {/* Account Section */}
         <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-5 mb-4">
           <h2 className="text-sm font-bold uppercase tracking-wider text-yellow-400 mb-4">Account</h2>
@@ -81,23 +98,6 @@ export default function SettingsPage() {
             >
               Clear
             </button>
-          </div>
-        </div>
-
-        {/* Paper Trading Disclaimer Section */}
-        <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-xl p-5 mb-4">
-          <h2 className="text-sm font-bold uppercase tracking-wider text-yellow-400 mb-4">⚠️ Paper Trading Mode</h2>
-          <div className="space-y-2 text-sm text-slate-300">
-            <p className="font-semibold text-white">Dobium is currently in paper trading mode.</p>
-            <ul className="list-disc list-inside space-y-1 text-xs">
-              <li>All trades use virtual funds only</li>
-              <li>No real money or assets are involved</li>
-              <li>This is for learning and testing purposes</li>
-              <li>Market data may not be real-time</li>
-            </ul>
-            <p className="text-xs text-slate-400 mt-3">
-              When live trading becomes available, you will be notified and real capital will be required.
-            </p>
           </div>
         </div>
 
