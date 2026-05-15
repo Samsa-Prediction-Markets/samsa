@@ -24,6 +24,7 @@ const PORT = process.env.PORT || 3001;
 const Stripe = require('stripe');
 const stripeSecret = (process.env.STRIPE_SECRET_KEY || '').trim();
 const stripe = stripeSecret ? Stripe(stripeSecret) : null;
+const PAPER_TRADING_STARTING_BALANCE = Number(process.env.PAPER_TRADING_STARTING_BALANCE || 100000);
 
 // CORS configuration - allow all origins temporarily for debugging
 app.use(cors({
@@ -81,13 +82,15 @@ async function calculateBalanceFromTransactions(userId, transaction = null) {
   });
 
   const activePredictions = await Prediction.findAll({
-    where: { user_id: userId, status: 'active' },
+    where: { user_id: userId },
     ...(transaction ? { transaction } : {})
   });
 
-  // Sum completed wallet credits
+  // Deposits/withdrawals are external paper-wallet adjustments.
+  // Trade P&L is derived from prediction records so dashboard, market page,
+  // and server-side buying-power checks all share one ledger.
   const totalDeposits = transactions
-    .filter(t => ['deposit', 'payout', 'refund'].includes(t.type) && t.status === 'completed')
+    .filter(t => t.type === 'deposit' && t.status === 'completed')
     .reduce((sum, t) => sum + parseFloat(t.amount || 0), 0);
 
   // Sum withdrawals (completed only)
@@ -96,17 +99,33 @@ async function calculateBalanceFromTransactions(userId, transaction = null) {
     .reduce((sum, t) => sum + parseFloat(t.amount || 0), 0);
 
   const activePredictionStakes = activePredictions
+    .filter(p => p.status === 'active')
     .reduce((sum, p) => sum + parseFloat(p.stake_amount || 0), 0);
 
-  // Buying power = deposits - withdrawals - active stakes locked in trades
-  const rawBalance = totalDeposits - totalWithdrawals - activePredictionStakes;
+  const realizedPredictions = activePredictions
+    .filter(p => ['won', 'lost', 'sold', 'refunded'].includes(p.status));
+  const realizedStake = realizedPredictions
+    .reduce((sum, p) => sum + parseFloat(p.stake_amount || 0), 0);
+  const realizedReturn = realizedPredictions
+    .reduce((sum, p) => sum + parseFloat(p.actual_return || 0), 0);
+  const realizedPnl = realizedReturn - realizedStake;
+
+  const cashBalance = PAPER_TRADING_STARTING_BALANCE + totalDeposits - totalWithdrawals + realizedPnl;
+  const rawBalance = cashBalance - activePredictionStakes;
+  const buyingPower = Math.max(0, rawBalance);
 
   return {
-    balance: Math.max(0, rawBalance),
+    balance: buyingPower,
+    buyingPower,
     rawBalance,
+    cashBalance,
+    paperStartingBalance: PAPER_TRADING_STARTING_BALANCE,
     totalDeposits,
     totalWithdrawals,
-    activePredictionStakes
+    activePredictionStakes,
+    realizedStake,
+    realizedReturn,
+    realizedPnl
   };
 }
 
@@ -701,8 +720,23 @@ app.post('/api/positions/sell', async (req, res) => {
             sold_at: new Date()
           }, { transaction: t });
         } else {
+          const splitStake = parseFloat(remaining.toFixed(2));
+          const splitReturn = parseFloat((splitStake * (currentProb / avgEntryProb)).toFixed(2));
+          await Prediction.create({
+            id: nanoid(12),
+            market_id: p.market_id,
+            outcome_id: p.outcome_id,
+            user_id: p.user_id,
+            stake_amount: splitStake,
+            odds_at_prediction: p.odds_at_prediction,
+            potential_return: parseFloat((splitStake + splitStake * (1 - (parseFloat(p.odds_at_prediction || 50) / 100))).toFixed(2)),
+            actual_return: splitReturn,
+            status: 'sold',
+            sold_at: new Date()
+          }, { transaction: t });
+
           await p.update({
-            stake_amount: parseFloat((stake - remaining).toFixed(2))
+            stake_amount: parseFloat((stake - splitStake).toFixed(2))
           }, { transaction: t });
           remaining = 0;
         }
@@ -832,10 +866,16 @@ app.get('/api/users/:id/balance', async (req, res) => {
 
     res.json({
       balance: balanceInfo.balance,
+      buying_power: balanceInfo.buyingPower,
       raw_balance: balanceInfo.rawBalance,
+      cash_balance: balanceInfo.cashBalance,
+      paper_starting_balance: balanceInfo.paperStartingBalance,
       total_deposited: balanceInfo.totalDeposits,
       total_withdrawn: balanceInfo.totalWithdrawals,
       active_stakes: balanceInfo.activePredictionStakes,
+      realized_stake: balanceInfo.realizedStake,
+      realized_return: balanceInfo.realizedReturn,
+      realized_pnl: balanceInfo.realizedPnl,
       user
     });
   } catch (error) {
@@ -856,10 +896,16 @@ app.get('/api/users/negative-buying-power', async (req, res) => {
           user_id: user.id,
           username: user.username,
           balance: balanceInfo.balance,
+          buying_power: balanceInfo.buyingPower,
           raw_balance: balanceInfo.rawBalance,
+          cash_balance: balanceInfo.cashBalance,
+          paper_starting_balance: balanceInfo.paperStartingBalance,
           total_deposited: balanceInfo.totalDeposits,
           total_withdrawn: balanceInfo.totalWithdrawals,
-          active_stakes: balanceInfo.activePredictionStakes
+          active_stakes: balanceInfo.activePredictionStakes,
+          realized_stake: balanceInfo.realizedStake,
+          realized_return: balanceInfo.realizedReturn,
+          realized_pnl: balanceInfo.realizedPnl
         });
       }
     }

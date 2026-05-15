@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useMarket } from '../hooks/useMarkets';
 import { useAuth } from '../hooks/useAuth';
+import { useWallet } from '../hooks/useWallet';
 import { api } from '../api/client';
 import { CATEGORY_COLORS, formatCurrency, formatDate } from '../store/storage';
 
@@ -131,8 +132,7 @@ export default function MarketDetailPage() {
   const [sellAmount, setSellAmount] = useState('');
   const [sellLoading, setSellLoading] = useState(false);
   const [sellMsg, setSellMsg] = useState('');
-  const [buyingPower, setBuyingPower] = useState(null);
-  const [buyingPowerLoading, setBuyingPowerLoading] = useState(false);
+  const { balance: buyingPower, loading: buyingPowerLoading, refetch: refetchWallet } = useWallet();
 
   // Fetch user's positions for this market
   useEffect(() => {
@@ -163,17 +163,6 @@ export default function MarketDetailPage() {
       })
       .catch(() => { setUserPositions({}); setUserAvgEntry({}); });
   }, [market?.id, session]);
-
-  // Fetch buying power for the logged-in user
-  useEffect(() => {
-    const userId = session?.user?.id;
-    if (!userId || userId === 'demo_user') return;
-    setBuyingPowerLoading(true);
-    api.getBalance(userId)
-      .then(data => setBuyingPower(data.balance ?? 0))
-      .catch(() => setBuyingPower(null))
-      .finally(() => setBuyingPowerLoading(false));
-  }, [session]);
 
   if (loading) return <div className="loading-center"><div className="spinner" /></div>;
   if (error || !market) return <div className="empty-state"><p>Market not found.</p></div>;
@@ -213,7 +202,7 @@ export default function MarketDetailPage() {
       setStake('');
       // Refresh buying power then reload market data
       if (userId !== 'demo_user') {
-        setBuyingPower(prev => prev !== null ? Math.max(0, prev - stakeNum) : null);
+        await refetchWallet();
       }
       window.location.reload();
     } catch (err) {
@@ -238,6 +227,7 @@ export default function MarketDetailPage() {
         sell_amount: sellAmt,
       });
       setSellMsg(`✅ Sold $${sellAmt.toFixed(2)} → received $${result.sell_return.toFixed(2)}`);
+      await refetchWallet();
       // Refresh positions
       setTimeout(() => window.location.reload(), 1200);
     } catch (err) {

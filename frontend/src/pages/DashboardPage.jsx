@@ -3,6 +3,7 @@ import { useAuth } from '../hooks/useAuth';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { api } from '../api/client';
 import { useMarkets } from '../hooks/useMarkets';
+import { useWallet } from '../hooks/useWallet';
 
 // ============================================================================
 // Robinhood-style dual-canvas equity chart
@@ -248,6 +249,7 @@ export default function DashboardPage() {
   const navigate = useNavigate();
   const { session } = useAuth();
   const { markets } = useMarkets();
+  const { balance: buyingPower, wallet, loading: walletLoading, refetch: refetchWallet } = useWallet();
   const [selectedRange, setSelectedRange] = useState('1D');
   const [activeFilter, setActiveFilter] = useState('all');
   const [predictions, setPredictions] = useState([]);
@@ -257,7 +259,7 @@ export default function DashboardPage() {
   const [sellLoading, setSellLoading] = useState(false);
   const [sellMsg, setSellMsg] = useState('');
 
-  const fetchPredictions = () => {
+  const fetchPredictions = useCallback(() => {
     api.getPredictions()
       .then(data => {
         const allPreds = Array.isArray(data) ? data : [];
@@ -271,23 +273,21 @@ export default function DashboardPage() {
         setPredictions([]);
         setAllPredictions([]);
       });
-  };
+    refetchWallet();
+  }, [session, refetchWallet]);
 
   useEffect(() => {
     fetchPredictions();
     // Auto-refresh every 60 seconds so the chart and portfolio value stay live
     const interval = setInterval(fetchPredictions, 60_000);
     return () => clearInterval(interval);
-  }, [session]);
+  }, [fetchPredictions]);
 
   // Calculate portfolio metrics
-  const startingBalance = 100000;
+  const startingBalance = wallet.paperStartingBalance || 100000;
   const totalStaked = predictions.reduce((sum, p) => sum + (p.stake_amount || 0), 0);
   const settledPredictions = allPredictions.filter(p => p.status === 'won' || p.status === 'lost');
-  const totalReturned = settledPredictions.reduce((sum, p) => sum + (p.actual_return || 0), 0);
-  const settledStake = settledPredictions.reduce((sum, p) => sum + (p.stake_amount || 0), 0);
-  const netProfitLoss = totalReturned - settledStake;
-  const availableBalance = startingBalance + netProfitLoss - totalStaked;
+  const availableBalance = buyingPower;
 
   // Mark-to-market valuation using user-specified formula:
   //   R_max     = S + S(1 - p_entry)          ← win payout
@@ -307,7 +307,7 @@ export default function DashboardPage() {
 
   const portfolioValue = availableBalance + activeMtmValue;
   const unrealizedPnl = activeMtmValue - totalStaked;
-  const todayChange = netProfitLoss + unrealizedPnl;
+  const todayChange = portfolioValue - startingBalance;
   const todayChangePercent = startingBalance > 0 ? (todayChange / startingBalance) * 100 : 0;
 
   // Forecasting stats
@@ -461,9 +461,16 @@ export default function DashboardPage() {
                 <span className="text-white font-medium">Paper Trading Balance</span>
                 <span className="text-slate-500 cursor-help text-sm" title="Virtual money for practice trading">ⓘ</span>
               </div>
-              <span className="text-2xl font-bold text-yellow-400">${availableBalance.toFixed(2)}</span>
+              <span className="text-2xl font-bold text-yellow-400">
+                {walletLoading ? '...' : `$${availableBalance.toFixed(2)}`}
+              </span>
             </div>
-            <p className="text-xs text-slate-500 mt-2">This is virtual money for practice. No real funds are involved.</p>
+            <div className="mt-3 grid grid-cols-2 gap-3 text-xs text-slate-500 sm:grid-cols-3">
+              <span>Starting: ${startingBalance.toFixed(2)}</span>
+              <span>In positions: ${wallet.activeStakes.toFixed(2)}</span>
+              <span>Cash before positions: ${wallet.cashBalance.toFixed(2)}</span>
+            </div>
+            <p className="text-xs text-slate-500 mt-2">This buying power is virtual money for practice. No real funds are involved.</p>
           </div>
 
           {/* Forecasting Statistics */}

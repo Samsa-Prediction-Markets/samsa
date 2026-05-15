@@ -7,6 +7,7 @@ const { readJson, writeJson } = require('./lib/datastore');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
+const PAPER_TRADING_STARTING_BALANCE = Number(process.env.PAPER_TRADING_STARTING_BALANCE || 100000);
 
 const DATA_DIR = path.join(__dirname, 'data');
 const MARKETS_PATH = path.join(DATA_DIR, 'markets.json');
@@ -497,9 +498,10 @@ async function calculateBalanceFromTransactions(userId) {
   // Filter transactions for this user
   const userTransactions = transactions.filter(t => t.user_id === userId);
 
-  // Sum completed wallet credits
+  // Deposits/withdrawals are external paper-wallet adjustments. Trade P&L is
+  // derived from prediction records so the UI and server share one ledger.
   const totalDeposits = userTransactions
-    .filter(t => ['deposit', 'payout', 'refund'].includes(t.type) && t.status === 'completed')
+    .filter(t => t.type === 'deposit' && t.status === 'completed' && t.payment_method !== 'sell_return')
     .reduce((sum, t) => sum + (t.amount || 0), 0);
 
   // Sum withdrawals (completed only)
@@ -512,15 +514,30 @@ async function calculateBalanceFromTransactions(userId) {
     .filter(p => p.user_id === userId && p.status === 'active')
     .reduce((sum, p) => sum + (p.stake_amount || 0), 0);
 
-  // Buying power = deposits - withdrawals - active stakes locked in trades
-  const rawBalance = totalDeposits - totalWithdrawals - activePredictionStakes;
+  const realizedPredictions = predictions
+    .filter(p => p.user_id === userId && ['won', 'lost', 'sold', 'refunded'].includes(p.status));
+  const realizedStake = realizedPredictions
+    .reduce((sum, p) => sum + (p.stake_amount || 0), 0);
+  const realizedReturn = realizedPredictions
+    .reduce((sum, p) => sum + (p.actual_return || 0), 0);
+  const realizedPnl = realizedReturn - realizedStake;
+
+  const cashBalance = PAPER_TRADING_STARTING_BALANCE + totalDeposits - totalWithdrawals + realizedPnl;
+  const rawBalance = cashBalance - activePredictionStakes;
+  const buyingPower = Math.max(0, rawBalance);
 
   return {
-    balance: Math.max(0, rawBalance), // Never negative in UI-facing responses
+    balance: buyingPower, // Never negative in UI-facing responses
+    buyingPower,
     rawBalance,
+    cashBalance,
+    paperStartingBalance: PAPER_TRADING_STARTING_BALANCE,
     totalDeposits,
     totalWithdrawals,
-    activePredictionStakes
+    activePredictionStakes,
+    realizedStake,
+    realizedReturn,
+    realizedPnl
   };
 }
 
@@ -546,10 +563,16 @@ app.get('/api/users/:id/balance', async (req, res) => {
 
   res.json({
     balance: balanceInfo.balance,
+    buying_power: balanceInfo.buyingPower,
     raw_balance: balanceInfo.rawBalance,
+    cash_balance: balanceInfo.cashBalance,
+    paper_starting_balance: balanceInfo.paperStartingBalance,
     total_deposited: balanceInfo.totalDeposits,
     total_withdrawn: balanceInfo.totalWithdrawals,
     active_stakes: balanceInfo.activePredictionStakes,
+    realized_stake: balanceInfo.realizedStake,
+    realized_return: balanceInfo.realizedReturn,
+    realized_pnl: balanceInfo.realizedPnl,
     user
   });
 });
