@@ -66,20 +66,8 @@ export default function Sidebar() {
             <path strokeLinecap="round" strokeLinejoin="round"
               d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z" />
           </svg>
-          <span>Home</span>
+          <span>Dashboard</span>
         </NavLink>
-
-        <button
-          onClick={() => navigate('/news')}
-          className="bottom-nav-item"
-          title="News"
-        >
-          <svg fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round"
-              d="M12 7.5h1.386c.361 0 .708.126 1.011.357m-2.397.5A2.25 2.25 0 0013.5 7.5h3a2.25 2.25 0 012.25 2.25m-13.5 0A2.25 2.25 0 0110.5 5.25h3A2.25 2.25 0 0115.75 7.5m-6 3.75h2.25A2.25 2.25 0 0110.5 13v2.25a2.25 2.25 0 01-2.25 2.25H5.25A2.25 2.25 0 013 15.25V13a2.25 2.25 0 012.25-2.25zm12-2.25h2.25A2.25 2.25 0 0121 7.5v2.25A2.25 2.25 0 0118.75 12h-2.25a2.25 2.25 0 01-2.25-2.25V7.5a2.25 2.25 0 012.25-2.25z" />
-          </svg>
-          <span>News</span>
-        </button>
 
         <button
           onClick={() => navigate('/settings')}
@@ -92,78 +80,6 @@ export default function Sidebar() {
             <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
           </svg>
           <span>Settings</span>
-        </button>
-
-        <button
-          ref={avatarRef}
-          onClick={() => setMenuOpen(!menuOpen)}
-          className="bottom-nav-item"
-          title={displayName}
-          style={{ position: 'relative' }}
-        >
-          <svg fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round"
-              d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
-          </svg>
-          <span>Menu</span>
-
-          {/* Floating popout menu */}
-          {menuOpen && (
-            <div
-              ref={menuRef}
-              style={{
-                position: 'fixed',
-                bottom: 80,
-                right: 0,
-                left: 0,
-                marginLeft: 'auto',
-                marginRight: 'auto',
-                width: '90%',
-                maxWidth: 300,
-                background: '#1e293b',
-                border: '1px solid #334155',
-                borderRadius: 12,
-                padding: '8px',
-                boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
-                zIndex: 9999,
-                animation: 'slideInUp 0.15s ease-out',
-              }}
-            >
-              <style>{`
-                @keyframes slideInUp {
-                  from { opacity: 0; transform: translateY(8px); }
-                  to   { opacity: 1; transform: translateY(0); }
-                }
-              `}</style>
-
-              {/* User info header */}
-              <div style={{ padding: '8px 12px 12px', borderBottom: '1px solid #334155', marginBottom: 4 }}>
-                <p style={{ color: '#fff', fontSize: 13, fontWeight: 600, margin: 0 }}>{displayName}</p>
-                <p style={{ color: '#64748b', fontSize: 11, margin: '2px 0 0' }}>{user?.email}</p>
-              </div>
-
-              {/* Logout */}
-              {session && (
-                <button
-                  onClick={handleLogout}
-                  style={{
-                    display: 'flex', alignItems: 'center', gap: 10,
-                    width: '100%', padding: '10px 12px', borderRadius: 8,
-                    background: 'none', border: 'none', cursor: 'pointer',
-                    color: '#f87171', fontSize: 13, transition: 'background 0.15s',
-                  }}
-                  onMouseEnter={e => e.currentTarget.style.background = 'rgba(239,68,68,0.1)'}
-                  onMouseLeave={e => e.currentTarget.style.background = 'none'}
-                >
-                  <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round"
-                      d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15M12 9l-3 3m0 0l3 3m-3-3h12.75" />
-                  </svg>
-                  Log out
-                </button>
-              )}
-            </div>
-          )}
         </button>
       </div>
     );
