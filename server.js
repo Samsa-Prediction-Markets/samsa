@@ -13,6 +13,7 @@ const MARKETS_PATH = path.join(DATA_DIR, 'markets.json');
 const PREDICTIONS_PATH = path.join(DATA_DIR, 'predictions.json');
 const USERS_PATH = path.join(DATA_DIR, 'users.json');
 const TRANSACTIONS_PATH = path.join(DATA_DIR, 'transactions.json');
+const NOTIFICATIONS_PATH = path.join(DATA_DIR, 'notifications.json');
 
 // CORS configuration - allow requests from Railway frontend
 const corsOptions = {
@@ -259,6 +260,25 @@ app.post('/api/markets', async (req, res) => {
   recomputeMarketStats(market);
   markets.push(market);
   await writeJson(MARKETS_PATH, markets);
+
+  let users = [];
+  try { users = await readJson(USERS_PATH); } catch (e) { users = []; }
+  let notifications = [];
+  try { notifications = await readJson(NOTIFICATIONS_PATH); } catch (e) { notifications = []; }
+
+  users.forEach(u => {
+    notifications.push({
+      id: nanoid(12),
+      user_id: u.id,
+      type: 'market_new',
+      title: 'New Market Out',
+      message: `A new market "${title}" is now available in the ${category} category.`,
+      is_read: false,
+      created_at: new Date().toISOString()
+    });
+  });
+  if (notifications.length > 0) await writeJson(NOTIFICATIONS_PATH, notifications);
+
   res.status(201).json(market);
 });
 
@@ -374,6 +394,24 @@ app.post('/api/markets/:id/resolve', async (req, res) => {
   market.winning_outcome_id = winning_outcome_id;
   market.resolution_date = new Date().toISOString();
 
+  let notifications = [];
+  try { notifications = await readJson(NOTIFICATIONS_PATH); } catch (e) { notifications = []; }
+
+  const participantIds = [...new Set(predictions.filter(p => p.market_id === market.id).map(p => p.user_id))];
+  participantIds.forEach(userId => {
+    if (userId) {
+      notifications.push({
+        id: nanoid(12),
+        user_id: userId,
+        type: 'market_resolved',
+        title: 'Market Resolved',
+        message: `The market "${market.title}" has been resolved.`,
+        is_read: false,
+        created_at: new Date().toISOString()
+      });
+    }
+  });
+
   const updated = predictions.map((p) => {
     if (p.market_id !== market.id) return p;
     const won = p.outcome_id === winning_outcome_id;
@@ -382,6 +420,17 @@ app.post('/api/markets/:id/resolve', async (req, res) => {
     let actual_return = 0;
     if (won) {
       actual_return = p.stake_amount + p.stake_amount * (1 - pEntry);
+      if (p.user_id) {
+        notifications.push({
+          id: nanoid(12),
+          user_id: p.user_id,
+          type: 'prediction_won',
+          title: 'Prediction Won!',
+          message: `Your position in "${market.title}" won! You received a return of $${actual_return.toFixed(2)}.`,
+          is_read: false,
+          created_at: new Date().toISOString()
+        });
+      }
     } else {
       actual_return = p.stake_amount * pEntry; // Rebated risk refund
     }
@@ -396,6 +445,7 @@ app.post('/api/markets/:id/resolve', async (req, res) => {
 
   await writeJson(PREDICTIONS_PATH, updated);
   await writeJson(MARKETS_PATH, markets);
+  await writeJson(NOTIFICATIONS_PATH, notifications);
 
   res.json({ ok: true, market });
 });
@@ -830,6 +880,24 @@ async function autoResolveMarkets() {
 
           console.log(`[Auto-Resolve] Winner selected: ${winning_outcome_id}`);
 
+          let notifications = [];
+          try { notifications = await readJson(NOTIFICATIONS_PATH); } catch (e) { notifications = []; }
+
+          const participantIds = [...new Set(predictions.filter(p => p.market_id === market.id && p.status === 'active').map(p => p.user_id))];
+          participantIds.forEach(userId => {
+            if (userId) {
+              notifications.push({
+                id: nanoid(12),
+                user_id: userId,
+                type: 'market_resolved',
+                title: 'Market Resolved',
+                message: `The market "${market.title}" has been resolved.`,
+                is_read: false,
+                created_at: new Date().toISOString()
+              });
+            }
+          });
+
           // 2. Resolve Market
           market.status = 'resolved';
           market.winning_outcome_id = winning_outcome_id;
@@ -843,9 +911,22 @@ async function autoResolveMarkets() {
             const pEntry = (p.odds_at_prediction || 50) / 100;
             let actual_return = won ? p.stake_amount + p.stake_amount * (1 - pEntry) : p.stake_amount * pEntry;
 
+            if (won && p.user_id) {
+              notifications.push({
+                id: nanoid(12),
+                user_id: p.user_id,
+                type: 'prediction_won',
+                title: 'Prediction Won!',
+                message: `Your position in "${market.title}" won! You received a return of $${actual_return.toFixed(2)}.`,
+                is_read: false,
+                created_at: new Date().toISOString()
+              });
+            }
+
             return { ...p, status: won ? 'won' : 'lost', actual_return: Number(actual_return.toFixed(2)), resolved_at: new Date().toISOString() };
           });
 
+          if (notifications.length > 0) await writeJson(NOTIFICATIONS_PATH, notifications);
           needsSave = true;
         }
       }
@@ -863,6 +944,55 @@ async function autoResolveMarkets() {
 
 // Check for expired markets every 60 seconds
 setInterval(autoResolveMarkets, 60 * 1000);
+
+// ============================================================================
+// NOTIFICATIONS
+// ============================================================================
+app.get('/api/users/:id/notifications', async (req, res) => {
+  let notifications = [];
+  try { notifications = await readJson(NOTIFICATIONS_PATH); } catch (e) { notifications = []; }
+
+  const userNotifications = notifications
+    .filter(n => n.user_id === req.params.id)
+    .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+    .slice(0, 50);
+
+  res.json(userNotifications);
+});
+
+app.put('/api/notifications/:id/read', async (req, res) => {
+  let notifications = [];
+  try { notifications = await readJson(NOTIFICATIONS_PATH); } catch (e) { notifications = []; }
+
+  let found = false;
+  notifications = notifications.map(n => {
+    if (n.id === req.params.id) {
+      found = true;
+      return { ...n, is_read: true };
+    }
+    return n;
+  });
+
+  if (found) await writeJson(NOTIFICATIONS_PATH, notifications);
+  res.json({ success: true });
+});
+
+app.put('/api/users/:id/notifications/read-all', async (req, res) => {
+  let notifications = [];
+  try { notifications = await readJson(NOTIFICATIONS_PATH); } catch (e) { notifications = []; }
+
+  let updated = false;
+  notifications = notifications.map(n => {
+    if (n.user_id === req.params.id && !n.is_read) {
+      updated = true;
+      return { ...n, is_read: true };
+    }
+    return n;
+  });
+
+  if (updated) await writeJson(NOTIFICATIONS_PATH, notifications);
+  res.json({ success: true });
+});
 
 app.listen(PORT, () => {
   console.log(`Samsa API listening on http://localhost:${PORT}`);

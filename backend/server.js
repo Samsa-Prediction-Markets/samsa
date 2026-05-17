@@ -5,7 +5,7 @@ const morgan = require('morgan');
 const path = require('path');
 const fs = require('fs').promises;
 const { nanoid } = require('nanoid');
-const { Op } = require('sequelize');
+const { Op, DataTypes } = require('sequelize');
 
 // Import database models
 const {
@@ -18,6 +18,41 @@ const {
   PriceHistory,
   initializeDatabase
 } = require('./lib/database/models');
+
+const Notification = sequelize.define('Notification', {
+  id: {
+    type: DataTypes.STRING(12),
+    primaryKey: true
+  },
+  user_id: {
+    type: DataTypes.STRING(50),
+    allowNull: false
+  },
+  type: {
+    type: DataTypes.STRING(50),
+    allowNull: false
+  },
+  title: {
+    type: DataTypes.STRING(255),
+    allowNull: false
+  },
+  message: {
+    type: DataTypes.TEXT,
+    allowNull: false
+  },
+  is_read: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false
+  },
+  created_at: {
+    type: DataTypes.DATE,
+    defaultValue: DataTypes.NOW
+  }
+}, {
+  tableName: 'notifications',
+  timestamps: false,
+  underscored: true
+});
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -373,6 +408,20 @@ async function resolveMarketInstance(market, requestedOutcomeIds, options = {}) 
     transaction
   });
 
+  const participantIds = [...new Set(predictions.map(p => p.user_id))];
+  const resolutionNotifications = participantIds.map(userId => ({
+    id: nanoid(12),
+    user_id: userId,
+    type: 'market_resolved',
+    title: 'Market Resolved',
+    message: `The market "${market.title}" has been resolved.`,
+    is_read: false,
+    created_at: resolutionDate
+  }));
+  if (resolutionNotifications.length > 0) {
+    await Notification.bulkCreate(resolutionNotifications, { transaction });
+  }
+
   for (const prediction of predictions) {
     const won = winningSet.has(prediction.outcome_id);
     const actualReturn = won ? parseFloat(prediction.potential_return || 0) : 0;
@@ -405,6 +454,16 @@ async function resolveMarketInstance(market, requestedOutcomeIds, options = {}) 
         },
         transaction
       });
+
+      await Notification.create({
+        id: nanoid(12),
+        user_id: prediction.user_id,
+        type: 'prediction_won',
+        title: 'Prediction Won!',
+        message: `Your position in "${market.title}" won! You received a return of $${actualReturn.toFixed(2)}.`,
+        is_read: false,
+        created_at: resolutionDate
+      }, { transaction });
     }
   }
 
@@ -625,6 +684,20 @@ app.post('/api/markets', async (req, res) => {
         timestamp: new Date(),
         prices
       }, { transaction: t });
+
+      const users = await User.findAll({ transaction: t });
+      const notifications = users.map(u => ({
+        id: nanoid(12),
+        user_id: u.id,
+        type: 'market_new',
+        title: 'New Market Out',
+        message: `A new market "${title}" is now available in the ${category} category.`,
+        is_read: false,
+        created_at: new Date()
+      }));
+      if (notifications.length > 0) {
+        await Notification.bulkCreate(notifications, { transaction: t });
+      }
 
       return await fetchMarketWithRelations(marketId, t);
     });
@@ -1353,6 +1426,50 @@ app.get('/api/users/:id/transactions', async (req, res) => {
   } catch (error) {
     console.error('Get transactions error:', error);
     res.status(500).json({ error: 'Failed to fetch transactions' });
+  }
+});
+
+// ============================================================================
+// NOTIFICATIONS
+// ============================================================================
+
+app.get('/api/users/:id/notifications', async (req, res) => {
+  try {
+    const notifications = await Notification.findAll({
+      where: { user_id: req.params.id },
+      order: [['created_at', 'DESC']],
+      limit: 50
+    });
+    res.json(notifications);
+  } catch (error) {
+    console.error('Get notifications error:', error);
+    res.status(500).json({ error: 'Failed to fetch notifications' });
+  }
+});
+
+app.put('/api/notifications/:id/read', async (req, res) => {
+  try {
+    const notification = await Notification.findByPk(req.params.id);
+    if (notification) {
+      await notification.update({ is_read: true });
+    }
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Update notification error:', error);
+    res.status(500).json({ error: 'Failed to update notification' });
+  }
+});
+
+app.put('/api/users/:id/notifications/read-all', async (req, res) => {
+  try {
+    await Notification.update(
+      { is_read: true },
+      { where: { user_id: req.params.id, is_read: false } }
+    );
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Update all notifications error:', error);
+    res.status(500).json({ error: 'Failed to update notifications' });
   }
 });
 

@@ -11,6 +11,7 @@ export default function Sidebar() {
   const menuRef = useRef(null);
   const avatarRef = useRef(null);
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
+  const [unreadCount, setUnreadCount] = useState(0);
 
   const handleLogout = async () => {
     setMenuOpen(false);
@@ -40,6 +41,31 @@ export default function Sidebar() {
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
+
+  // Fetch unread notifications
+  useEffect(() => {
+    if (session?.user?.id) {
+      const fetchUnread = async () => {
+        try {
+          const res = await fetch(`/api/users/${session.user.id}/notifications`);
+          if (res.ok) {
+            const data = await res.json();
+            setUnreadCount(data.filter(n => !n.is_read).length);
+          }
+        } catch (err) { }
+      };
+      fetchUnread();
+      const interval = setInterval(fetchUnread, 60000);
+      return () => clearInterval(interval);
+    }
+  }, [session?.user?.id]);
+
+  // Update unread count immediately on panel close
+  useEffect(() => {
+    if (!isNotificationsOpen && session?.user?.id) {
+      fetch(`/api/users/${session.user.id}/notifications`).then(res => res.json()).then(data => setUnreadCount(data.filter(n => !n.is_read).length)).catch(() => { });
+    }
+  }, [isNotificationsOpen, session?.user?.id]);
 
   const user = session?.user;
   const avatarUrl = user?.user_metadata?.avatar_url;
@@ -221,11 +247,27 @@ export default function Sidebar() {
                   onMouseEnter={e => e.currentTarget.style.background = '#334155'}
                   onMouseLeave={e => e.currentTarget.style.background = 'none'}
                 >
-                  <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round"
-                      d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75v-.7V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0" />
-                  </svg>
+                  <div style={{ position: 'relative' }}>
+                    <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round"
+                        d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75v-.7V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0" />
+                    </svg>
+                    {unreadCount > 0 && (
+                      <span style={{
+                        position: 'absolute', top: -2, right: -2, width: 8, height: 8,
+                        background: '#ef4444', borderRadius: '50%'
+                      }} />
+                    )}
+                  </div>
                   Notifications
+                  {unreadCount > 0 && (
+                    <span style={{
+                      marginLeft: 'auto', background: '#ef4444', color: '#fff',
+                      fontSize: 10, padding: '2px 6px', borderRadius: 10, fontWeight: 'bold'
+                    }}>
+                      {unreadCount}
+                    </span>
+                  )}
                 </button>
 
                 {/* Settings */}
