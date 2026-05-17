@@ -85,8 +85,8 @@ export default function ActivityHistory({ predictions, markets, onBack }) {
                   </td>
                   <td className="px-6 py-4">
                     <span className={`inline-flex px-2.5 py-1 rounded-md text-[11px] font-bold uppercase tracking-wider ${act.action === 'Bought' ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20' :
-                        act.action === 'Sold' ? 'bg-slate-500/10 text-slate-400 border border-slate-500/20' :
-                          'bg-purple-500/10 text-purple-400 border border-purple-500/20'
+                      act.action === 'Sold' ? 'bg-slate-500/10 text-slate-400 border border-slate-500/20' :
+                        'bg-purple-500/10 text-purple-400 border border-purple-500/20'
                       }`}>{act.action}</span>
                   </td>
                   <td className="px-6 py-4">
@@ -105,7 +105,7 @@ export default function ActivityHistory({ predictions, markets, onBack }) {
                     ) : act.status === 'lost' ? (
                       <div className="inline-flex flex-col items-end">
                         <span className="text-red-400 font-bold">Lost</span>
-                        <span className="text-red-500/80 text-xs font-medium mt-0.5">-{formatCurrency(act.amount)}</span>
+                        <span className="text-red-500/80 text-xs font-medium mt-0.5">-{formatCurrency(act.amount - act.returnAmount)}</span>
                       </div>
                     ) : act.status === 'sold' ? (
                       <div className="inline-flex flex-col items-end">

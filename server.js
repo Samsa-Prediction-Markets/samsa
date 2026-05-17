@@ -7,7 +7,6 @@ const { readJson, writeJson } = require('./lib/datastore');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
-const PAPER_TRADING_STARTING_BALANCE = Number(process.env.PAPER_TRADING_STARTING_BALANCE || 100000);
 
 const DATA_DIR = path.join(__dirname, 'data');
 const MARKETS_PATH = path.join(DATA_DIR, 'markets.json');
@@ -48,15 +47,6 @@ function recomputeMarketStats(market) {
       o.probability = Math.round(((o.total_stake || 0) / totalStake) * 100);
     });
   }
-}
-
-function calculatePositionValue(stake, entryProbability, currentProbability) {
-  const S = Number(stake || 0);
-  const pEntry = Math.max(0, Math.min(100, Number(entryProbability || 0))) / 100;
-  const pCurrent = Math.max(0, Math.min(100, Number(currentProbability || 0))) / 100;
-  const maxReturn = S + S * (1 - pEntry);
-  const minReturn = S * pEntry;
-  return Number((minReturn + (maxReturn - minReturn) * pCurrent).toFixed(2));
 }
 
 app.get('/api/health', (req, res) => {
@@ -323,7 +313,8 @@ app.post('/api/predictions', async (req, res) => {
   }
   // ───────────────────────────────────────────────────────────────────────────
 
-  const potential_return = Number((stake_amount * (100 / Math.max(odds_at_prediction, 1))).toFixed(2));
+  const p = odds_at_prediction / 100;
+  const potential_return = Number((stake_amount + stake_amount * (1 - p)).toFixed(2));
 
   const prediction = {
     id: nanoid(12),
@@ -367,10 +358,19 @@ app.post('/api/markets/:id/resolve', async (req, res) => {
   const updated = predictions.map((p) => {
     if (p.market_id !== market.id) return p;
     const won = p.outcome_id === winning_outcome_id;
+    const pEntry = (p.odds_at_prediction || 50) / 100;
+
+    let actual_return = 0;
+    if (won) {
+      actual_return = p.stake_amount + p.stake_amount * (1 - pEntry);
+    } else {
+      actual_return = p.stake_amount * pEntry; // Rebated risk refund
+    }
+
     return {
       ...p,
       status: won ? 'won' : 'lost',
-      actual_return: won ? p.potential_return : 0
+      actual_return: Number(actual_return.toFixed(2))
     };
   });
 
@@ -422,7 +422,8 @@ app.post('/api/positions/sell', async (req, res) => {
   const avgEntryProb = totalStake > 0 ? weightedSum / totalStake : 50;
   const currentProb = outcome.probability || 50;
 
-  const sell_return = calculatePositionValue(sell_amount, avgEntryProb, currentProb);
+  // Sell return uses the ratio of current vs entry price
+  const sell_return = Number((sell_amount * (currentProb / Math.max(avgEntryProb, 1))).toFixed(2));
 
   // Reduce / close predictions FIFO
   let remaining = sell_amount;
@@ -432,14 +433,14 @@ app.post('/api/positions/sell', async (req, res) => {
     if (pred.stake_amount <= remaining + 0.001) {
       remaining -= pred.stake_amount;
       pred.status = 'sold';
-      pred.actual_return = calculatePositionValue(pred.stake_amount, avgEntryProb, currentProb);
+      pred.actual_return = Number((pred.stake_amount * (currentProb / Math.max(avgEntryProb, 1))).toFixed(2));
       pred.sold_at = new Date().toISOString();
       // Reduce market stake
       outcome.total_stake = Math.max(0, (outcome.total_stake || 0) - pred.stake_amount);
     } else {
       // Partial sell – split the prediction
       const splitStake = remaining;
-      const splitReturn = calculatePositionValue(splitStake, avgEntryProb, currentProb);
+      const splitReturn = Number((splitStake * (currentProb / Math.max(avgEntryProb, 1))).toFixed(2));
       const splitPred = {
         ...pred,
         id: nanoid(12),
@@ -506,8 +507,7 @@ async function calculateBalanceFromTransactions(userId) {
   // Filter transactions for this user
   const userTransactions = transactions.filter(t => t.user_id === userId);
 
-  // Deposits/withdrawals are external paper-wallet adjustments. Trade P&L is
-  // derived from prediction records so the UI and server share one ledger.
+  // Sum deposits (completed only)
   const totalDeposits = userTransactions
     .filter(t => t.type === 'deposit' && t.status === 'completed' && t.payment_method !== 'sell_return')
     .reduce((sum, t) => sum + (t.amount || 0), 0);
@@ -522,30 +522,19 @@ async function calculateBalanceFromTransactions(userId) {
     .filter(p => p.user_id === userId && p.status === 'active')
     .reduce((sum, p) => sum + (p.stake_amount || 0), 0);
 
-  const realizedPredictions = predictions
-    .filter(p => p.user_id === userId && ['won', 'lost', 'sold', 'refunded'].includes(p.status));
-  const realizedStake = realizedPredictions
-    .reduce((sum, p) => sum + (p.stake_amount || 0), 0);
-  const realizedReturn = realizedPredictions
-    .reduce((sum, p) => sum + (p.actual_return || 0), 0);
-  const realizedPnl = realizedReturn - realizedStake;
+  // Sum PnL of settled trades (won, lost, sold, refunded)
+  const settledPnL = predictions
+    .filter(p => p.user_id === userId && ['won', 'lost', 'sold', 'refunded'].includes(p.status))
+    .reduce((sum, p) => sum + ((p.actual_return || 0) - (p.stake_amount || 0)), 0);
 
-  const cashBalance = PAPER_TRADING_STARTING_BALANCE + totalDeposits - totalWithdrawals + realizedPnl;
-  const rawBalance = cashBalance - activePredictionStakes;
-  const buyingPower = Math.max(0, rawBalance);
+  // Balance = deposits - withdrawals - active stakes + settledPnL
+  const balance = totalDeposits - totalWithdrawals - activePredictionStakes + settledPnL;
 
   return {
-    balance: buyingPower, // Never negative in UI-facing responses
-    buyingPower,
-    rawBalance,
-    cashBalance,
-    paperStartingBalance: PAPER_TRADING_STARTING_BALANCE,
+    balance: Math.max(0, balance), // Never negative
     totalDeposits,
     totalWithdrawals,
-    activePredictionStakes,
-    realizedStake,
-    realizedReturn,
-    realizedPnl
+    activePredictionStakes
   };
 }
 
@@ -571,16 +560,9 @@ app.get('/api/users/:id/balance', async (req, res) => {
 
   res.json({
     balance: balanceInfo.balance,
-    buying_power: balanceInfo.buyingPower,
-    raw_balance: balanceInfo.rawBalance,
-    cash_balance: balanceInfo.cashBalance,
-    paper_starting_balance: balanceInfo.paperStartingBalance,
     total_deposited: balanceInfo.totalDeposits,
     total_withdrawn: balanceInfo.totalWithdrawals,
     active_stakes: balanceInfo.activePredictionStakes,
-    realized_stake: balanceInfo.realizedStake,
-    realized_return: balanceInfo.realizedReturn,
-    realized_pnl: balanceInfo.realizedPnl,
     user
   });
 });
@@ -742,7 +724,7 @@ app.post('/api/users/:id/fix-balance', async (req, res) => {
   // Current financial snapshot
   const balanceBefore = await calculateBalanceFromTransactions(userId);
 
-  if (balanceBefore.rawBalance >= 0) {
+  if (balanceBefore.balance >= 0) {
     return res.json({
       ok: true,
       message: 'Balance is already non-negative — no fix needed.',
@@ -754,7 +736,7 @@ app.post('/api/users/:id/fix-balance', async (req, res) => {
   // The raw deficit before Math.max(0,...) hides it
   const totalDeposits = balanceBefore.totalDeposits;
   const totalWithdrawals = balanceBefore.totalWithdrawals;
-  const trueBalance = balanceBefore.rawBalance;
+  const trueBalance = totalDeposits - totalWithdrawals - balanceBefore.activePredictionStakes;
 
   let deficit = Math.abs(trueBalance); // amount we need to claw back
   const cancelledIds = [];
@@ -769,39 +751,21 @@ app.post('/api/users/:id/fix-balance', async (req, res) => {
     // Cancel this prediction — refund the stake to restore buying power
     const idx = predictions.findIndex((p) => p.id === pred.id);
     if (idx === -1) continue;
+    predictions[idx] = { ...predictions[idx], status: 'cancelled', cancelled_reason: 'balance_repair', cancelled_at: new Date().toISOString() };
     cancelledIds.push(pred.id);
     deficit -= pred.stake_amount;
   }
 
-  predictions = predictions.filter((p) => !cancelledIds.includes(p.id));
-
-  const markets = await readJson(MARKETS_PATH);
-  const affectedMarketIds = new Set(userActivePreds.filter((p) => cancelledIds.includes(p.id)).map((p) => p.market_id));
-  for (const market of markets) {
-    if (!affectedMarketIds.has(market.id)) continue;
-    for (const outcome of market.outcomes || []) {
-      outcome.total_stake = predictions
-        .filter((p) => p.market_id === market.id && p.outcome_id === outcome.id && p.status === 'active')
-        .reduce((sum, p) => sum + (p.stake_amount || 0), 0);
-    }
-    recomputeMarketStats(market);
-  }
-
   await writeJson(PREDICTIONS_PATH, predictions);
-  await writeJson(MARKETS_PATH, markets);
 
   const balanceAfter = await calculateBalanceFromTransactions(userId);
 
   res.json({
     ok: true,
-    message: `Removed ${cancelledIds.length} prediction(s) to restore a non-negative balance.`,
+    message: `Cancelled ${cancelledIds.length} prediction(s) to restore a non-negative balance.`,
     balance_before: balanceBefore.balance,
-    raw_balance_before: balanceBefore.rawBalance,
     balance_after: balanceAfter.balance,
-    raw_balance_after: balanceAfter.rawBalance,
     cancelled_predictions: cancelledIds.length,
-    removed_predictions: cancelledIds.length,
-    removed_prediction_ids: cancelledIds,
     cancelled_ids: cancelledIds
   });
 });

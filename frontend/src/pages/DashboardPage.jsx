@@ -527,34 +527,6 @@ export default function DashboardPage() {
             </p>
           </div>
 
-          {/* Get More Section */}
-          <div className="mb-8">
-            <h2 className="text-xl font-semibold text-white mb-4">Get more out of Samsa</h2>
-            <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-5 flex items-start gap-4">
-              <div className="w-16 h-16 bg-gradient-to-br from-yellow-400 to-amber-500 rounded-xl flex items-center justify-center flex-shrink-0">
-                <svg className="w-8 h-8 text-slate-900" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round"
-                    d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z" />
-                </svg>
-              </div>
-              <div className="flex-1">
-                <div className="flex items-start justify-between">
-                  <div>
-                    <p className="text-slate-400 text-sm mb-1">Did you know?</p>
-                    <p className="text-white">You can explore trending markets and make predictions on events you care about.</p>
-                  </div>
-                  <button className="text-slate-500 hover:text-white p-1">✕</button>
-                </div>
-                <button
-                  onClick={() => navigate('/explore')}
-                  className="text-yellow-400 hover:text-yellow-300 text-sm font-medium mt-3 transition-colors"
-                >
-                  Explore markets
-                </button>
-              </div>
-            </div>
-          </div>
-
           {/* Recent Activity with Filters */}
           <div>
             <div className="flex items-center justify-between mb-4">
@@ -707,13 +679,13 @@ export default function DashboardPage() {
                                     <div className="text-right">
                                       {/* Live MTM value — red if below cost, green if above */}
                                       <span className={`font-semibold ${mtmValue < data.totalStake ? 'text-red-400' :
-                                          mtmValue > data.totalStake ? 'text-green-400' : 'text-slate-300'
+                                        mtmValue > data.totalStake ? 'text-green-400' : 'text-slate-300'
                                         }`}>
                                         ${mtmValue.toFixed(2)}
                                       </span>
                                       {/* Unrealized P&L delta */}
                                       <span className={`block text-[10px] leading-tight ${unrealizedPnl < 0 ? 'text-red-500' :
-                                          unrealizedPnl > 0 ? 'text-green-500' : 'text-slate-500'
+                                        unrealizedPnl > 0 ? 'text-green-500' : 'text-slate-500'
                                         }`}>
                                         {unrealizedPnl >= 0 ? '+' : ''}${unrealizedPnl.toFixed(2)}
                                       </span>
@@ -728,8 +700,8 @@ export default function DashboardPage() {
                                         }
                                       }}
                                       className={`px-2 py-0.5 rounded text-xs font-semibold transition-all ${isSelling
-                                          ? 'bg-slate-700 text-slate-300'
-                                          : 'bg-red-500/20 text-red-400 border border-red-500/40 hover:bg-red-500/30'
+                                        ? 'bg-slate-700 text-slate-300'
+                                        : 'bg-red-500/20 text-red-400 border border-red-500/40 hover:bg-red-500/30'
                                         }`}
                                     >
                                       {isSelling ? 'Cancel' : 'Sell'}
