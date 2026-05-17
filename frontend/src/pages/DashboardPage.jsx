@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { api } from '../api/client';
 import { useMarkets } from '../hooks/useMarkets';
 import { useWallet } from '../hooks/useWallet';
+import { formatCurrency } from '../store/storage';
 
 // ============================================================================
 // Robinhood-style dual-canvas equity chart
