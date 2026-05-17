@@ -14,6 +14,11 @@ export default function ActivityHistory({ predictions, markets, onBack }) {
       if (isSettled) action = 'Resolved';
       if (isSold) action = 'Sold';
 
+      let returnAmount = (isSettled || isSold) ? (pred.actual_return || 0) : null;
+      if (pred.status === 'lost' && returnAmount === 0) {
+        returnAmount = (pred.stake_amount || 0) * ((pred.odds_at_prediction || 50) / 100);
+      }
+
       return {
         id: pred.id,
         date: pred.resolved_at || pred.sold_at || pred.updated_at || pred.created_at || new Date().toISOString(),
@@ -23,7 +28,7 @@ export default function ActivityHistory({ predictions, markets, onBack }) {
         status: pred.status,
         probability: pred.odds_at_prediction || 50,
         amount: pred.stake_amount || 0,
-        returnAmount: (isSettled || isSold) ? (pred.actual_return || 0) : null
+        returnAmount
       };
     })
     .sort((a, b) => new Date(b.date) - new Date(a.date));

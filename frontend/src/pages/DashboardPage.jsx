@@ -361,7 +361,11 @@ export default function DashboardPage() {
 
       tradesUpTo.forEach(p => {
         if (['won', 'lost', 'sold', 'refunded'].includes(p.status)) {
-          settledPnL += (p.actual_return || 0) - (p.stake_amount || 0);
+          let actualReturn = p.actual_return || 0;
+          if (p.status === 'lost' && actualReturn === 0) {
+            actualReturn = (p.stake_amount || 0) * ((p.odds_at_prediction || 50) / 100);
+          }
+          settledPnL += actualReturn - (p.stake_amount || 0);
         } else if (p.status === 'active') {
           stakedSoFar += p.stake_amount || 0;
           activeMtm += getMtm(p);
@@ -395,6 +399,12 @@ export default function DashboardPage() {
       const outcome = market?.outcomes?.find(o => o.id === pred.outcome_id);
       const isSettled = ['won', 'lost'].includes(pred.status);
       const isSold = pred.status === 'sold';
+
+      let actualReturn = pred.actual_return || 0;
+      if (pred.status === 'lost' && actualReturn === 0) {
+        actualReturn = (pred.stake_amount || 0) * ((pred.odds_at_prediction || 50) / 100);
+      }
+
       return {
         id: pred.id,
         type: isSettled ? 'resolution' : isSold ? 'trade' : 'trade',
@@ -403,9 +413,9 @@ export default function DashboardPage() {
         marketTitle: market?.title || 'Unknown Market',
         outcomeTitle: outcome?.title || 'Unknown',
         probability: pred.odds_at_prediction || 50,
-        amount: isSettled || isSold ? (pred.actual_return || 0) : (pred.stake_amount || 0),
+        amount: isSettled || isSold ? actualReturn : (pred.stake_amount || 0),
         stakeAmount: pred.stake_amount || 0,
-        pnl: isSettled || isSold ? (pred.actual_return || 0) - (pred.stake_amount || 0) : null,
+        pnl: isSettled || isSold ? actualReturn - (pred.stake_amount || 0) : null,
         status: pred.status,
         date: pred.resolved_at || pred.sold_at || pred.updated_at || pred.created_at || new Date().toISOString()
       };
@@ -780,34 +790,6 @@ export default function DashboardPage() {
                   })}
                 </div>
               )}
-            </div>
-          </div>
-
-          {/* Following Section */}
-          <div className="bg-slate-900/50 backdrop-blur-xl border border-slate-800 rounded-2xl overflow-hidden hover:border-slate-700 transition-colors">
-            <div className="p-5">
-              <div className="flex items-center gap-3 mb-3">
-                <svg className="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
-                </svg>
-                <h3 className="text-white font-semibold">Following</h3>
-                <span className="text-slate-500 text-xs">0 markets</span>
-              </div>
-              <p className="text-slate-500 text-sm">No markets followed</p>
-            </div>
-          </div>
-
-          {/* Watchlist Section */}
-          <div className="bg-slate-900/50 backdrop-blur-xl border border-slate-800 rounded-2xl overflow-hidden hover:border-slate-700 transition-colors">
-            <div className="p-5">
-              <div className="flex items-center gap-3 mb-3">
-                <svg className="w-5 h-5 text-purple-400" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M11.48 3.499a.562.562 0 011.04 0l2.125 5.111a.563.563 0 00.475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 00-.182.557l1.285 5.385a.562.562 0 01-.84.61l-4.725-2.885a.563.563 0 00-.586 0L6.982 20.54a.562.562 0 01-.84-.61l1.285-5.386a.562.562 0 00-.182-.557l-4.204-3.602a.563.563 0 01.321-.988l5.518-.442a.563.563 0 00.475-.345L11.48 3.5z" />
-                </svg>
-                <h3 className="text-white font-semibold">Watchlist</h3>
-                <span className="text-slate-500 text-xs">0 items</span>
-              </div>
-              <p className="text-slate-500 text-sm">No watchlist items</p>
             </div>
           </div>
         </div>

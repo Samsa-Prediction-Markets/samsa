@@ -525,7 +525,13 @@ async function calculateBalanceFromTransactions(userId) {
   // Sum PnL of settled trades (won, lost, sold, refunded)
   const settledPnL = predictions
     .filter(p => p.user_id === userId && ['won', 'lost', 'sold', 'refunded'].includes(p.status))
-    .reduce((sum, p) => sum + ((p.actual_return || 0) - (p.stake_amount || 0)), 0);
+    .reduce((sum, p) => {
+      let actualReturn = p.actual_return || 0;
+      if (p.status === 'lost' && actualReturn === 0) {
+        actualReturn = (p.stake_amount || 0) * ((p.odds_at_prediction || 50) / 100);
+      }
+      return sum + (actualReturn - (p.stake_amount || 0));
+    }, 0);
 
   // Balance = deposits - withdrawals - active stakes + settledPnL
   const balance = totalDeposits - totalWithdrawals - activePredictionStakes + settledPnL;
