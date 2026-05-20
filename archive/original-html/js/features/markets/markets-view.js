@@ -369,7 +369,7 @@ async function renderMarkets() {
 
   // Render suggested interests
   renderSuggestedInterests();
-  
+
   // Bind category dropdown options to hash routes
   const dropdown = document.getElementById('categoryDropdown');
   if (dropdown && !dropdown.__samsaBound) {
@@ -1021,7 +1021,6 @@ function createMarketCardHTML(market) {
         </div>
         ${createMiniMultiChart(market.id, market.outcomes)}
         <h3 class="text-lg font-bold text-white group-hover:text-yellow-400 transition-colors duration-200">${market.title}</h3>
-        <p class="text-sm text-slate-400 line-clamp-2">${market.description}</p>
         <div class="flex gap-2">
           ${outcomeButtons}
         </div>
@@ -1077,7 +1076,6 @@ function generateDetailHTML(market) {
           </span>
         </div>
         <h1 class="text-2xl md:text-3xl font-bold text-white mb-2">${safeMarket.title}</h1>
-        <p class="text-slate-400 text-sm md:text-base">${safeMarket.description}</p>
       </div>
 
       <!-- Main Two-Column Layout -->
@@ -1301,7 +1299,7 @@ function filterByCategory(category) {
   });
 
   filterMarkets();
-  
+
   const label = document.getElementById('selectedCategory');
   if (label) {
     label.textContent = category === 'all' ? 'All Markets' : category.charAt(0).toUpperCase() + category.slice(1);

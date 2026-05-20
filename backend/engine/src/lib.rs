@@ -1,8 +1,8 @@
 // ============================================================================
-// SAMSA ENGINE — Library root
+// dobium ENGINE — Library root
 // ============================================================================
 // Exports the pricing (LMSR) and payout (rebated-risk) modules.
-// This crate is the canonical implementation of Samsa's market math.
+// This crate is the canonical implementation of dobium's market math.
 // Python (lib/lmsr.py) is for simulation/research only.
 // ============================================================================
 

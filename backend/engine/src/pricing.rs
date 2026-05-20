@@ -1,5 +1,5 @@
 // ============================================================================
-// SAMSA ENGINE — PRICING (LMSR)
+// Dobium ENGINE — PRICING (LMSR)
 // Logarithmic Market Scoring Rule with Risk-Weighted Pressure Updates
 // ============================================================================
 //

@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../hooks/useAuth';
+import { useNavigate } from 'react-router-dom';
 
 export default function NotificationsPanel({ isOpen, onClose }) {
   const { session } = useAuth();
+  const navigate = useNavigate();
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(false);
 
@@ -44,6 +46,29 @@ export default function NotificationsPanel({ isOpen, onClose }) {
       setNotifications(prev => prev.map(n => ({ ...n, is_read: true })));
     } catch (error) {
       console.error('Failed to mark all as read', error);
+    }
+  };
+
+  const clearAllNotifications = async () => {
+    if (!session?.user?.id) return;
+    try {
+      await fetch(`/api/users/${session.user.id}/notifications`, { method: 'DELETE' });
+      setNotifications([]);
+    } catch (error) {
+      console.error('Failed to clear notifications', error);
+    }
+  };
+
+  const handleNotificationClick = (notification) => {
+    if (!notification.is_read) {
+      markAsRead(notification.id);
+    }
+    onClose();
+
+    if (notification.link) {
+      navigate(notification.link);
+    } else {
+      navigate(notification.type === 'market_new' ? '/explore' : '/');
     }
   };
 
@@ -92,14 +117,24 @@ export default function NotificationsPanel({ isOpen, onClose }) {
         <div className="flex flex-col h-full">
           <div className="px-6 py-5 border-b border-slate-800 flex justify-between items-center">
             <h2 className="text-xl font-bold text-white">Notifications</h2>
-            {newNotifications.length > 0 && (
-              <button 
-                onClick={markAllAsRead}
-                className="text-xs text-yellow-400 hover:text-yellow-300 transition-colors"
-              >
-                Mark all as read
-              </button>
-            )}
+            <div className="flex gap-3 items-center">
+              {newNotifications.length > 0 && (
+                <button
+                  onClick={markAllAsRead}
+                  className="text-xs text-yellow-400 hover:text-yellow-300 transition-colors"
+                >
+                  Mark all as read
+                </button>
+              )}
+              {notifications.length > 0 && (
+                <button
+                  onClick={clearAllNotifications}
+                  className="text-xs text-slate-400 hover:text-red-400 transition-colors"
+                >
+                  Clear all
+                </button>
+              )}
+            </div>
           </div>
 
           <div className="flex-1 overflow-y-auto p-4 custom-scrollbar">
@@ -120,7 +155,7 @@ export default function NotificationsPanel({ isOpen, onClose }) {
                   <>
                     <div className="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-2">New</div>
                     {newNotifications.map(notification => (
-                      <div key={notification.id} className="flex items-start gap-3 p-3 bg-slate-900/50 hover:bg-slate-800 rounded-lg cursor-pointer transition-colors border border-slate-700/50" onClick={() => markAsRead(notification.id)}>
+                      <div key={notification.id} className="flex items-start gap-3 p-3 bg-slate-900/50 hover:bg-slate-800 rounded-lg cursor-pointer transition-colors border border-slate-700/50" onClick={() => handleNotificationClick(notification)}>
                         {getIcon(notification.type)}
                         <div className="flex-1">
                           <p className="text-sm text-slate-200">{notification.message}</p>
@@ -135,7 +170,7 @@ export default function NotificationsPanel({ isOpen, onClose }) {
                   <>
                     <div className="text-sm font-semibold text-slate-500 uppercase tracking-wider mt-6 mb-2">Earlier</div>
                     {earlierNotifications.map(notification => (
-                      <div key={notification.id} className="flex items-start gap-3 p-3 hover:bg-slate-900/50 rounded-lg cursor-pointer transition-colors opacity-75 hover:opacity-100">
+                      <div key={notification.id} className="flex items-start gap-3 p-3 hover:bg-slate-900/50 rounded-lg cursor-pointer transition-colors opacity-75 hover:opacity-100" onClick={() => handleNotificationClick(notification)}>
                         {getIcon(notification.type)}
                         <div>
                           <p className="text-sm text-slate-300">{notification.message}</p>

@@ -301,8 +301,8 @@ function renderSubcategoryOverview(name, wikidataId, subcategories) {
           <div class="flex items-center justify-end">
             <button onclick="event.stopPropagation(); handleFollowClick('${league.id}', '${league.name.replace(/'/g, "\\'")}', 'league', '${name}', this)"
               class="text-xs px-3 py-1 rounded-lg transition-all ${isFavorited(league.id)
-          ? 'bg-yellow-500/20 text-yellow-400'
-          : 'bg-slate-700/50 text-slate-300 hover:bg-slate-700'}">
+            ? 'bg-yellow-500/20 text-yellow-400'
+            : 'bg-slate-700/50 text-slate-300 hover:bg-slate-700'}">
               ${isFavorited(league.id) ? '✓' : '+'}
             </button>
           </div>
@@ -730,8 +730,8 @@ function generateLeagueMarketsData(leagueName, sport, count, leagueId) {
       category: sport.toLowerCase().replace(/\s+/g, '-'),
       closeDate: getRandomFutureDate(),
       outcomes: template.outcomes.map((name, idx) => {
-        const isYesNo = template.outcomes.length === 2 && 
-          template.outcomes.map(n => n.toLowerCase()).includes('yes') && 
+        const isYesNo = template.outcomes.length === 2 &&
+          template.outcomes.map(n => n.toLowerCase()).includes('yes') &&
           template.outcomes.map(n => n.toLowerCase()).includes('no');
         const colors = isYesNo ? LEAGUE_BINARY_COLORS : LEAGUE_MULTI_COLORS;
         return {
@@ -1012,9 +1012,6 @@ function createLeagueMarketCard(market, marketId) {
   // Store market data for later use
   const marketDataStr = encodeURIComponent(JSON.stringify(market));
 
-  // Generate a description from the title
-  const description = `Predict the outcome of ${market.title}. Closes ${market.closes}.`;
-
   return `
     <div class="market-card group relative overflow-hidden bg-slate-900/50 backdrop-blur-xl border border-slate-800 hover:border-yellow-500/50 transition-all duration-300 hover:shadow-2xl hover:shadow-yellow-500/10 cursor-pointer rounded-2xl"
       onclick="showLeagueMarketDetail('${marketId}', decodeURIComponent('${marketDataStr}'))">
@@ -1026,19 +1023,18 @@ function createLeagueMarketCard(market, marketId) {
         </div>
         ${createLeagueMultiChart(marketId, market.outcomes)}
         <h3 class="text-lg font-bold text-white group-hover:text-yellow-400 transition-colors duration-200">${market.title}</h3>
-        <p class="text-sm text-slate-400 line-clamp-2">${description}</p>
         <div class="flex gap-2">
           ${(() => {
-            const isBinary = isLeagueBinaryMarket(market.outcomes);
-            const colors = isBinary ? LEAGUE_BINARY_COLORS : LEAGUE_MULTI_COLORS;
-            // Button style classes for each color
-            const buttonStyles = isBinary 
-              ? ['bg-green-500/10 border-green-500/50 hover:border-green-500 hover:bg-green-500/20', 'bg-red-500/10 border-red-500/50 hover:border-red-500 hover:bg-red-500/20']
-              : ['bg-blue-500/10 border-blue-500/50 hover:border-blue-500 hover:bg-blue-500/20', 'bg-purple-500/10 border-purple-500/50 hover:border-purple-500 hover:bg-purple-500/20', 'bg-amber-500/10 border-amber-500/50 hover:border-amber-500 hover:bg-amber-500/20', 'bg-cyan-500/10 border-cyan-500/50 hover:border-cyan-500 hover:bg-cyan-500/20'];
-            const textColors = isBinary 
-              ? ['text-green-400', 'text-red-400']
-              : ['text-blue-400', 'text-purple-400', 'text-amber-400', 'text-cyan-400'];
-            return market.outcomes.map((outcome, idx) => `
+      const isBinary = isLeagueBinaryMarket(market.outcomes);
+      const colors = isBinary ? LEAGUE_BINARY_COLORS : LEAGUE_MULTI_COLORS;
+      // Button style classes for each color
+      const buttonStyles = isBinary
+        ? ['bg-green-500/10 border-green-500/50 hover:border-green-500 hover:bg-green-500/20', 'bg-red-500/10 border-red-500/50 hover:border-red-500 hover:bg-red-500/20']
+        : ['bg-blue-500/10 border-blue-500/50 hover:border-blue-500 hover:bg-blue-500/20', 'bg-purple-500/10 border-purple-500/50 hover:border-purple-500 hover:bg-purple-500/20', 'bg-amber-500/10 border-amber-500/50 hover:border-amber-500 hover:bg-amber-500/20', 'bg-cyan-500/10 border-cyan-500/50 hover:border-cyan-500 hover:bg-cyan-500/20'];
+      const textColors = isBinary
+        ? ['text-green-400', 'text-red-400']
+        : ['text-blue-400', 'text-purple-400', 'text-amber-400', 'text-cyan-400'];
+      return market.outcomes.map((outcome, idx) => `
               <button class="flex-1 relative overflow-hidden rounded-lg px-3 py-2 transition-all duration-200 border ${buttonStyles[idx % buttonStyles.length]} active:scale-95"
                 onclick="event.stopPropagation(); openLeaguePredictionForm('${marketId}', ${idx}, '${outcome.name.replace(/'/g, "\\'")}', ${outcome.odds})">
                 <div class="flex flex-col gap-1">
@@ -1047,7 +1043,7 @@ function createLeagueMarketCard(market, marketId) {
                 </div>
               </button>
             `).join('');
-          })()}
+    })()}
         </div>
       </div>
     </div>

@@ -19,6 +19,7 @@ const {
   initializeDatabase
 } = require('./lib/database/models');
 const { sendEmail } = require('./lib/email');
+const { registerDailyDigestJob } = require('./jobs/daily-digest');
 
 const Notification = sequelize.define('Notification', {
   id: {
@@ -40,6 +41,10 @@ const Notification = sequelize.define('Notification', {
   message: {
     type: DataTypes.TEXT,
     allowNull: false
+  },
+  link: {
+    type: DataTypes.STRING(255),
+    allowNull: true
   },
   is_read: {
     type: DataTypes.BOOLEAN,
@@ -71,6 +76,36 @@ app.use(cors({
 }));
 app.use(express.json());
 app.use(morgan('dev'));
+
+// --- SSE Setup for Real-time Notifications ---
+let clients = [];
+
+function broadcastNotification(notification) {
+  const eventData = JSON.stringify(notification);
+  clients.forEach(client => client.res.write(`data: ${eventData}\n\n`));
+}
+
+app.get('/api/notifications/stream', (req, res) => {
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.flushHeaders();
+
+  const clientId = Date.now();
+  const newClient = { id: clientId, res };
+  clients.push(newClient);
+  console.log(`[SSE] Client connected: ${clientId}. Total clients: ${clients.length}`);
+
+  const heartbeat = setInterval(() => {
+    res.write(': heartbeat\n\n');
+  }, 20000);
+
+  req.on('close', () => {
+    clearInterval(heartbeat);
+    clients = clients.filter(client => client.id !== clientId);
+    console.log(`[SSE] Client disconnected: ${clientId}. Total clients: ${clients.length}`);
+  });
+});
 
 // Serve the React frontend from ../frontend/dist/
 const REACT_BUILD = path.join(__dirname, '..', 'frontend', 'dist');
@@ -420,18 +455,20 @@ async function resolveMarketInstance(market, requestedOutcomeIds, options = {}) 
     transaction
   });
 
-  const participantIds = [...new Set(predictions.map(p => p.user_id))];
-  const resolutionNotifications = participantIds.map(userId => ({
+  const users = await User.findAll({ transaction });
+  const resolutionNotifications = users.map(u => ({
     id: nanoid(12),
-    user_id: userId,
+    user_id: u.id,
     type: 'market_resolved',
     title: 'Market Resolved',
     message: `The market "${market.title}" has been resolved.`,
+    link: `/markets/${market.id}`,
     is_read: false,
     created_at: resolutionDate
   }));
   if (resolutionNotifications.length > 0) {
-    await Notification.bulkCreate(resolutionNotifications, { transaction });
+    const created = await Notification.bulkCreate(resolutionNotifications, { transaction, returning: true });
+    created.forEach(n => broadcastNotification(n.toJSON()));
   }
 
   for (const prediction of predictions) {
@@ -467,15 +504,17 @@ async function resolveMarketInstance(market, requestedOutcomeIds, options = {}) 
         transaction
       });
 
-      await Notification.create({
+      const notification = await Notification.create({
         id: nanoid(12),
         user_id: prediction.user_id,
         type: 'prediction_won',
         title: 'Prediction Won!',
         message: `Your position in "${market.title}" won! You received a return of $${actualReturn.toFixed(2)}.`,
+        link: `/markets/${market.id}`,
         is_read: false,
         created_at: resolutionDate
       }, { transaction });
+      broadcastNotification(notification.toJSON());
     }
   }
 
@@ -662,8 +701,8 @@ app.get('/api/markets/:id', async (req, res) => {
 // POST create market
 app.post('/api/markets', async (req, res) => {
   try {
-    const { title, description, category, outcomes = [], image_url = '', search_keywords = '', close_date = null, resolution_date = null, market_type = 'binary' } = req.body;
-    if (!title || !description || !category || !Array.isArray(outcomes) || outcomes.length < 2) {
+    const { title, description = '', category, outcomes = [], image_url = '', search_keywords = '', close_date = null, resolution_date = null, market_type = 'binary' } = req.body;
+    if (!title || !category || !Array.isArray(outcomes) || outcomes.length < 2) {
       return res.status(400).json({ error: 'Invalid market payload' });
     }
 
@@ -727,11 +766,13 @@ app.post('/api/markets', async (req, res) => {
         type: 'market_new',
         title: 'New Market Out',
         message: `A new market "${title}" is now available in the ${category} category.`,
+        link: `/markets/${marketId}`,
         is_read: false,
         created_at: new Date()
       }));
       if (notifications.length > 0) {
-        await Notification.bulkCreate(notifications, { transaction: t });
+        const created = await Notification.bulkCreate(notifications, { transaction: t, returning: true });
+        created.forEach(n => broadcastNotification(n.toJSON()));
       }
 
       return await fetchMarketWithRelations(marketId, t);
@@ -747,17 +788,21 @@ app.post('/api/markets', async (req, res) => {
 // PUT update market
 app.put('/api/markets/:id', async (req, res) => {
   try {
-    const { close_date, resolution_date, description, title, status, outcomes } = req.body;
+    const { close_date, resolution_date, title, status, outcomes, category, description, image_url } = req.body;
     const result = await sequelize.transaction(async (t) => {
       const market = await Market.findByPk(req.params.id, { transaction: t });
       if (!market) throw Object.assign(new Error('Market not found'), { status: 404 });
 
+      const oldStatus = market.status;
+
       await market.update({
         ...(close_date !== undefined && { close_date }),
         ...(resolution_date !== undefined && { resolution_date }),
-        ...(description !== undefined && { description }),
         ...(title !== undefined && { title }),
-        ...(status !== undefined && { status })
+        ...(status !== undefined && { status }),
+        ...(category !== undefined && { category }),
+        ...(description !== undefined && { description }),
+        ...(image_url !== undefined && { image_url })
       }, { transaction: t });
 
       if (outcomes && Array.isArray(outcomes)) {
@@ -769,6 +814,24 @@ app.put('/api/markets/:id', async (req, res) => {
               ...(o.probability !== undefined && { probability: o.probability })
             }, { transaction: t });
           }
+        }
+      }
+
+      if (status === 'archived' && oldStatus !== 'archived') {
+        const users = await User.findAll({ transaction: t });
+        const notifications = users.map(u => ({
+          id: nanoid(12),
+          user_id: u.id,
+          type: 'market_cancelled',
+          title: 'Market Cancelled',
+          message: `The market "${market.title}" has been cancelled.`,
+          link: `/explore`,
+          is_read: false,
+          created_at: new Date()
+        }));
+        if (notifications.length > 0) {
+          const created = await Notification.bulkCreate(notifications, { transaction: t, returning: true });
+          created.forEach(n => broadcastNotification(n.toJSON()));
         }
       }
 
@@ -1525,6 +1588,16 @@ app.put('/api/users/:id/notifications/read-all', async (req, res) => {
   }
 });
 
+app.delete('/api/users/:id/notifications', async (req, res) => {
+  try {
+    await Notification.destroy({ where: { user_id: req.params.id } });
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Delete notifications error:', error);
+    res.status(500).json({ error: 'Failed to delete notifications' });
+  }
+});
+
 // ============================================================================
 // ADMIN ENDPOINTS
 // ============================================================================
@@ -1535,6 +1608,32 @@ app.get('/api/admin/users', async (req, res) => {
     if (adminEmail !== 'donotreply.dobium@gmail.com') {
       return res.status(403).json({ error: 'Forbidden' });
     }
+
+    const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || '';
+    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
+
+    if (supabaseUrl && serviceRoleKey) {
+      const { createClient } = require('@supabase/supabase-js');
+      const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
+        auth: { autoRefreshToken: false, persistSession: false }
+      });
+
+      const { data: { users }, error } = await supabaseAdmin.auth.admin.listUsers();
+      if (error) {
+        console.error('Supabase admin listUsers error:', error);
+      } else {
+        const formattedUsers = users.map(u => ({
+          id: u.id,
+          email: u.email,
+          username: u.user_metadata?.name || u.user_metadata?.full_name || u.user_metadata?.username || (u.email ? u.email.split('@')[0] : 'Unknown'),
+          created_at: u.created_at
+        }));
+
+        formattedUsers.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+        return res.json(formattedUsers);
+      }
+    }
+
     const users = await User.findAll({
       attributes: ['id', 'username', 'email', 'created_at'],
       order: [['created_at', 'DESC']]
@@ -1562,7 +1661,7 @@ app.post('/api/admin/send-email', async (req, res) => {
     const styledHtml = html || `
       <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 32px 20px; background-color: #ffffff; border-radius: 12px; border: 1px solid #e2e8f0; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
         <div style="text-align: center; margin-bottom: 32px;">
-          <h1 style="color: #d4af37; margin: 0; font-size: 28px; font-weight: 800; letter-spacing: -0.5px;">Dobium</h1>
+          <h1 style="color: #d4af37; margin: 0; font-size: 20px; font-weight: 800; letter-spacing: -0.5px;">Dobium</h1>
           <p style="color: #64748b; font-size: 14px; margin-top: 4px;">Prediction Markets</p>
         </div>
         <div style="color: #334155; font-size: 16px; line-height: 1.6; white-space: pre-wrap; background-color: #f8fafc; padding: 24px; border-radius: 8px;">
@@ -1582,6 +1681,245 @@ app.post('/api/admin/send-email', async (req, res) => {
     res.status(500).json({ error: 'Failed to send email' });
   }
 });
+
+// ============================================================================
+// ADMIN — BROADCAST CAMPAIGNS
+// ============================================================================
+
+// Known campaigns — each defines the email payload
+const BROADCAST_CAMPAIGNS = {
+  iceman_launch: {
+    id: 'iceman_launch',
+    name: "Drake's Iceman — Live Markets",
+    subject: "New live markets now open for Drake's Iceman 📊",
+    buildHtml: (username, platformUrl) => {
+      const year = new Date().getFullYear();
+      const ctaUrl = `${platformUrl}/explore`;
+      const questions = [
+        { emoji: '📦', label: 'First-Week Sales', question: 'How many units will <em>Iceman</em> sell in its first week?' },
+        { emoji: '📊', label: 'Billboard', question: 'Will Iceman debut at number 1 on the Billboard 200?' },
+        { emoji: '🎧', label: 'Most Streamed', question: 'Most streamed song on <em>Iceman</em>?' },
+      ];
+      const questionsHtml = questions.map(q => `
+        <tr><td style="padding:12px 16px;border-bottom:1px solid #1e3a5f;">
+          <table width="100%" cellpadding="0" cellspacing="0" border="0"><tr>
+            <td width="36" style="vertical-align:top;padding-top:2px;">
+              <div style="width:28px;height:28px;border-radius:6px;background:rgba(212,175,55,0.12);border:1px solid rgba(212,175,55,0.3);text-align:center;line-height:28px;font-size:14px;">${q.emoji}</div>
+            </td>
+            <td style="padding-left:10px;">
+              <div style="font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:#d4af37;margin-bottom:2px;">${q.label}</div>
+              <div style="font-size:13px;color:#cbd5e1;line-height:1.5;">${q.question}</div>
+            </td>
+          </tr></table>
+        </td></tr>`).join('');
+
+      return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0"/><title>${BROADCAST_CAMPAIGNS.iceman_launch.subject}</title></head>
+<body style="margin:0;padding:0;background-color:#0a0f1e;font-family:Arial,Helvetica,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#0a0f1e;padding:32px 16px 48px;">
+    <tr><td align="center">
+      <table width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;border-radius:16px;overflow:hidden;border:1px solid rgba(212,175,55,0.2);box-shadow:0 0 48px rgba(212,175,55,0.06);">
+        <tr><td style="height:4px;background:linear-gradient(90deg,#7a5c10,#b8952a,#d4af37,#f0cc6a,#d4af37,#b8952a,#7a5c10);font-size:0;line-height:0;">&nbsp;</td></tr>
+        <tr><td align="center" style="padding:20px 32px 18px;background-color:#071428;">
+          <img src="${platformUrl}/Logo-Title.png" alt="Dobium" width="130" style="display:block;height:auto;border:0;margin:0 auto;" />
+        </td></tr>
+        <tr><td align="center" style="padding:36px 32px 32px;background:linear-gradient(160deg,#0c1e40 0%,#071428 60%,#04101f 100%);">
+          <div style="width:56px;height:56px;border-radius:14px;background:rgba(212,175,55,0.1);border:1.5px solid rgba(212,175,55,0.4);margin:0 auto 20px;text-align:center;line-height:56px;font-size:26px;">📊</div>
+          <h1 style="margin:0 0 8px;font-size:24px;font-weight:900;color:#f1f5f9;line-height:1.2;letter-spacing:-0.5px;">Drake's Iceman — Live Markets Are Open</h1>
+          <p style="margin:0;font-size:13px;color:#64748b;line-height:1.6;max-width:380px;">The album dropped. The data is moving. Be first to trade it.</p>
+        </td></tr>
+        <tr><td style="background:#0a1628;padding:22px 32px;border-top:1px solid rgba(212,175,55,0.1);border-bottom:1px solid rgba(212,175,55,0.1);">
+          ${username ? `<p style="margin:0 0 8px;font-size:15px;font-weight:600;color:#f1f5f9;">Hey ${username},</p>` : ''}
+          <p style="margin:0;font-size:14px;color:#94a3b8;line-height:1.8;">Drake's <strong>Iceman</strong> is officially out — and real performance data is already shaping up.</p>
+          <p style="margin:12px 0 0;font-size:14px;color:#94a3b8;line-height:1.8;">We've opened a set of short-term prediction markets on <strong style="color:#d4af37;">Dobium</strong> so you can track what happens next in real time.</p>
+        </td></tr>
+        <tr><td style="background:#071428;padding:20px 32px 4px;">
+          <p style="margin:0 0 12px;font-size:11px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:#475569;">Right now, you can trade on</p>
+          <table width="100%" cellpadding="0" cellspacing="0" border="0" style="border:1px solid #1e3a5f;border-radius:10px;overflow:hidden;background:#0a1628;">
+            ${questionsHtml}
+          </table>
+        </td></tr>
+        <tr><td style="background:#071428;padding:20px 32px 8px;">
+          <p style="margin:0;font-size:13px;color:#64748b;line-height:1.8;">These markets close soon — prices will move as more data comes in. The earlier you trade, the more edge you have.</p>
+        </td></tr>
+        <tr><td align="center" style="background:#071428;padding:28px 32px 36px;">
+          <p style="margin:0 0 18px;font-size:13px;color:#64748b;">You can view and trade all live markets on Dobium</p>
+          <a href="${ctaUrl}" style="display:inline-block;padding:15px 52px;background:linear-gradient(135deg,#b8952a 0%,#d4af37 50%,#e8c645 100%);color:#0a0f1e;font-size:15px;font-weight:900;text-decoration:none;border-radius:10px;letter-spacing:0.3px;box-shadow:0 4px 20px rgba(212,175,55,0.3);">Start Trading →</a>
+        </td></tr>
+        <tr><td align="center" style="padding:22px 32px 24px;background:#04101f;border-top:1px solid rgba(255,255,255,0.04);">
+          <p style="margin:0 0 4px;font-size:11px;color:#334155;">© ${year} Dobium &middot; All rights reserved.</p>
+          <p style="margin:0;font-size:10px;color:#1e293b;line-height:1.6;">You received this because you are a registered user of Dobium Prediction Markets.<br/>This is an automated platform update.</p>
+        </td></tr>
+        <tr><td style="height:3px;background:linear-gradient(90deg,#7a5c10,#b8952a,#d4af37,#f0cc6a,#d4af37,#b8952a,#7a5c10);font-size:0;line-height:0;">&nbsp;</td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body></html>`;
+    },
+    buildText: () => `Drake's Iceman is officially out — and the first wave of real performance data is already shaping up.
+
+We've opened a set of short-term prediction markets on Dobium so you can track what happens next in real time.
+
+Right now, you can trade on questions like:
+
+  📦 First-Week Sales — How many units will Iceman sell in its first week?
+  📊 Billboard  — Will Iceman debut at number 1 on the Billboard 200?
+  🎧 Most Streams — Most streamed song on <em>Iceman</em>?
+
+These markets close soon — prices will move as more data comes in. The earlier you trade, the more edge you have.
+
+Start Trading: https://dobium.up.railway.app/explore`
+  }
+};
+
+// ── Custom campaign HTML builder ──────────────────────────────────────────────
+function buildCustomBroadcastHtml({ heading, heroIcon = '✦', body, callout, ctaLabel, ctaUrl, username, subject, platformUrl }) {
+  const year = new Date().getFullYear();
+  const safeBody = (body || '').replace(/\n/g, '<br/>');
+  return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0"/><title>${subject || 'A message from Dobium'}</title></head>
+<body style="margin:0;padding:0;background-color:#0a0f1e;font-family:Arial,Helvetica,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#0a0f1e;padding:32px 16px 48px;">
+    <tr><td align="center">
+      <table width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;border-radius:16px;overflow:hidden;border:1px solid rgba(212,175,55,0.2);box-shadow:0 0 48px rgba(212,175,55,0.06);">
+        <tr><td style="height:4px;background:linear-gradient(90deg,#7a5c10,#b8952a,#d4af37,#f0cc6a,#d4af37,#b8952a,#7a5c10);font-size:0;line-height:0;">&nbsp;</td></tr>
+        <tr><td align="center" style="padding:20px 32px 18px;background-color:#071428;">
+          <img src="${platformUrl}/Logo-Title.png" alt="Dobium" width="130" style="display:block;height:auto;border:0;margin:0 auto;" />
+        </td></tr>
+        <tr><td align="center" style="padding:36px 32px 32px;background:linear-gradient(160deg,#0c1e40 0%,#071428 60%,#04101f 100%);">
+          <div style="width:52px;height:52px;border-radius:14px;background:rgba(212,175,55,0.1);border:1.5px solid rgba(212,175,55,0.4);margin:0 auto 18px;text-align:center;line-height:52px;font-size:24px;">${heroIcon}</div>
+          <h1 style="margin:0 0 6px;font-size:22px;font-weight:900;color:#f1f5f9;line-height:1.25;letter-spacing:-0.3px;">${heading || 'A message from Dobium'}</h1>
+          <p style="margin:0;font-size:12px;color:#475569;line-height:1.5;">${subject || ''}</p>
+        </td></tr>
+        <tr><td style="background:#0a1628;padding:24px 32px;border-top:1px solid rgba(212,175,55,0.1);border-bottom:1px solid rgba(212,175,55,0.1);">
+          ${username ? `<p style="margin:0 0 10px;font-size:15px;font-weight:600;color:#f1f5f9;">Hi ${username},</p>` : ''}
+          <p style="margin:0;font-size:14px;color:#94a3b8;line-height:1.85;">${safeBody}</p>
+        </td></tr>
+        ${callout ? `<tr><td style="background:#071428;padding:18px 32px;">
+          <table width="100%" cellpadding="0" cellspacing="0" border="0"><tr>
+            <td style="border-left:3px solid #d4af37;background:rgba(212,175,55,0.06);border-radius:0 8px 8px 0;padding:12px 16px;">
+              <p style="margin:0;font-size:13px;color:#a78040;line-height:1.6;">${callout}</p>
+            </td>
+          </tr></table>
+        </td></tr>` : ''}
+        ${ctaLabel && ctaUrl ? `<tr><td align="center" style="background:#071428;padding:28px 32px 36px;">
+          <a href="${ctaUrl}" style="display:inline-block;padding:14px 48px;background:linear-gradient(135deg,#b8952a 0%,#d4af37 50%,#e8c645 100%);color:#0a0f1e;font-size:14px;font-weight:900;text-decoration:none;border-radius:10px;box-shadow:0 4px 20px rgba(212,175,55,0.3);">${ctaLabel}</a>
+        </td></tr>` : ''}
+        <tr><td align="center" style="padding:22px 32px 24px;background:#04101f;border-top:1px solid rgba(255,255,255,0.04);">
+          <p style="margin:0 0 4px;font-size:11px;color:#334155;">© ${year} Dobium &middot; All rights reserved.</p>
+          <p style="margin:0;font-size:10px;color:#1e293b;line-height:1.6;">You received this because you are a registered user of Dobium Prediction Markets.</p>
+        </td></tr>
+        <tr><td style="height:3px;background:linear-gradient(90deg,#7a5c10,#b8952a,#d4af37,#f0cc6a,#d4af37,#b8952a,#7a5c10);font-size:0;line-height:0;">&nbsp;</td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body></html>`;
+}
+
+/**
+ * POST /api/admin/send-broadcast
+ * Body:
+ *   Preset:  { campaignId, adminEmail, dryRun? }
+ *   Custom:  { campaignId: 'custom', adminEmail, dryRun?,
+ *              subject, heading, heroIcon, body, callout, ctaLabel, ctaUrl }
+ */
+app.post('/api/admin/send-broadcast', async (req, res) => {
+  try {
+    const {
+      campaignId, adminEmail, dryRun = true,
+      // Custom campaign fields
+      subject, heading, heroIcon, body: bodyText, callout, ctaLabel, ctaUrl
+    } = req.body;
+
+    if (adminEmail !== 'donotreply.dobium@gmail.com') {
+      return res.status(403).json({ error: 'Forbidden — admin access required' });
+    }
+
+    const platformUrl = process.env.PLATFORM_URL || 'https://dobium.up.railway.app';
+
+    // ── Resolve campaign ────────────────────────────────────────────────────
+    let campaign;
+    if (campaignId === 'custom') {
+      if (!subject || !bodyText) {
+        return res.status(400).json({ error: 'Custom campaign requires at least subject and body.' });
+      }
+      campaign = {
+        id: 'custom',
+        name: subject,
+        subject,
+        buildHtml: (username) => buildCustomBroadcastHtml({
+          heading, heroIcon, body: bodyText, callout, ctaLabel,
+          ctaUrl: ctaUrl || platformUrl,
+          username, subject, platformUrl
+        }),
+        buildText: () => `${heading ? heading + '\n\n' : ''}${bodyText}${callout ? '\n\n' + callout : ''}${ctaLabel && ctaUrl ? '\n\n' + ctaLabel + ': ' + ctaUrl : ''}`
+      };
+    } else {
+      campaign = BROADCAST_CAMPAIGNS[campaignId];
+      if (!campaign) {
+        return res.status(400).json({ error: `Unknown campaign: ${campaignId}` });
+      }
+    }
+
+    // ── Fetch recipients ────────────────────────────────────────────────────
+    const { createClient } = require('@supabase/supabase-js');
+    const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || '';
+    const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
+
+    if (!supabaseUrl || !serviceKey) {
+      return res.status(500).json({ error: 'Supabase credentials not configured' });
+    }
+
+    const supabaseAdmin = createClient(supabaseUrl, serviceKey, {
+      auth: { autoRefreshToken: false, persistSession: false }
+    });
+
+    const { data, error } = await supabaseAdmin.auth.admin.listUsers();
+    if (error) return res.status(500).json({ error: 'Failed to fetch users: ' + error.message });
+
+    const SKIP = new Set(['donotreply.dobium@gmail.com', 'peepeeeepooopoo@gmail.com', 'hebdhdbdbsbhbbbhhdhdhsh@gmail.com']);
+    const recipients = data.users
+      .filter(u => u.email && !SKIP.has(u.email))
+      .map(u => ({
+        email: u.email,
+        username: u.user_metadata?.name || u.user_metadata?.full_name || null
+      }));
+
+    // ── Dry-run ─────────────────────────────────────────────────────────────
+    if (dryRun) {
+      return res.json({
+        dryRun: true,
+        campaign: { id: campaign.id, name: campaign.name, subject: campaign.subject },
+        recipientCount: recipients.length,
+        recipients: recipients.map(r => r.email),
+        previewHtml: campaign.buildHtml(null, platformUrl)
+      });
+    }
+
+    // ── Live send ───────────────────────────────────────────────────────────
+    const results = { sent: 0, failed: 0, errors: [] };
+
+    for (const recipient of recipients) {
+      try {
+        await sendEmail({
+          to: recipient.email,
+          subject: campaign.subject,
+          text: campaign.buildText(),
+          html: campaign.buildHtml(recipient.username, platformUrl)
+        });
+        results.sent++;
+        await new Promise(r => setTimeout(r, 700));
+      } catch (err) {
+        results.failed++;
+        results.errors.push({ email: recipient.email, error: err.message });
+      }
+    }
+
+    res.json({ dryRun: false, campaign: campaign.name, ...results });
+  } catch (error) {
+    console.error('Broadcast error:', error);
+    res.status(500).json({ error: 'Broadcast failed: ' + error.message });
+  }
+});
+
 
 // ============================================================================
 // SPA FALLBACK — let React Router handle all non-API routes
@@ -1697,6 +2035,12 @@ async function initDatabase() {
 
 const server = app.listen(PORT, () => {
   console.log(`✅ Dobium API listening on http://localhost:${PORT}`);
+
+  // Register the daily 12 PM CST digest email job
+  registerDailyDigestJob(
+    { User, Transaction, Prediction, Outcome, Market },
+    sendEmail
+  );
 });
 
 server.on('error', (err) => {

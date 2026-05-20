@@ -38,7 +38,7 @@ export default function AuthPage() {
     <div className="auth-page">
       <div className="auth-card">
         <div className="auth-logo">
-          <img src="/Logo-Title.png" alt="Samsa Prediction Markets" style={{ height: 64 }} />
+          <img src="/Logo-Title.png" alt="Samsa Prediction Markets" style={{ height: 50 }} />
         </div>
 
         {view === 'login' && (

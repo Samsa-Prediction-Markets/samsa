@@ -32,6 +32,32 @@ app.use(cors(corsOptions));
 app.use(express.json());
 app.use(morgan('dev'));
 
+// --- SSE Setup for Real-time Notifications ---
+let sseClients = [];
+
+function broadcastSseNotification(notification) {
+  const eventData = JSON.stringify(notification);
+  sseClients.forEach(client => client.res.write(`data: ${eventData}\n\n`));
+}
+
+app.get('/api/notifications/stream', (req, res) => {
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.flushHeaders();
+
+  const clientId = Date.now();
+  const newClient = { id: clientId, res };
+  sseClients.push(newClient);
+
+  const heartbeat = setInterval(() => { res.write(': heartbeat\n\n'); }, 20000);
+
+  req.on('close', () => {
+    clearInterval(heartbeat);
+    sseClients = sseClients.filter(client => client.id !== clientId);
+  });
+});
+
 // Serve the frontend bundle from root
 app.use(express.static(__dirname));
 
@@ -220,7 +246,7 @@ app.get('/api/markets/:id', async (req, res) => {
 app.post('/api/markets', async (req, res) => {
   const {
     title,
-    description,
+    description = '',
     category,
     outcomes = [],
     image_url = '',
@@ -229,7 +255,7 @@ app.post('/api/markets', async (req, res) => {
     resolution_date = null
   } = req.body;
 
-  if (!title || !description || !category || !Array.isArray(outcomes) || outcomes.length < 2) {
+  if (!title || !category || !Array.isArray(outcomes) || outcomes.length < 2) {
     return res.status(400).json({ error: 'Invalid market payload' });
   }
 
@@ -267,16 +293,17 @@ app.post('/api/markets', async (req, res) => {
   try { notifications = await readJson(NOTIFICATIONS_PATH); } catch (e) { notifications = []; }
 
   users.forEach(u => {
-    notifications.push({
-      id: nanoid(12),
+    nota: nanoid(12),
       user_id: u.id,
-      type: 'market_new',
-      title: 'New Market Out',
-      message: `A new market "${title}" is now available in the ${category} category.`,
-      is_read: false,
-      created_at: new Date().toISOString()
-    });
-  });
+        type: 'market_new',
+          title: 'New Market Out',
+            message: `A new market "${title}" is now available in the ${category} category.`,
+              link: `/markets/${market.id}`,
+                is_read: false,
+                  created_at: new Date().toISOString()
+  };
+  ntifications.push(newNotification);
+  ;
   if (notifications.length > 0) await writeJson(NOTIFICATIONS_PATH, notifications);
 
   res.status(201).json(market);
@@ -397,603 +424,608 @@ app.post('/api/markets/:id/resolve', async (req, res) => {
   let notifications = [];
   try { notifications = await readJson(NOTIFICATIONS_PATH); } catch (e) { notifications = []; }
 
-  const participantIds = [...new Set(predictions.filter(p => p.market_id === market.id).map(p => p.user_id))];
-  participantIds.forEach(userId => {
-    if (userId) {
-      notifications.push({
-        id: nanoid(12),
-        user_id: userId,
-        type: 'market_resolved',
-        title: 'Market Resolved',
-        message: `The market "${market.title}" has been resolved.`,
-        is_read: false,
-        created_at: new Date().toISOString()
-      });
-    }
-  });
+  let users = [];
+  try { users = await readJson(USERS_PATH); } catch (e) { users = []; }
+
+  users.forEach(u => {
+    const newNotification = {
+      id: nanoid(12),
+      _ upe: 'market_resolved',
+      title: 'Market Resolved',
+      message: `The market "${market.title}" has been resolved.`,
+      link: `/markets/${market.id}`,
+      is_read: false,
+      created_at: new Date().toISOString()
+    };
+    notifications.push(newNotification);
+    broadcastSseNotification(newNotificat
 
   const updated = predictions.map((p) => {
-    if (p.market_id !== market.id) return p;
-    const won = p.outcome_id === winning_outcome_id;
-    const pEntry = (p.odds_at_prediction || 50) / 100;
+      if (p.market_id !== market.id) return p;
+      const won = p.outcome_id === winning_outcome_id;
+      const pEntry = (p.odds_at_prediction || 50) / 100;
 
-    let actual_return = 0;
-    if (won) {
-      actual_return = p.stake_amount + p.stake_amount * (1 - pEntry);
-      if (p.user_id) {
-        notifications.push({
-          id: nanoid(12),
-          user_id: p.user_id,
-          type: 'prediction_won',
-          title: 'Prediction Won!',
-          message: `Your position in "${market.title}" won! You received a return of $${actual_return.toFixed(2)}.`,
-          is_read: false,
-          created_at: new Date().toISOString()
-        });
+      let actual_return = 0;
+      if (won) {
+        actual_return = p.stake_amount + p.stake_amount * (1 - pEntry);
+        if (p.user_id) {
+          const winNotification = {
+            id: nanoid(12),
+            user_id: p.user_id,
+            type: 'pre n Won!',
+            message: `Your position in "${market.title}" won! You received a return of $${actual_return.toFixed(2)}.`,
+            link: `/markets/${market.id}`,
+            is_read: false,
+            created_at: new Date().toISOString()
+          };
+          notifications.push(winNotification);
+          broadcastSseNotification(winNotification);
+        }
+      } else {
+        ul_return = p.stake_amount * pEntry; // Rebated risk refund
       }
-    } else {
-      actual_return = p.stake_amount * pEntry; // Rebated risk refund
-    }
 
-    return {
-      ...p,
-      status: won ? 'won' : 'lost',
-      actual_return: Number(actual_return.toFixed(2)),
-      resolved_at: new Date().toISOString()
-    };
-  });
-
-  await writeJson(PREDICTIONS_PATH, updated);
-  await writeJson(MARKETS_PATH, markets);
-  await writeJson(NOTIFICATIONS_PATH, notifications);
-
-  res.json({ ok: true, market });
-});
-
-// ============================================================================
-// POSITIONS — SELL
-// ============================================================================
-
-/**
- * Sell (partially or fully) an active position on a given outcome.
- * The sell return = sell_amount * (current_probability / avg_entry_probability).
- * The sold portion is marked settled and the net return is credited via a
- * synthetic deposit transaction so buying power updates immediately.
- */
-app.post('/api/positions/sell', async (req, res) => {
-  const { market_id, outcome_id, user_id, sell_amount } = req.body;
-
-  if (!market_id || !outcome_id || !user_id || typeof sell_amount !== 'number' || sell_amount <= 0) {
-    return res.status(400).json({ error: 'Invalid sell payload' });
-  }
-
-  const markets = await readJson(MARKETS_PATH);
-  let predictions = await readJson(PREDICTIONS_PATH);
-
-  const market = markets.find((m) => m.id === market_id);
-  if (!market) return res.status(404).json({ error: 'Market not found' });
-  if (market.status !== 'active') return res.status(400).json({ error: 'Market is not active' });
-
-  const outcome = market.outcomes.find((o) => o.id === outcome_id);
-  if (!outcome) return res.status(404).json({ error: 'Outcome not found' });
-
-  // Collect the user's active predictions for this outcome
-  const userPreds = predictions.filter(
-    (p) => p.user_id === user_id && p.market_id === market_id && p.outcome_id === outcome_id && p.status === 'active'
-  );
-
-  const totalStake = userPreds.reduce((sum, p) => sum + (p.stake_amount || 0), 0);
-  if (sell_amount > totalStake + 0.001) {
-    return res.status(400).json({ error: `Cannot sell more than your position size ($${totalStake.toFixed(2)})` });
-  }
-
-  // Weighted-average entry probability
-  const weightedSum = userPreds.reduce((sum, p) => sum + (p.odds_at_prediction || 50) * (p.stake_amount || 0), 0);
-  const avgEntryProb = totalStake > 0 ? weightedSum / totalStake : 50;
-  const currentProb = outcome.probability || 50;
-
-  // Sell return uses the ratio of current vs entry price
-  const sell_return = Number((sell_amount * (currentProb / Math.max(avgEntryProb, 1))).toFixed(2));
-
-  // Reduce / close predictions FIFO
-  let remaining = sell_amount;
-  for (let i = 0; i < userPreds.length && remaining > 0; i++) {
-    const pred = predictions.find((p) => p.id === userPreds[i].id);
-    if (!pred) continue;
-    if (pred.stake_amount <= remaining + 0.001) {
-      remaining -= pred.stake_amount;
-      pred.status = 'sold';
-      pred.actual_return = Number((pred.stake_amount * (currentProb / Math.max(avgEntryProb, 1))).toFixed(2));
-      pred.sold_at = new Date().toISOString();
-      // Reduce market stake
-      outcome.total_stake = Math.max(0, (outcome.total_stake || 0) - pred.stake_amount);
-    } else {
-      // Partial sell – split the prediction
-      const splitStake = remaining;
-      const splitReturn = Number((splitStake * (currentProb / Math.max(avgEntryProb, 1))).toFixed(2));
-      const splitPred = {
-        ...pred,
-        id: nanoid(12),
-        stake_amount: splitStake,
-        status: 'sold',
-        actual_return: splitReturn,
-        sold_at: new Date().toISOString()
+      return {
+        ...p,
+        status: won ? 'won' : 'lost',
+        actual_return: Number(actual_return.toFixed(2)),
+        resolved_at: new Date().toISOString()
       };
-      pred.stake_amount = Number((pred.stake_amount - splitStake).toFixed(2));
-      predictions.push(splitPred);
-      outcome.total_stake = Math.max(0, (outcome.total_stake || 0) - splitStake);
-      remaining = 0;
-    }
-  }
-
-  recomputeMarketStats(market);
-
-  // Credit the sell return as a deposit so buying power updates
-  let transactions = [];
-  try { transactions = await readJson(TRANSACTIONS_PATH); } catch (e) { transactions = []; }
-  const creditTx = {
-    id: nanoid(12),
-    user_id,
-    type: 'deposit',
-    amount: sell_return,
-    payment_method: 'sell_return',
-    status: 'completed',
-    created_at: new Date().toISOString(),
-    note: `Sell return for ${market.title} — ${outcome.title}`
-  };
-  transactions.push(creditTx);
-
-  await writeJson(PREDICTIONS_PATH, predictions);
-  await writeJson(MARKETS_PATH, markets);
-  await writeJson(TRANSACTIONS_PATH, transactions);
-
-  res.json({ ok: true, sell_amount, sell_return, avg_entry_prob: avgEntryProb, current_prob: currentProb });
-});
-
-// ============================================================================
-// WALLET / USER ENDPOINTS
-// ============================================================================
-
-/**
- * Calculate user balance from transactions
- * Balance = sum of deposits - sum of withdrawals - sum of active predictions
- */
-async function calculateBalanceFromTransactions(userId) {
-  let transactions = [];
-  let predictions = [];
-
-  try {
-    transactions = await readJson(TRANSACTIONS_PATH);
-  } catch (e) {
-    transactions = [];
-  }
-
-  try {
-    predictions = await readJson(PREDICTIONS_PATH);
-  } catch (e) {
-    predictions = [];
-  }
-
-  // Filter transactions for this user
-  const userTransactions = transactions.filter(t => t.user_id === userId);
-
-  // Sum deposits (completed only)
-  const totalDeposits = userTransactions
-    .filter(t => t.type === 'deposit' && t.status === 'completed' && t.payment_method !== 'sell_return')
-    .reduce((sum, t) => sum + (t.amount || 0), 0);
-
-  // Sum withdrawals (completed only)
-  const totalWithdrawals = userTransactions
-    .filter(t => t.type === 'withdrawal' && t.status === 'completed')
-    .reduce((sum, t) => sum + (t.amount || 0), 0);
-
-  // Sum active prediction stakes (money locked in trades)
-  const activePredictionStakes = predictions
-    .filter(p => p.user_id === userId && p.status === 'active')
-    .reduce((sum, p) => sum + (p.stake_amount || 0), 0);
-
-  // Sum PnL of settled trades (won, lost, sold, refunded)
-  const settledPnL = predictions
-    .filter(p => p.user_id === userId && ['won', 'lost', 'sold', 'refunded'].includes(p.status))
-    .reduce((sum, p) => {
-      let actualReturn = p.actual_return || 0;
-      if (p.status === 'lost' && actualReturn === 0) {
-        actualReturn = (p.stake_amount || 0) * ((p.odds_at_prediction || 50) / 100);
-      }
-      return sum + (actualReturn - (p.stake_amount || 0));
-    }, 0);
-
-  // Balance = deposits - withdrawals - active stakes + settledPnL
-  const balance = totalDeposits - totalWithdrawals - activePredictionStakes + settledPnL;
-
-  return {
-    balance: Math.max(0, balance), // Never negative
-    totalDeposits,
-    totalWithdrawals,
-    activePredictionStakes
-  };
-}
-
-// Get user balance (calculated from transactions)
-app.get('/api/users/:id/balance', async (req, res) => {
-  const users = await readJson(USERS_PATH);
-  let user = users.find((u) => u.id === req.params.id);
-
-  if (!user) {
-    // Create default user if not found
-    user = {
-      id: req.params.id,
-      username: 'user',
-      email: '',
-      created_at: new Date().toISOString()
-    };
-    users.push(user);
-    await writeJson(USERS_PATH, users);
-  }
-
-  // Calculate balance from transactions (not stored value)
-  const balanceInfo = await calculateBalanceFromTransactions(req.params.id);
-
-  res.json({
-    balance: balanceInfo.balance,
-    total_deposited: balanceInfo.totalDeposits,
-    total_withdrawn: balanceInfo.totalWithdrawals,
-    active_stakes: balanceInfo.activePredictionStakes,
-    user
-  });
-});
-
-// Deposit funds
-app.post('/api/users/:id/deposit', async (req, res) => {
-  const { amount, payment_method = 'card' } = req.body;
-
-  if (typeof amount !== 'number' || amount <= 0) {
-    return res.status(400).json({ error: 'Invalid deposit amount' });
-  }
-
-  if (amount > 10000) {
-    return res.status(400).json({ error: 'Maximum deposit is $10,000' });
-  }
-
-  const users = await readJson(USERS_PATH);
-  let user = users.find((u) => u.id === req.params.id);
-
-  if (!user) {
-    // Create user if doesn't exist
-    user = {
-      id: req.params.id,
-      username: 'user',
-      email: '',
-      created_at: new Date().toISOString()
-    };
-    users.push(user);
-    await writeJson(USERS_PATH, users);
-  }
-
-  // Record transaction (balance is calculated from transactions, not stored)
-  let transactions = [];
-  try {
-    transactions = await readJson(TRANSACTIONS_PATH);
-  } catch (e) {
-    transactions = [];
-  }
-
-  const transaction = {
-    id: nanoid(12),
-    user_id: req.params.id,
-    type: 'deposit',
-    amount,
-    payment_method,
-    status: 'completed',
-    created_at: new Date().toISOString()
-  };
-
-  transactions.push(transaction);
-  await writeJson(TRANSACTIONS_PATH, transactions);
-
-  // Calculate new balance from all transactions
-  const balanceInfo = await calculateBalanceFromTransactions(req.params.id);
-
-  res.status(201).json({
-    success: true,
-    transaction,
-    new_balance: balanceInfo.balance
-  });
-});
-
-// Withdraw funds
-app.post('/api/users/:id/withdraw', async (req, res) => {
-  const { amount, withdrawal_method = 'bank' } = req.body;
-
-  if (typeof amount !== 'number' || amount <= 0) {
-    return res.status(400).json({ error: 'Invalid withdrawal amount' });
-  }
-
-  // Calculate current balance from transactions
-  const currentBalanceInfo = await calculateBalanceFromTransactions(req.params.id);
-
-  if (currentBalanceInfo.balance < amount) {
-    return res.status(400).json({ error: 'Insufficient balance' });
-  }
-
-  // Ensure user exists
-  const users = await readJson(USERS_PATH);
-  let user = users.find((u) => u.id === req.params.id);
-
-  if (!user) {
-    user = {
-      id: req.params.id,
-      username: 'user',
-      email: '',
-      created_at: new Date().toISOString()
-    };
-    users.push(user);
-    await writeJson(USERS_PATH, users);
-  }
-
-  // Record transaction (balance is calculated from transactions, not stored)
-  let transactions = [];
-  try {
-    transactions = await readJson(TRANSACTIONS_PATH);
-  } catch (e) {
-    transactions = [];
-  }
-
-  const transaction = {
-    id: nanoid(12),
-    user_id: req.params.id,
-    type: 'withdrawal',
-    amount,
-    withdrawal_method,
-    status: 'completed', // For demo, mark as completed immediately
-    created_at: new Date().toISOString()
-  };
-
-  transactions.push(transaction);
-  await writeJson(TRANSACTIONS_PATH, transactions);
-
-  // Calculate new balance from all transactions
-  const balanceInfo = await calculateBalanceFromTransactions(req.params.id);
-
-  res.status(201).json({
-    success: true,
-    transaction,
-    new_balance: balanceInfo.balance
-  });
-});
-
-// Get transaction history
-app.get('/api/users/:id/transactions', async (req, res) => {
-  let transactions = [];
-  try {
-    transactions = await readJson(TRANSACTIONS_PATH);
-  } catch (e) {
-    transactions = [];
-  }
-
-  const userTransactions = transactions.filter((t) => t.user_id === req.params.id);
-  res.json(userTransactions);
-});
-
-// ============================================================================
-// BALANCE REPAIR — fix users whose buying power went negative
-// ============================================================================
-
-/**
- * POST /api/users/:id/fix-balance
- *
- * For users who somehow accumulated more active-stake than deposits allow,
- * this endpoint cancels the most-recent active predictions (newest first)
- * until the user's buying power is >= 0, then returns the repaired balance.
- *
- * In a fair-play system this shouldn't happen, but it guards against edge-cases
- * from demo usage, bugs, or data migration issues.
- */
-app.post('/api/users/:id/fix-balance', async (req, res) => {
-  const userId = req.params.id;
-
-  let predictions = [];
-  let transactions = [];
-  try { predictions = await readJson(PREDICTIONS_PATH); } catch (e) { predictions = []; }
-  try { transactions = await readJson(TRANSACTIONS_PATH); } catch (e) { transactions = []; }
-
-  // Current financial snapshot
-  const balanceBefore = await calculateBalanceFromTransactions(userId);
-
-  if (balanceBefore.balance >= 0) {
-    return res.json({
-      ok: true,
-      message: 'Balance is already non-negative — no fix needed.',
-      balance: balanceBefore.balance,
-      cancelled_predictions: 0
     });
-  }
 
-  // The raw deficit before Math.max(0,...) hides it
-  const totalDeposits = balanceBefore.totalDeposits;
-  const totalWithdrawals = balanceBefore.totalWithdrawals;
-  const trueBalance = totalDeposits - totalWithdrawals - balanceBefore.activePredictionStakes;
+    await writeJson(PREDICTIONS_PATH, updated);
+    await writeJson(MARKETS_PATH, markets);
+    await writeJson(NOTIFICATIONS_PATH, notifications);
 
-  let deficit = Math.abs(trueBalance); // amount we need to claw back
-  const cancelledIds = [];
-
-  // Sort active predictions newest-first (cancel most recent excess trades)
-  const userActivePreds = predictions
-    .filter((p) => p.user_id === userId && p.status === 'active')
-    .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-
-  for (const pred of userActivePreds) {
-    if (deficit <= 0) break;
-    // Cancel this prediction — refund the stake to restore buying power
-    const idx = predictions.findIndex((p) => p.id === pred.id);
-    if (idx === -1) continue;
-    predictions[idx] = { ...predictions[idx], status: 'cancelled', cancelled_reason: 'balance_repair', cancelled_at: new Date().toISOString() };
-    cancelledIds.push(pred.id);
-    deficit -= pred.stake_amount;
-  }
-
-  await writeJson(PREDICTIONS_PATH, predictions);
-
-  const balanceAfter = await calculateBalanceFromTransactions(userId);
-
-  res.json({
-    ok: true,
-    message: `Cancelled ${cancelledIds.length} prediction(s) to restore a non-negative balance.`,
-    balance_before: balanceBefore.balance,
-    balance_after: balanceAfter.balance,
-    cancelled_predictions: cancelledIds.length,
-    cancelled_ids: cancelledIds
+    res.json({ ok: true, market });
   });
-});
 
-// ============================================================================
-// AUTOMATIC RESOLUTION ENGINE (For Demo / Paper Trading)
-// ============================================================================
-async function autoResolveMarkets() {
-  try {
+  // ============================================================================
+  // POSITIONS — SELL
+  // ============================================================================
+
+  /**
+   * Sell (partially or fully) an active position on a given outcome.
+   * The sell return = sell_amount * (current_probability / avg_entry_probability).
+   * The sold portion is marked settled and the net return is credited via a
+   * synthetic deposit transaction so buying power updates immediately.
+   */
+  app.post('/api/positions/sell', async (req, res) => {
+    const { market_id, outcome_id, user_id, sell_amount } = req.body;
+
+    if (!market_id || !outcome_id || !user_id || typeof sell_amount !== 'number' || sell_amount <= 0) {
+      return res.status(400).json({ error: 'Invalid sell payload' });
+    }
+
     const markets = await readJson(MARKETS_PATH);
     let predictions = await readJson(PREDICTIONS_PATH);
 
-    const now = new Date();
-    let needsSave = false;
+    const market = markets.find((m) => m.id === market_id);
+    if (!market) return res.status(404).json({ error: 'Market not found' });
+    if (market.status !== 'active') return res.status(400).json({ error: 'Market is not active' });
 
-    for (const market of markets) {
-      if (market.status === 'active' && market.close_date) {
-        const closeDate = new Date(market.close_date);
+    const outcome = market.outcomes.find((o) => o.id === outcome_id);
+    if (!outcome) return res.status(404).json({ error: 'Outcome not found' });
 
-        // If the market's close date has passed, automatically resolve it
-        if (closeDate <= now) {
-          console.log(`[Auto-Resolve] Market expired, closing: ${market.title}`);
+    // Collect the user's active predictions for this outcome
+    const userPreds = predictions.filter(
+      (p) => p.user_id === user_id && p.market_id === market_id && p.outcome_id === outcome_id && p.status === 'active'
+    );
 
-          // 1. Pick a winner (Weighted random choice based on probability)
-          const rand = Math.random() * 100;
-          let sum = 0;
-          let winning_outcome_id = market.outcomes[0].id; // fallback
+    const totalStake = userPreds.reduce((sum, p) => sum + (p.stake_amount || 0), 0);
+    if (sell_amount > totalStake + 0.001) {
+      return res.status(400).json({ error: `Cannot sell more than your position size ($${totalStake.toFixed(2)})` });
+    }
 
-          for (const o of market.outcomes) {
-            sum += (o.probability || 0);
-            if (rand <= sum) {
-              winning_outcome_id = o.id;
-              break;
-            }
-          }
+    // Weighted-average entry probability
+    const weightedSum = userPreds.reduce((sum, p) => sum + (p.odds_at_prediction || 50) * (p.stake_amount || 0), 0);
+    const avgEntryProb = totalStake > 0 ? weightedSum / totalStake : 50;
+    const currentProb = outcome.probability || 50;
 
-          console.log(`[Auto-Resolve] Winner selected: ${winning_outcome_id}`);
+    // Sell return uses the ratio of current vs entry price
+    const sell_return = Number((sell_amount * (currentProb / Math.max(avgEntryProb, 1))).toFixed(2));
 
-          let notifications = [];
-          try { notifications = await readJson(NOTIFICATIONS_PATH); } catch (e) { notifications = []; }
-
-          const participantIds = [...new Set(predictions.filter(p => p.market_id === market.id && p.status === 'active').map(p => p.user_id))];
-          participantIds.forEach(userId => {
-            if (userId) {
-              notifications.push({
-                id: nanoid(12),
-                user_id: userId,
-                type: 'market_resolved',
-                title: 'Market Resolved',
-                message: `The market "${market.title}" has been resolved.`,
-                is_read: false,
-                created_at: new Date().toISOString()
-              });
-            }
-          });
-
-          // 2. Resolve Market
-          market.status = 'resolved';
-          market.winning_outcome_id = winning_outcome_id;
-          market.resolution_date = new Date().toISOString();
-
-          // 3. Settle active predictions
-          predictions = predictions.map((p) => {
-            if (p.market_id !== market.id || p.status !== 'active') return p;
-
-            const won = p.outcome_id === winning_outcome_id;
-            const pEntry = (p.odds_at_prediction || 50) / 100;
-            let actual_return = won ? p.stake_amount + p.stake_amount * (1 - pEntry) : p.stake_amount * pEntry;
-
-            if (won && p.user_id) {
-              notifications.push({
-                id: nanoid(12),
-                user_id: p.user_id,
-                type: 'prediction_won',
-                title: 'Prediction Won!',
-                message: `Your position in "${market.title}" won! You received a return of $${actual_return.toFixed(2)}.`,
-                is_read: false,
-                created_at: new Date().toISOString()
-              });
-            }
-
-            return { ...p, status: won ? 'won' : 'lost', actual_return: Number(actual_return.toFixed(2)), resolved_at: new Date().toISOString() };
-          });
-
-          if (notifications.length > 0) await writeJson(NOTIFICATIONS_PATH, notifications);
-          needsSave = true;
-        }
+    // Reduce / close predictions FIFO
+    let remaining = sell_amount;
+    for (let i = 0; i < userPreds.length && remaining > 0; i++) {
+      const pred = predictions.find((p) => p.id === userPreds[i].id);
+      if (!pred) continue;
+      if (pred.stake_amount <= remaining + 0.001) {
+        remaining -= pred.stake_amount;
+        pred.status = 'sold';
+        pred.actual_return = Number((pred.stake_amount * (currentProb / Math.max(avgEntryProb, 1))).toFixed(2));
+        pred.sold_at = new Date().toISOString();
+        // Reduce market stake
+        outcome.total_stake = Math.max(0, (outcome.total_stake || 0) - pred.stake_amount);
+      } else {
+        // Partial sell – split the prediction
+        const splitStake = remaining;
+        const splitReturn = Number((splitStake * (currentProb / Math.max(avgEntryProb, 1))).toFixed(2));
+        const splitPred = {
+          ...pred,
+          id: nanoid(12),
+          stake_amount: splitStake,
+          status: 'sold',
+          actual_return: splitReturn,
+          sold_at: new Date().toISOString()
+        };
+        pred.stake_amount = Number((pred.stake_amount - splitStake).toFixed(2));
+        predictions.push(splitPred);
+        outcome.total_stake = Math.max(0, (outcome.total_stake || 0) - splitStake);
+        remaining = 0;
       }
     }
 
-    if (needsSave) {
-      await writeJson(PREDICTIONS_PATH, predictions);
-      await writeJson(MARKETS_PATH, markets);
-      console.log('[Auto-Resolve] Saved updated markets and predictions.');
+    recomputeMarketStats(market);
+
+    // Credit the sell return as a deposit so buying power updates
+    let transactions = [];
+    try { transactions = await readJson(TRANSACTIONS_PATH); } catch (e) { transactions = []; }
+    const creditTx = {
+      id: nanoid(12),
+      user_id,
+      type: 'deposit',
+      amount: sell_return,
+      payment_method: 'sell_return',
+      status: 'completed',
+      created_at: new Date().toISOString(),
+      note: `Sell return for ${market.title} — ${outcome.title}`
+    };
+    transactions.push(creditTx);
+
+    await writeJson(PREDICTIONS_PATH, predictions);
+    await writeJson(MARKETS_PATH, markets);
+    await writeJson(TRANSACTIONS_PATH, transactions);
+
+    res.json({ ok: true, sell_amount, sell_return, avg_entry_prob: avgEntryProb, current_prob: currentProb });
+  });
+
+  // ============================================================================
+  // WALLET / USER ENDPOINTS
+  // ============================================================================
+
+  /**
+   * Calculate user balance from transactions
+   * Balance = sum of deposits - sum of withdrawals - sum of active predictions
+   */
+  async function calculateBalanceFromTransactions(userId) {
+    let transactions = [];
+    let predictions = [];
+
+    try {
+      transactions = await readJson(TRANSACTIONS_PATH);
+    } catch (e) {
+      transactions = [];
     }
-  } catch (error) {
-    console.error('[Auto-Resolve] Error:', error);
+
+    try {
+      predictions = await readJson(PREDICTIONS_PATH);
+    } catch (e) {
+      predictions = [];
+    }
+
+    // Filter transactions for this user
+    const userTransactions = transactions.filter(t => t.user_id === userId);
+
+    // Sum deposits (completed only)
+    const totalDeposits = userTransactions
+      .filter(t => t.type === 'deposit' && t.status === 'completed' && t.payment_method !== 'sell_return')
+      .reduce((sum, t) => sum + (t.amount || 0), 0);
+
+    // Sum withdrawals (completed only)
+    const totalWithdrawals = userTransactions
+      .filter(t => t.type === 'withdrawal' && t.status === 'completed')
+      .reduce((sum, t) => sum + (t.amount || 0), 0);
+
+    // Sum active prediction stakes (money locked in trades)
+    const activePredictionStakes = predictions
+      .filter(p => p.user_id === userId && p.status === 'active')
+      .reduce((sum, p) => sum + (p.stake_amount || 0), 0);
+
+    // Sum PnL of settled trades (won, lost, sold, refunded)
+    const settledPnL = predictions
+      .filter(p => p.user_id === userId && ['won', 'lost', 'sold', 'refunded'].includes(p.status))
+      .reduce((sum, p) => {
+        let actualReturn = p.actual_return || 0;
+        if (p.status === 'lost' && actualReturn === 0) {
+          actualReturn = (p.stake_amount || 0) * ((p.odds_at_prediction || 50) / 100);
+        }
+        return sum + (actualReturn - (p.stake_amount || 0));
+      }, 0);
+
+    // Balance = deposits - withdrawals - active stakes + settledPnL
+    const balance = totalDeposits - totalWithdrawals - activePredictionStakes + settledPnL;
+
+    return {
+      balance: Math.max(0, balance), // Never negative
+      totalDeposits,
+      totalWithdrawals,
+      activePredictionStakes
+    };
   }
-}
 
-// Check for expired markets every 60 seconds
-setInterval(autoResolveMarkets, 60 * 1000);
+  // Get user balance (calculated from transactions)
+  app.get('/api/users/:id/balance', async (req, res) => {
+    const users = await readJson(USERS_PATH);
+    let user = users.find((u) => u.id === req.params.id);
 
-// ============================================================================
-// NOTIFICATIONS
-// ============================================================================
-app.get('/api/users/:id/notifications', async (req, res) => {
-  let notifications = [];
-  try { notifications = await readJson(NOTIFICATIONS_PATH); } catch (e) { notifications = []; }
-
-  const userNotifications = notifications
-    .filter(n => n.user_id === req.params.id)
-    .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
-    .slice(0, 50);
-
-  res.json(userNotifications);
-});
-
-app.put('/api/notifications/:id/read', async (req, res) => {
-  let notifications = [];
-  try { notifications = await readJson(NOTIFICATIONS_PATH); } catch (e) { notifications = []; }
-
-  let found = false;
-  notifications = notifications.map(n => {
-    if (n.id === req.params.id) {
-      found = true;
-      return { ...n, is_read: true };
+    if (!user) {
+      // Create default user if not found
+      user = {
+        id: req.params.id,
+        username: 'user',
+        email: '',
+        created_at: new Date().toISOString()
+      };
+      users.push(user);
+      await writeJson(USERS_PATH, users);
     }
-    return n;
+
+    // Calculate balance from transactions (not stored value)
+    const balanceInfo = await calculateBalanceFromTransactions(req.params.id);
+
+    res.json({
+      balance: balanceInfo.balance,
+      total_deposited: balanceInfo.totalDeposits,
+      total_withdrawn: balanceInfo.totalWithdrawals,
+      active_stakes: balanceInfo.activePredictionStakes,
+      user
+    });
   });
 
-  if (found) await writeJson(NOTIFICATIONS_PATH, notifications);
-  res.json({ success: true });
-});
+  // Deposit funds
+  app.post('/api/users/:id/deposit', async (req, res) => {
+    const { amount, payment_method = 'card' } = req.body;
 
-app.put('/api/users/:id/notifications/read-all', async (req, res) => {
-  let notifications = [];
-  try { notifications = await readJson(NOTIFICATIONS_PATH); } catch (e) { notifications = []; }
-
-  let updated = false;
-  notifications = notifications.map(n => {
-    if (n.user_id === req.params.id && !n.is_read) {
-      updated = true;
-      return { ...n, is_read: true };
+    if (typeof amount !== 'number' || amount <= 0) {
+      return res.status(400).json({ error: 'Invalid deposit amount' });
     }
-    return n;
+
+    if (amount > 10000) {
+      return res.status(400).json({ error: 'Maximum deposit is $10,000' });
+    }
+
+    const users = await readJson(USERS_PATH);
+    let user = users.find((u) => u.id === req.params.id);
+
+    if (!user) {
+      // Create user if doesn't exist
+      user = {
+        id: req.params.id,
+        username: 'user',
+        email: '',
+        created_at: new Date().toISOString()
+      };
+      users.push(user);
+      await writeJson(USERS_PATH, users);
+    }
+
+    // Record transaction (balance is calculated from transactions, not stored)
+    let transactions = [];
+    try {
+      transactions = await readJson(TRANSACTIONS_PATH);
+    } catch (e) {
+      transactions = [];
+    }
+
+    const transaction = {
+      id: nanoid(12),
+      user_id: req.params.id,
+      type: 'deposit',
+      amount,
+      payment_method,
+      status: 'completed',
+      created_at: new Date().toISOString()
+    };
+
+    transactions.push(transaction);
+    await writeJson(TRANSACTIONS_PATH, transactions);
+
+    // Calculate new balance from all transactions
+    const balanceInfo = await calculateBalanceFromTransactions(req.params.id);
+
+    res.status(201).json({
+      success: true,
+      transaction,
+      new_balance: balanceInfo.balance
+    });
   });
 
-  if (updated) await writeJson(NOTIFICATIONS_PATH, notifications);
-  res.json({ success: true });
-});
+  // Withdraw funds
+  app.post('/api/users/:id/withdraw', async (req, res) => {
+    const { amount, withdrawal_method = 'bank' } = req.body;
 
-app.listen(PORT, () => {
-  console.log(`Dobium API listening on http://localhost:${PORT}`);
-});
+    if (typeof amount !== 'number' || amount <= 0) {
+      return res.status(400).json({ error: 'Invalid withdrawal amount' });
+    }
+
+    // Calculate current balance from transactions
+    const currentBalanceInfo = await calculateBalanceFromTransactions(req.params.id);
+
+    if (currentBalanceInfo.balance < amount) {
+      return res.status(400).json({ error: 'Insufficient balance' });
+    }
+
+    // Ensure user exists
+    const users = await readJson(USERS_PATH);
+    let user = users.find((u) => u.id === req.params.id);
+
+    if (!user) {
+      user = {
+        id: req.params.id,
+        username: 'user',
+        email: '',
+        created_at: new Date().toISOString()
+      };
+      users.push(user);
+      await writeJson(USERS_PATH, users);
+    }
+
+    // Record transaction (balance is calculated from transactions, not stored)
+    let transactions = [];
+    try {
+      transactions = await readJson(TRANSACTIONS_PATH);
+    } catch (e) {
+      transactions = [];
+    }
+
+    const transaction = {
+      id: nanoid(12),
+      user_id: req.params.id,
+      type: 'withdrawal',
+      amount,
+      withdrawal_method,
+      status: 'completed', // For demo, mark as completed immediately
+      created_at: new Date().toISOString()
+    };
+
+    transactions.push(transaction);
+    await writeJson(TRANSACTIONS_PATH, transactions);
+
+    // Calculate new balance from all transactions
+    const balanceInfo = await calculateBalanceFromTransactions(req.params.id);
+
+    res.status(201).json({
+      success: true,
+      transaction,
+      new_balance: balanceInfo.balance
+    });
+  });
+
+  // Get transaction history
+  app.get('/api/users/:id/transactions', async (req, res) => {
+    let transactions = [];
+    try {
+      transactions = await readJson(TRANSACTIONS_PATH);
+    } catch (e) {
+      transactions = [];
+    }
+
+    const userTransactions = transactions.filter((t) => t.user_id === req.params.id);
+    res.json(userTransactions);
+  });
+
+  // ============================================================================
+  // BALANCE REPAIR — fix users whose buying power went negative
+  // ============================================================================
+
+  /**
+   * POST /api/users/:id/fix-balance
+   *
+   * For users who somehow accumulated more active-stake than deposits allow,
+   * this endpoint cancels the most-recent active predictions (newest first)
+   * until the user's buying power is >= 0, then returns the repaired balance.
+   *
+   * In a fair-play system this shouldn't happen, but it guards against edge-cases
+   * from demo usage, bugs, or data migration issues.
+   */
+  app.post('/api/users/:id/fix-balance', async (req, res) => {
+    const userId = req.params.id;
+
+    let predictions = [];
+    let transactions = [];
+    try { predictions = await readJson(PREDICTIONS_PATH); } catch (e) { predictions = []; }
+    try { transactions = await readJson(TRANSACTIONS_PATH); } catch (e) { transactions = []; }
+
+    // Current financial snapshot
+    const balanceBefore = await calculateBalanceFromTransactions(userId);
+
+    if (balanceBefore.balance >= 0) {
+      return res.json({
+        ok: true,
+        message: 'Balance is already non-negative — no fix needed.',
+        balance: balanceBefore.balance,
+        cancelled_predictions: 0
+      });
+    }
+
+    // The raw deficit before Math.max(0,...) hides it
+    const totalDeposits = balanceBefore.totalDeposits;
+    const totalWithdrawals = balanceBefore.totalWithdrawals;
+    const trueBalance = totalDeposits - totalWithdrawals - balanceBefore.activePredictionStakes;
+
+    let deficit = Math.abs(trueBalance); // amount we need to claw back
+    const cancelledIds = [];
+
+    // Sort active predictions newest-first (cancel most recent excess trades)
+    const userActivePreds = predictions
+      .filter((p) => p.user_id === userId && p.status === 'active')
+      .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+
+    for (const pred of userActivePreds) {
+      if (deficit <= 0) break;
+      // Cancel this prediction — refund the stake to restore buying power
+      const idx = predictions.findIndex((p) => p.id === pred.id);
+      if (idx === -1) continue;
+      predictions[idx] = { ...predictions[idx], status: 'cancelled', cancelled_reason: 'balance_repair', cancelled_at: new Date().toISOString() };
+      cancelledIds.push(pred.id);
+      deficit -= pred.stake_amount;
+    }
+
+    await writeJson(PREDICTIONS_PATH, predictions);
+
+    const balanceAfter = await calculateBalanceFromTransactions(userId);
+
+    res.json({
+      ok: true,
+      message: `Cancelled ${cancelledIds.length} prediction(s) to restore a non-negative balance.`,
+      balance_before: balanceBefore.balance,
+      balance_after: balanceAfter.balance,
+      cancelled_predictions: cancelledIds.length,
+      cancelled_ids: cancelledIds
+    });
+  });
+
+  // ============================================================================
+  // AUTOMATIC RESOLUTION ENGINE (For Demo / Paper Trading)
+  // ============================================================================
+  async function autoResolveMarkets() {
+    try {
+      const markets = await readJson(MARKETS_PATH);
+      let predictions = await readJson(PREDICTIONS_PATH);
+
+      const now = new Date();
+      let needsSave = false;
+
+      for (const market of markets) {
+        if (market.status === 'active' && market.close_date) {
+          const closeDate = new Date(market.close_date);
+
+          // If the market's close date has passed, automatically resolve it
+          if (closeDate <= now) {
+            console.log(`[Auto-Resolve] Market expired, closing: ${market.title}`);
+
+            // 1. Pick a winner (Weighted random choice based on probability)
+            const rand = Math.random() * 100;
+            let sum = 0;
+            let winning_outcome_id = market.outcomes[0].id; // fallback
+
+            for (const o of market.outcomes) {
+              sum += (o.probability || 0);
+              if (rand <= sum) {
+                winning_outcome_id = o.id;
+                break;
+              }
+            }
+
+            console.log(`[Auto-Resolve] Winner selected: ${winning_outcome_id}`);
+
+            let notifications = [];
+            try { notifications = await readJson(NOTIFICATIONS_PATH); } catch (e) { notifications = []; }
+
+            let users = [];
+            try { users = await readJson(USERS_PATH); } catch (e) { users = []; }
+
+            users.forEach(u => {
+              notifications.push({
+                id: nanoid(12),
+                user_id: u.id,
+                type: 'market_resolved',
+                title: 'Market Resolved',
+                message: `The market "${market.title}" has been resolved.`,
+                link: `/markets/${market.id}`,
+                is_read: false,
+                created_at: new Date().toISOString()
+              });
+            });
+
+            // 2. Resolve Market
+            market.status = 'resolved';
+            market.winning_outcome_id = winning_outcome_id;
+            market.resolution_date = new Date().toISOString();
+
+            // 3. Settle active predictions
+            predictions = predictions.map((p) => {
+              if (p.market_id !== market.id || p.status !== 'active') return p;
+
+              const won = p.outcome_id === winning_outcome_id;
+              const pEntry = (p.odds_at_prediction || 50) / 100;
+              let actual_return = won ? p.stake_amount + p.stake_amount * (1 - pEntry) : p.stake_amount * pEntry;
+
+              if (won && p.user_id) {
+                notifications.push({
+                  id: nanoid(12),
+                  user_id: p.user_id,
+                  type: 'prediction_won',
+                  title: 'Prediction Won!',
+                  message: `Your position in "${market.title}" won! You received a return of $${actual_return.toFixed(2)}.`,
+                  link: `/markets/${market.id}`,
+                  is_read: false,
+                  created_at: new Date().toISOString()
+                });
+              }
+
+              return { ...p, status: won ? 'won' : 'lost', actual_return: Number(actual_return.toFixed(2)), resolved_at: new Date().toISOString() };
+            });
+
+            if (notifications.length > 0) await writeJson(NOTIFICATIONS_PATH, notifications);
+            needsSave = true;
+          }
+        }
+      }
+
+      if (needsSave) {
+        await writeJson(PREDICTIONS_PATH, predictions);
+        await writeJson(MARKETS_PATH, markets);
+        console.log('[Auto-Resolve] Saved updated markets and predictions.');
+      }
+    } catch (error) {
+      console.error('[Auto-Resolve] Error:', error);
+    }
+  }
+
+  // Check for expired markets every 60 seconds
+  setInterval(autoResolveMarkets, 60 * 1000);
+
+  // ============================================================================
+  // NOTIFICATIONS
+  // ============================================================================
+  app.get('/api/users/:id/notifications', async (req, res) => {
+    let notifications = [];
+    try { notifications = await readJson(NOTIFICATIONS_PATH); } catch (e) { notifications = []; }
+
+    const userNotifications = notifications
+      .filter(n => n.user_id === req.params.id)
+      .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+      .slice(0, 50);
+
+    res.json(userNotifications);
+  });
+
+  app.put('/api/notifications/:id/read', async (req, res) => {
+    let notifications = [];
+    try { notifications = await readJson(NOTIFICATIONS_PATH); } catch (e) { notifications = []; }
+
+    let found = false;
+    notifications = notifications.map(n => {
+      if (n.id === req.params.id) {
+        found = true;
+        return { ...n, is_read: true };
+      }
+      return n;
+    });
+
+    if (found) await writeJson(NOTIFICATIONS_PATH, notifications);
+    res.json({ success: true });
+  });
+
+  app.put('/api/users/:id/notifications/read-all', async (req, res) => {
+    let notifications = [];
+    try { notifications = await readJson(NOTIFICATIONS_PATH); } catch (e) { notifications = []; }
+
+    let updated = false;
+    notifications = notifications.map(n => {
+      if (n.user_id === req.params.id && !n.is_read) {
+        updated = true;
+        return { ...n, is_read: true };
+      }
+      return n;
+    });
+
+    if (updated) await writeJson(NOTIFICATIONS_PATH, notifications);
+    res.json({ success: true });
+  });
+
+  app.listen(PORT, () => {
+    console.log(`Dobium API listening on http://localhost:${PORT}`);
+  });

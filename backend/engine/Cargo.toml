@@ -1,15 +1,15 @@
 [package]
-name = "samsa-engine"
+name = "dobium-engine"
 version = "0.1.0"
 edition = "2021"
-description = "Samsa prediction market pricing and payout engine"
+description = "Dobium prediction market pricing and payout engine"
 
 [[bin]]
-name = "samsa-engine"
+name = "dobium-engine"
 path = "src/main.rs"
 
 [lib]
-name = "samsa_engine"
+name = "dobium_engine"
 path = "src/lib.rs"
 
 [dependencies]

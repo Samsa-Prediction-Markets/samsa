@@ -23,6 +23,11 @@ const User = sequelize.define('User', {
     validate: {
       isEmail: true
     }
+  },
+  welcome_email_sent: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false,
+    allowNull: false
   }
 }, {
   tableName: 'users',

@@ -1,5 +1,5 @@
 // ============================================================================
-// SAMSA ENGINE — PAYOUT (Fee-Free Rebated-Risk Model)
+// Dobium ENGINE — PAYOUT (Fee-Free Rebated-Risk Model)
 // ============================================================================
 //
 // Based on the spreadsheet model (f = 0.0 — fees disabled until real money):

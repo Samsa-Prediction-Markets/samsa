@@ -42,21 +42,42 @@ export default function Sidebar() {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // Fetch unread notifications
+  // Fetch unread notifications count on load, then listen for real-time updates
   useEffect(() => {
-    if (session?.user?.id) {
-      const fetchUnread = async () => {
-        try {
-          const res = await fetch(`/api/users/${session.user.id}/notifications`);
-          if (res.ok) {
-            const data = await res.json();
-            setUnreadCount(data.filter(n => !n.is_read).length);
-          }
-        } catch (err) { }
-      };
-      fetchUnread();
-      const interval = setInterval(fetchUnread, 60000);
-      return () => clearInterval(interval);
+    if (!session?.user?.id) return;
+
+    // Initial fetch for count
+    const fetchUnread = async () => {
+      try {
+        const res = await fetch(`/api/users/${session.user.id}/notifications`);
+        if (res.ok) {
+          const data = await res.json();
+          setUnreadCount(data.filter(n => !n.is_read).length);
+        }
+      } catch (err) {
+        console.error('Failed to fetch initial notification count', err);
+      }
+    };
+    fetchUnread();
+
+    // Setup SSE connection for real-time updates
+    const eventSource = new EventSource('/api/notifications/stream');
+
+    eventSource.onmessage = (event) => {
+      const notification = JSON.parse(event.data);
+      // Check if the notification is for the current user and is unread
+      if (notification.user_id === session.user.id && !notification.is_read) {
+        setUnreadCount(prevCount => prevCount + 1);
+      }
+    };
+
+    eventSource.onerror = (err) => {
+      console.error('EventSource failed:', err);
+      eventSource.close();
+    };
+
+    return () => {
+      eventSource.close();
     }
   }, [session?.user?.id]);
 
@@ -132,7 +153,7 @@ export default function Sidebar() {
           {/* Logo */}
           <div className="sidebar-logo" onClick={() => navigate('/')} style={{ cursor: 'pointer' }}>
             <div className="sidebar-logo-icon">
-              <img src="/Logo.png" alt="Dobium" className="sidebar-logo-img" style={{ width: isNotificationsOpen ? 40 : 64, height: isNotificationsOpen ? 40 : 64, objectFit: 'contain', transition: 'all 0.3s ease' }} />
+              <img src="/Logo.png" alt="Dobium" className="sidebar-logo-img" style={{ width: 40, height: 40, objectFit: 'contain', transition: 'all 0.3s ease' }} />
             </div>
           </div>
 
@@ -170,7 +191,44 @@ export default function Sidebar() {
           </nav>
 
           {/* Avatar button — replaces Settings + Logout */}
-          <div className="sidebar-footer" style={{ position: 'relative', overflow: 'visible' }}>
+          <div className="sidebar-footer" style={{ position: 'relative', overflow: 'visible', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+
+            {/* Notifications Button */}
+            <button
+              onClick={() => setIsNotificationsOpen(true)}
+              className={`sidebar-item${isNotificationsOpen ? ' active' : ''}`}
+              style={{
+                padding: '8px',
+                width: '100%',
+                justifyContent: 'flex-start'
+              }}
+              title="Notifications"
+            >
+              <div className="sidebar-item-icon" style={{ minWidth: 40, width: 40, height: 40, position: 'relative' }}>
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75v-.7V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0" />
+                </svg>
+                {unreadCount > 0 && (
+                  <span style={{
+                    position: 'absolute', top: 8, right: 8, width: 8, height: 8,
+                    background: '#ef4444', borderRadius: '50%'
+                  }} />
+                )}
+              </div>
+              {!isNotificationsOpen && (
+                <span className="sidebar-item-text" style={{ fontSize: 13, flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingRight: '8px' }}>
+                  <span>Notifications</span>
+                  {unreadCount > 0 && (
+                    <span style={{
+                      background: '#ef4444', color: '#fff', fontSize: 10, padding: '2px 6px', borderRadius: 10, fontWeight: 'bold'
+                    }}>
+                      {unreadCount}
+                    </span>
+                  )}
+                </span>
+              )}
+            </button>
+
             <button
               ref={avatarRef}
               onClick={() => setMenuOpen(v => !v)}
@@ -256,41 +314,6 @@ export default function Sidebar() {
                   <p style={{ color: '#fff', fontSize: 13, fontWeight: 600, margin: 0 }}>{displayName}</p>
                   <p style={{ color: '#64748b', fontSize: 11, margin: '2px 0 0' }}>{user?.email}</p>
                 </div>
-
-                {/* Notifications */}
-                <button
-                  onClick={() => { setMenuOpen(false); setIsNotificationsOpen(true); }}
-                  style={{
-                    display: 'flex', alignItems: 'center', gap: 10,
-                    width: '100%', padding: '10px 12px', borderRadius: 8,
-                    background: 'none', border: 'none', cursor: 'pointer',
-                    color: '#cbd5e1', fontSize: 13, transition: 'background 0.15s',
-                  }}
-                  onMouseEnter={e => e.currentTarget.style.background = '#334155'}
-                  onMouseLeave={e => e.currentTarget.style.background = 'none'}
-                >
-                  <div style={{ position: 'relative' }}>
-                    <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round"
-                        d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75v-.7V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0" />
-                    </svg>
-                    {unreadCount > 0 && (
-                      <span style={{
-                        position: 'absolute', top: -2, right: -2, width: 8, height: 8,
-                        background: '#ef4444', borderRadius: '50%'
-                      }} />
-                    )}
-                  </div>
-                  Notifications
-                  {unreadCount > 0 && (
-                    <span style={{
-                      marginLeft: 'auto', background: '#ef4444', color: '#fff',
-                      fontSize: 10, padding: '2px 6px', borderRadius: 10, fontWeight: 'bold'
-                    }}>
-                      {unreadCount}
-                    </span>
-                  )}
-                </button>
 
                 {/* Settings */}
                 <button

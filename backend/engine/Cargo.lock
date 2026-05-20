@@ -33,7 +33,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "samsa-engine"
+name = "dobium-engine"
 version = "0.1.0"
 dependencies = [
  "serde",

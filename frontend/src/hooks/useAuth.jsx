@@ -52,11 +52,17 @@ export function AuthProvider({ children }) {
     return data;
   };
 
-  const signup = async (email, password) => {
+  const signup = async (email, password, fullName) => {
     const { data, error } = await supabase.auth.signUp({
       email: normalizeEmail(email),
       password,
-      options: { emailRedirectTo: getRedirectUrl() },
+      options: {
+        emailRedirectTo: getRedirectUrl(),
+        data: {
+          name: fullName,
+          full_name: fullName,
+        }
+      },
     });
     if (error) throw new Error(error.message);
     setSession(data?.session ?? null);

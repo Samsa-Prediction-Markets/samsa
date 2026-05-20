@@ -5,6 +5,8 @@ import { useAuth } from '../hooks/useAuth';
 export default function LandingPage() {
   const { signup, loginWithGoogle } = useAuth();
   const navigate = useNavigate();
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
@@ -72,7 +74,8 @@ export default function LandingPage() {
     }
     setLoading(true);
     try {
-      const data = await signup(email, password);
+      const fullName = `${firstName} ${lastName}`.trim();
+      const data = await signup(email, password, fullName);
       if (data?.session) {
         navigate('/');
         return;
@@ -103,7 +106,7 @@ export default function LandingPage() {
       <div className="landing-left">
         <div className="landing-form-container">
           <div className="landing-logo">
-            <img src="/Logo-Title.png" alt="Dobium Prediction Markets" style={{ height: 64 }} />
+            <img src="/Logo-Title.png" alt="Dobium Prediction Markets" style={{ height: 50 }} />
           </div>
 
           <h1 className="landing-main-title">Get Started</h1>
@@ -117,6 +120,30 @@ export default function LandingPage() {
           <div className="auth-divider">or sign up with email</div>
 
           <form onSubmit={handleSignup} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <div style={{ display: 'flex', gap: '14px' }}>
+              <div className="form-group" style={{ flex: 1 }}>
+                <label className="form-label">First name</label>
+                <input
+                  className="form-input"
+                  type="text"
+                  value={firstName}
+                  onChange={e => setFirstName(e.target.value)}
+                  placeholder="First name"
+                  required
+                />
+              </div>
+              <div className="form-group" style={{ flex: 1 }}>
+                <label className="form-label">Last name</label>
+                <input
+                  className="form-input"
+                  type="text"
+                  value={lastName}
+                  onChange={e => setLastName(e.target.value)}
+                  placeholder="Last name"
+                  required
+                />
+              </div>
+            </div>
             <div className="form-group">
               <label className="form-label">Email</label>
               <input
