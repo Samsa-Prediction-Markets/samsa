@@ -4,7 +4,6 @@
 // Manages PostgreSQL connection using Sequelize ORM
 
 const { Sequelize } = require('sequelize');
-const { execSync } = require('child_process');
 
 // Load environment variables
 require('dotenv').config();
@@ -12,43 +11,20 @@ require('dotenv').config();
 const rawUrl = process.env.DATABASE_URL || 'postgresql://localhost:5432/samsa_dev';
 const isRemote = !rawUrl.includes('localhost') && !rawUrl.includes('127.0.0.1');
 
-/**
- * Resolve a hostname to IPv4 synchronously.
- * Railway cannot reach Supabase over IPv6, so we resolve to IPv4 first
- * and replace the hostname in the URL with the IP address.
- */
-function resolveIPv4(dbUrl) {
-  if (!isRemote) return dbUrl;
-  try {
-    const urlObj = new URL(dbUrl);
-    const hostname = urlObj.hostname;
-    // Spawn a child process to resolve DNS to IPv4
-    const ip = execSync(
-      `node -e "require('dns').resolve4('${hostname}', (e,a) => process.stdout.write(a && a[0] || ''))"`,
-      { encoding: 'utf-8', timeout: 10000 }
-    ).trim();
-    if (ip) {
-      console.log(`🌐 Resolved ${hostname} → ${ip} (IPv4)`);
-      urlObj.hostname = ip;
-      return urlObj.toString();
-    }
-    console.warn(`⚠️  No IPv4 address found for ${hostname}`);
-  } catch (err) {
-    console.warn(`⚠️  IPv4 resolution failed: ${err.message}`);
-  }
-  return dbUrl;
-}
-
-const dbUrl = resolveIPv4(rawUrl);
+// NOTE: The previous version did a synchronous execSync() child-process DNS
+// resolution here to force IPv4 for Railway. That blocks the event loop and
+// hangs Vercel serverless cold starts. Vercel's infrastructure resolves DNS
+// correctly on its own; Railway also works fine without this workaround since
+// Supabase's pooler endpoint (aws-0-us-east-1.pooler.supabase.com) returns IPv4.
 console.log(`🔗 Database: ${isRemote ? 'remote (SSL)' : 'local'}`);
-console.log(`🔗 Connecting to: ${dbUrl.substring(0, 50)}...`);
+console.log(`🔗 Connecting to: ${rawUrl.substring(0, 50)}...`);
 
-// Create Sequelize instance with resolved IPv4 URL
-const sequelize = new Sequelize(dbUrl, {
+// Create Sequelize instance
+const sequelize = new Sequelize(rawUrl, {
   dialect: 'postgres',
   logging: false,
   pool: {
-    max: 20,
+    max: 5,   // keep low for serverless — each instance has its own pool
     min: 0,
     acquire: 30000,
     idle: 10000
@@ -74,4 +50,3 @@ async function testConnection() {
 }
 
 module.exports = { sequelize, testConnection };
-
