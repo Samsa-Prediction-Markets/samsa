@@ -1015,6 +1015,17 @@ app.post('/api/predictions', async (req, res) => {
 // SELL POSITION — Database backed
 // ============================================================================
 
+/**
+ * Calculate the cash value of selling a position.
+ * sell_return = stake × (currentProb / entryProb)
+ * This mirrors the S(1-p) payout model: if price has risen since entry
+ * the seller receives more than they put in, and vice versa.
+ */
+function calculatePositionValue(stake, entryProb, currentProb) {
+  const ratio = currentProb / Math.max(entryProb, 0.01);
+  return Number((stake * ratio).toFixed(2));
+}
+
 app.post('/api/positions/sell', async (req, res) => {
   try {
     const { market_id, outcome_id, user_id, sell_amount } = req.body;
