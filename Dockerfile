@@ -50,9 +50,9 @@ COPY server.js ./
 COPY --from=frontend-builder /app/frontend/dist ./frontend/dist
 
 # Copy compiled Rust binary and make it executable
-COPY --from=rust-builder /engine/target/release/samsa-engine \
-     ./backend/engine/target/release/samsa-engine
-RUN chmod +x ./backend/engine/target/release/samsa-engine
+COPY --from=rust-builder /engine/target/release/dobium-engine \
+     ./backend/engine/target/release/dobium-engine
+RUN chmod +x ./backend/engine/target/release/dobium-engine
 
 # Bake default data files into the image (read-only reference copy).
 # The startup script seeds these into /app/backend/data ONLY on first boot.
