@@ -1,13 +1,6 @@
 {
   "buildCommand": "npm install --prefix frontend && npm run frontend:build && npm install",
   "installCommand": "npm install && npm install --prefix frontend",
-  "env": {
-    "DATABASE_URL": "@database_url",
-    "SUPABASE_URL": "@supabase_url",
-    "SUPABASE_ANON_KEY": "@supabase_anon_key",
-    "STRIPE_SECRET_KEY": "@stripe_secret_key",
-    "STRIPE_PUBLISHABLE_KEY": "@stripe_publishable_key"
-  },
   "functions": {
     "api/index.js": {
       "memory": 1024,
