@@ -67,9 +67,24 @@ const stripeSecret = (process.env.STRIPE_SECRET_KEY || '').trim();
 const stripe = stripeSecret ? Stripe(stripeSecret) : null;
 const PAPER_TRADING_STARTING_BALANCE = Number(process.env.PAPER_TRADING_STARTING_BALANCE || 100000);
 
-// CORS configuration - allow all origins temporarily for debugging
+// CORS — allow dobium.com (Vercel frontend), Render preview URLs, and local dev
+const ALLOWED_ORIGINS = [
+  'https://dobium.com',
+  'https://www.dobium.com',
+  /\.vercel\.app$/,
+  /\.onrender\.com$/,
+  'http://localhost:5173',
+  'http://localhost:3000',
+];
 app.use(cors({
-  origin: true,  // Allow all origins
+  origin: (origin, cb) => {
+    // Allow non-browser requests (curl, Postman, server-to-server)
+    if (!origin) return cb(null, true);
+    const allowed = ALLOWED_ORIGINS.some(o =>
+      typeof o === 'string' ? o === origin : o.test(origin)
+    );
+    cb(allowed ? null : new Error(`CORS: ${origin} not allowed`), allowed);
+  },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']
