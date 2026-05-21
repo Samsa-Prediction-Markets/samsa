@@ -1,10 +1,13 @@
 import { useAuth } from '../hooks/useAuth';
 import { useNavigate } from 'react-router-dom';
 import { storage } from '../store/storage';
+import { useState } from 'react';
+import { api } from '../api/client';
 
 export default function SettingsPage() {
   const { session, logout } = useAuth();
   const navigate = useNavigate();
+  const [resetLoading, setResetLoading] = useState(false);
 
   const handleLogout = async () => {
     await logout();
@@ -14,6 +17,21 @@ export default function SettingsPage() {
   const handleClearData = () => {
     storage.clear();
     window.location.reload();
+  };
+
+  const handleResetWallet = async () => {
+    if (!session?.user?.id) return;
+    if (!window.confirm("Are you sure you want to delete all manual deposits and withdrawals? This will reset your Buying Power to strictly track your $10,000 starting balance and trading P&L.")) return;
+
+    setResetLoading(true);
+    try {
+      await api.resetDeposits(session.user.id);
+      window.location.reload();
+    } catch (err) {
+      alert(err.message || 'Failed to reset wallet');
+    } finally {
+      setResetLoading(false);
+    }
   };
 
   const email = session?.user?.email || 'Not logged in';
@@ -86,18 +104,33 @@ export default function SettingsPage() {
 
         {/* Data Section */}
         <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-5 mb-4">
-          <h2 className="text-sm font-bold uppercase tracking-wider text-yellow-400 mb-4">Data</h2>
-          <div className="flex justify-between items-center py-3">
-            <div>
-              <div className="text-sm font-semibold text-white">Clear Local Data</div>
-              <div className="text-xs text-slate-500 mt-0.5">Removes favorites and cache</div>
+          <h2 className="text-sm font-bold uppercase tracking-wider text-yellow-400 mb-4">Data Management</h2>
+          <div className="space-y-3">
+            <div className="flex justify-between items-center py-3 border-b border-slate-800">
+              <div>
+                <div className="text-sm font-semibold text-white">Clear Local Data</div>
+                <div className="text-xs text-slate-500 mt-0.5">Removes favorites and cache</div>
+              </div>
+              <button
+                onClick={handleClearData}
+                className="px-4 py-2 text-sm font-semibold bg-slate-800 border border-slate-700 hover:border-slate-600 text-white rounded-lg transition-all"
+              >
+                Clear
+              </button>
             </div>
-            <button
-              onClick={handleClearData}
-              className="px-4 py-2 text-sm font-semibold bg-slate-800 border border-slate-700 hover:border-slate-600 text-white rounded-lg transition-all"
-            >
-              Clear
-            </button>
+            <div className="flex justify-between items-center py-3">
+              <div>
+                <div className="text-sm font-semibold text-white">Reset Wallet Deposits</div>
+                <div className="text-xs text-slate-500 mt-0.5">Clears manual funding to sync with chart</div>
+              </div>
+              <button
+                onClick={handleResetWallet}
+                disabled={resetLoading}
+                className="px-4 py-2 text-sm font-semibold bg-red-500/10 border border-red-500/30 hover:bg-red-500/20 text-red-400 rounded-lg transition-all disabled:opacity-50"
+              >
+                {resetLoading ? 'Resetting...' : 'Reset'}
+              </button>
+            </div>
           </div>
         </div>
 

@@ -53,6 +53,8 @@ export const api = {
     request(`/users/${userId}/deposit`, { method: 'POST', body: JSON.stringify({ amount, payment_method: paymentMethod }) }),
   withdraw: (userId, amount) =>
     request(`/users/${userId}/withdraw`, { method: 'POST', body: JSON.stringify({ amount }) }),
+  resetDeposits: (userId) =>
+    request(`/users/${userId}/reset-deposits`, { method: 'POST' }),
   getTransactions: (userId) => request(`/users/${userId}/transactions`),
   fixBalance: (userId) =>
     request(`/users/${userId}/fix-balance`, { method: 'POST' }),

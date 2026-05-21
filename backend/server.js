@@ -215,11 +215,25 @@ async function calculateBalanceFromTransactions(userId, transaction = null) {
     .reduce((sum, p) => sum + parseFloat(p.stake_amount || 0), 0);
   const realizedReturn = realizedPredictions
     .reduce((sum, p) => {
+      const S = parseFloat(p.stake_amount || 0);
+      const pEntry = parseFloat(p.odds_at_prediction || 50) / 100;
       let ret = parseFloat(p.actual_return || 0);
-      // Self-heal historical losses that were incorrectly given 0 return
-      if (p.status === 'lost' && ret === 0) {
-        const pEntry = parseFloat(p.odds_at_prediction || 50) / 100;
-        ret = parseFloat(p.stake_amount || 0) * pEntry;
+
+      if (p.status === 'won') {
+        const maxReturn = S * (2 - pEntry);
+        if (ret <= 0 || ret > maxReturn) ret = maxReturn;
+      } else if (p.status === 'lost') {
+        const minReturn = S * pEntry;
+        if (ret <= 0 || ret > minReturn) ret = minReturn;
+      } else if (p.status === 'sold') {
+        const maxNewReturn = S * (2 - pEntry);
+        if (ret > maxNewReturn) {
+          // Legacy traditional formula detection
+          let pCurrent = S > 0 ? (ret * pEntry) / S : 0;
+          pCurrent = Math.min(1.0, Math.max(0, pCurrent));
+          const rMin = S * pEntry;
+          ret = rMin + (maxNewReturn - rMin) * pCurrent;
+        }
       }
       return sum + ret;
     }, 0);
@@ -386,9 +400,9 @@ function calculatePositionValue(stake, entryProbability, currentProbability) {
   const S = Number(stake || 0);
   const pEntry = Math.max(0, Math.min(100, Number(entryProbability || 0))) / 100;
   const pCurrent = Math.max(0, Math.min(100, Number(currentProbability || 0))) / 100;
-  const maxReturn = S + S * (1 - pEntry);
-  const minReturn = S * pEntry;
-  return parseFloat((minReturn + (maxReturn - minReturn) * pCurrent).toFixed(2));
+  const rMin = S * pEntry;
+  const rMax = S * (2 - pEntry);
+  return parseFloat((rMin + (rMax - rMin) * pCurrent).toFixed(2));
 }
 
 /**
@@ -1091,11 +1105,13 @@ app.post('/api/predictions', async (req, res) => {
  * @returns {number} Cash value user receives
  */
 function calculatePositionValue(stake, entryProb, currentProb) {
-  const pEntry = Math.max(0.01, Math.min(99, entryProb)) / 100; // 0.01 to 0.99
-  const pCurrent = Math.max(0.01, Math.min(99, currentProb)) / 100; // 0.01 to 0.99
+  const S = Number(stake || 0);
+  const pEntry = Math.max(0.01, Math.min(99, Number(entryProb || 0))) / 100; // 0.01 to 0.99
+  const pCurrent = Math.max(0.01, Math.min(99, Number(currentProb || 0))) / 100; // 0.01 to 0.99
 
-  // R = S × (p_entry + 2×p_current×(1 - p_entry))
-  const returnValue = stake * (pEntry + 2 * pCurrent * (1 - pEntry));
+  const rMin = S * pEntry;
+  const rMax = S * (2 - pEntry);
+  const returnValue = rMin + (rMax - rMin) * pCurrent;
 
   return Number(Math.max(0, returnValue).toFixed(2));
 }
@@ -1644,6 +1660,26 @@ app.post('/api/users/:id/withdraw', async (req, res) => {
   } catch (error) {
     console.error('Withdrawal error:', error);
     res.status(500).json({ error: 'Failed to process withdrawal' });
+  }
+});
+
+app.post('/api/users/:id/reset-deposits', async (req, res) => {
+  try {
+    await Transaction.destroy({
+      where: {
+        user_id: req.params.id,
+        type: { [Op.in]: ['deposit', 'withdrawal'] },
+        [Op.or]: [
+          { payment_method: { [Op.ne]: 'sell_return' } },
+          { payment_method: null }
+        ]
+      }
+    });
+    const balanceInfo = await calculateBalanceFromTransactions(req.params.id);
+    res.json({ success: true, balance: balanceInfo.balance });
+  } catch (error) {
+    console.error('Reset deposits error:', error);
+    res.status(500).json({ error: 'Failed to reset deposits' });
   }
 });
 

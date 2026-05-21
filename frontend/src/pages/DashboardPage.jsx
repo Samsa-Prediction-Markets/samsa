@@ -247,6 +247,41 @@ function EquityChart({ equityPoints, startingBalance, currentValue }) {
   );
 }
 
+function calcPositionValue(stake, entryProbPct, currentProbPct) {
+  const pEntry = entryProbPct / 100;
+  const pCurrent = currentProbPct / 100;
+  const rMin = stake * pEntry;
+  const rMax = stake * (2 - pEntry);
+  return rMin + (rMax - rMin) * pCurrent;
+}
+
+function getResolvedReturn(pred) {
+  const S = pred.stake_amount || 0;
+  const entryProbPct = pred.odds_at_prediction || 50;
+  let returnAmount;
+
+  if (pred.status === 'won') {
+    returnAmount = (pred.actual_return && pred.actual_return > 0) ? pred.actual_return : calcPositionValue(S, entryProbPct, 100);
+  } else if (pred.status === 'lost') {
+    returnAmount = (pred.actual_return && pred.actual_return > 0) ? pred.actual_return : calcPositionValue(S, entryProbPct, 0);
+  } else if (pred.status === 'sold') {
+    const storedReturn = pred.actual_return || 0;
+    const pEntry = entryProbPct / 100;
+    const maxNewReturn = S * (2 - pEntry);
+
+    if (storedReturn > maxNewReturn) {
+      let pCurrent = S > 0 ? (storedReturn * pEntry) / S : 0;
+      pCurrent = Math.min(1.0, Math.max(0, pCurrent));
+      returnAmount = calcPositionValue(S, entryProbPct, pCurrent * 100);
+    } else {
+      returnAmount = storedReturn;
+    }
+  } else {
+    returnAmount = 0;
+  }
+  return returnAmount;
+}
+
 export default function DashboardPage() {
   const navigate = useNavigate();
   const { session } = useAuth();
@@ -414,13 +449,8 @@ export default function DashboardPage() {
   const activeMtmValue = predictions.reduce((sum, p) => {
     const market = markets.find(m => m.id === p.market_id);
     const outcome = market?.outcomes?.find(o => o.id === p.outcome_id);
-    const pCurrent = (outcome?.probability ?? p.odds_at_prediction ?? 50) / 100;
-    const pEntry = (p.odds_at_prediction || 50) / 100;
-    const S = p.stake_amount || 0;
-    const R_max = S * (2 - pEntry);      // = S + S×(1−pEntry)
-    const R_min = S * pEntry;             // = S×pEntry
-    const R_current = R_min + (R_max - R_min) * pCurrent;
-    return sum + R_current;
+    const pCurrent = outcome?.probability ?? p.odds_at_prediction ?? 50;
+    return sum + calcPositionValue(p.stake_amount || 0, p.odds_at_prediction || 50, pCurrent);
   }, 0);
 
   const portfolioValue = availableBalance + activeMtmValue;
@@ -442,64 +472,87 @@ export default function DashboardPage() {
   const buildEquityPoints = (preds) => {
     if (!preds.length) return [];
 
-    const sorted = preds
-      .filter(p => p.created_at || p.createdAt)
-      .map(p => ({ ...p, created_at: p.created_at || p.createdAt }))
-      .sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+    const now = Date.now();
 
-    // Guard: if no predictions have timestamps, bail out
-    if (!sorted.length) return [];
-
-    // Midpoint MTM per active position:
-    //   R_current = S×(p_entry + 2×p_current×(1−p_entry))
     const getMtm = (p) => {
       const market = markets.find(m => m.id === p.market_id);
       const outcome = market?.outcomes?.find(o => o.id === p.outcome_id);
-      const pCurrent = (outcome?.probability ?? p.odds_at_prediction ?? 50) / 100;
-      const pEntry = (p.odds_at_prediction || 50) / 100;
-      const S = p.stake_amount || 0;
-      // Equivalent to R_min + (R_max − R_min)×p_current
-      return S * (pEntry + 2 * pCurrent * (1 - pEntry));
+      const pCurrent = outcome?.probability ?? p.odds_at_prediction ?? 50;
+      return calcPositionValue(p.stake_amount || 0, p.odds_at_prediction || 50, pCurrent);
     };
 
-    // Anchor at start of the day of the first trade
-    const startOfDay = new Date(sorted[0].created_at);
+    const startOfDay = new Date(Math.min(...preds.map(p => new Date(p.created_at || p.createdAt).getTime())));
     startOfDay.setHours(0, 0, 0, 0);
-    const points = [{ date: startOfDay.toISOString(), value: startingBalance }];
 
-    // One point per trade — portfolio value at that moment in time
-    for (let i = 0; i < sorted.length; i++) {
-      const tradesUpTo = sorted.slice(0, i + 1);
+    // Generate chronological events for both opening and resolving trades
+    const historyEvents = [];
 
-      let settledPnL = 0;
-      let stakedSoFar = 0;
-      let activeMtm = 0;
+    preds.forEach(p => {
+      historyEvents.push({
+        date: new Date(p.created_at || p.createdAt).getTime(),
+        type: 'open',
+        pred: p
+      });
 
-      tradesUpTo.forEach(p => {
-        if (['won', 'lost', 'sold', 'refunded'].includes(p.status)) {
-          let actualReturn = p.actual_return || 0;
-          if (p.status === 'lost' && actualReturn === 0) {
-            // R_min = S×p_entry (loss lower bound)
-            actualReturn = (p.stake_amount || 0) * ((p.odds_at_prediction || 50) / 100);
-          }
-          if (p.status === 'won' && actualReturn === 0) {
-            // R_max = S×(2−p_entry) (win upper bound)
-            const pEntry = (p.odds_at_prediction || 50) / 100;
-            actualReturn = (p.stake_amount || 0) * (2 - pEntry);
-          }
-          settledPnL += actualReturn - (p.stake_amount || 0);
-        } else if (p.status === 'active') {
-          stakedSoFar += p.stake_amount || 0;
-          activeMtm += getMtm(p);
+      if (['won', 'lost', 'sold', 'refunded'].includes(p.status)) {
+        historyEvents.push({
+          date: new Date(p.resolved_at || p.sold_at || p.updated_at || p.created_at || p.createdAt).getTime(),
+          type: 'resolve',
+          pred: p
+        });
+      }
+    });
+
+    historyEvents.sort((a, b) => a.date - b.date);
+
+    const rawPoints = [{ date: startOfDay.getTime(), value: startingBalance }];
+    let realizedPnl = 0;
+    const activeSet = new Set();
+
+    historyEvents.forEach(ev => {
+      if (ev.type === 'open') {
+        activeSet.add(ev.pred.id);
+      } else if (ev.type === 'resolve') {
+        activeSet.delete(ev.pred.id);
+        const actualReturn = getResolvedReturn(ev.pred);
+        realizedPnl += actualReturn - (ev.pred.stake_amount || 0);
+      }
+
+      let activeMtmPnL = 0;
+      activeSet.forEach(id => {
+        const p = preds.find(x => x.id === id);
+        if (p.status === 'active') {
+          // Smoothly scale active MTM from the date opened to now, so the chart doesn't retroactively spike
+          const openTime = new Date(p.created_at || p.createdAt).getTime();
+          const totalDuration = now - openTime;
+          const elapsed = ev.date - openTime;
+          const progress = totalDuration > 0 ? Math.max(0, Math.min(1, elapsed / totalDuration)) : 1;
+
+          const currentMtm = getMtm(p);
+          const finalPnl = currentMtm - (p.stake_amount || 0);
+          activeMtmPnL += finalPnl * progress;
         }
       });
 
-      const equity = (startingBalance + settledPnL - stakedSoFar) + activeMtm;
-      points.push({ date: sorted[i].created_at, value: equity });
-    }
+      rawPoints.push({
+        date: ev.date,
+        value: startingBalance + realizedPnl + activeMtmPnL
+      });
+    });
 
-    // Final point pinned to portfolioValue now — chart always matches header
-    points.push({ date: new Date().toISOString(), value: portfolioValue });
+    const points = rawPoints.map(pt => ({
+      date: new Date(pt.date).toISOString(),
+      value: pt.value
+    }));
+
+    // The final point maps precisely to the current moment
+    let currentActiveMtmPnL = 0;
+    activeSet.forEach(id => {
+      const p = preds.find(x => x.id === id);
+      if (p.status === 'active') currentActiveMtmPnL += getMtm(p) - (p.stake_amount || 0);
+    });
+    points.push({ date: new Date(now).toISOString(), value: startingBalance + realizedPnl + currentActiveMtmPnL });
+
     return points;
   };
 
@@ -522,30 +575,19 @@ export default function DashboardPage() {
       const isSettled = ['won', 'lost'].includes(pred.status);
       const isSold = pred.status === 'sold';
 
-      const S = pred.stake_amount || 0;
-      const entryProbPct = pred.odds_at_prediction || 50;
-
-      let actualReturn = pred.actual_return || 0;
-      if (pred.status === 'lost' && actualReturn === 0) {
-        // R_min = S×p_entry (loss lower bound)
-        actualReturn = S * (entryProbPct / 100);
-      }
-      if (pred.status === 'won' && actualReturn === 0) {
-        // R_max = S×(2−p_entry) (win upper bound)
-        actualReturn = S * (2 - entryProbPct / 100);
-      }
+      const actualReturn = getResolvedReturn(pred);
 
       return {
         id: pred.id,
-        type: isSettled ? 'resolution' : isSold ? 'trade' : 'trade',
+        type: isSettled || isSold ? 'resolution' : 'trade',
         label: isSettled ? (pred.status === 'won' ? 'Resolved Won' : 'Resolved Lost') : isSold ? 'Sold' : 'Bought',
         marketId: pred.market_id,
         marketTitle: market?.title || 'Unknown Market',
         outcomeTitle: outcome?.title || 'Unknown',
-        probability: entryProbPct,
-        amount: isSettled || isSold ? actualReturn : S,
-        stakeAmount: S,
-        pnl: isSettled || isSold ? actualReturn - S : null,
+        probability: pred.odds_at_prediction || 50,
+        amount: isSettled || isSold ? actualReturn : (pred.stake_amount || 0),
+        stakeAmount: pred.stake_amount || 0,
+        pnl: isSettled || isSold ? actualReturn - (pred.stake_amount || 0) : null,
         status: pred.status,
         date: pred.resolved_at || pred.sold_at || pred.updated_at || pred.created_at || new Date().toISOString()
       };
@@ -686,16 +728,6 @@ export default function DashboardPage() {
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className={`text-xs font-semibold ${activity.type === 'resolution' ? 'text-yellow-400' : 'text-slate-400'}`}>
-                          {activity.label}
-                        </span>
-                        {activity.type === 'resolution' && (
-                          <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase ${activity.status === 'won' ? 'bg-green-500/15 text-green-300' : 'bg-red-500/15 text-red-300'}`}>
-                            {activity.status}
-                          </span>
-                        )}
-                      </div>
                       <p className="truncate text-sm font-medium text-white">{activity.marketTitle}</p>
                       <div className="flex items-center gap-2 mt-1">
                         <p className="text-xs text-slate-500">{activity.outcomeTitle}</p>
@@ -709,7 +741,6 @@ export default function DashboardPage() {
                           <p className={`text-sm font-semibold ${activity.pnl >= 0 ? 'text-green-400' : 'text-red-400'}`}>
                             {activity.pnl >= 0 ? '+' : ''}{formatCurrency(activity.pnl)}
                           </p>
-                          <p className="text-xs text-slate-500">Returned: {formatCurrency(activity.amount)}</p>
                         </>
                       ) : (
                         <p className="text-sm font-semibold text-white">{formatCurrency(activity.amount)}</p>
@@ -770,20 +801,13 @@ export default function DashboardPage() {
                             const outcome = market?.outcomes?.find(o => o.id === outcomeId);
                             const currentProb = outcome?.probability ?? 50;
                             const avgEntry = data.totalStake > 0 ? data.weightedOdds / data.totalStake : 50;
-                            // R_max = S × (2 - p_entry), R_min = S × p_entry
-                            // R_current = R_min + (R_max - R_min) × p_current
-                            // Simplified: R = S × (p_entry + 2×p_current×(1 - p_entry))
-                            const pCurrent = currentProb / 100;
-                            const pEntry = avgEntry / 100;
-                            const S = data.totalStake;
-                            const mtmValue = S * (pEntry + 2 * pCurrent * (1 - pEntry));
-                            const unrealizedPnl = mtmValue - S;
+                            const mtmValue = calcPositionValue(data.totalStake, avgEntry, currentProb);
+                            const unrealizedPnl = mtmValue - data.totalStake;
                             const sellKey = `${marketId}__${outcomeId}`;
                             const isSelling = sellingKey === sellKey;
                             const sellAmt = parseFloat(sellAmount) || 0;
-                            // Calculate preview return using proper MTM formula for partial position
                             const previewReturn = isSelling && sellAmt > 0
-                              ? (sellAmt * (pEntry + 2 * pCurrent * (1 - pEntry))).toFixed(2)
+                              ? calcPositionValue(sellAmt, avgEntry, currentProb).toFixed(2)
                               : null;
                             const previewPnl = previewReturn !== null
                               ? (parseFloat(previewReturn) - sellAmt).toFixed(2)

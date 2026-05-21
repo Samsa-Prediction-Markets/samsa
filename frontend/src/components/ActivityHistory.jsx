@@ -2,30 +2,20 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { formatCurrency } from '../store/storage';
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Dobium Payout Bounds (S(1−p) model)
-//
-//   R_max     = S + S×(1−p_entry)   = S×(2−p_entry)   ← Win upper bound
-//   R_min     = S×p_entry                              ← Loss lower bound
-//   R_current = R_min + (R_max − R_min)×p_current      ← Midpoint MTM (sell)
-//             = S×(p_entry + 2×p_current×(1−p_entry))  ← Simplified
-// ─────────────────────────────────────────────────────────────────────────────
+function calcPositionValue(stake, entryProbPct, currentProbPct) {
+  const pEntry = entryProbPct / 100;
+  const pCurrent = currentProbPct / 100;
 
-/** R_max = S×(2 − p_entry) — full win payout */
-function calcRmax(stake, entryProbPct) {
-  const p = entryProbPct / 100;
-  return stake * (2 - p);
-}
+  const rMin = stake * pEntry;
+  const rMax = stake * (2 - pEntry);
 
-/** R_min = S×p_entry — loss refund */
-function calcRmin(stake, entryProbPct) {
-  const p = entryProbPct / 100;
-  return stake * p;
+  return rMin + (rMax - rMin) * pCurrent;
 }
 
 export default function ActivityHistory({ predictions, markets, onBack }) {
   const navigate = useNavigate();
   const [activeFilter, setActiveFilter] = useState('all');
+  const [currentPage, setCurrentPage] = useState(1);
 
   // Explicitly filter out active positions so only past history/resolutions are shown
   // Group predictions by market, outcome, and action to show "overall entry price" based on total invested
@@ -47,21 +37,34 @@ export default function ActivityHistory({ predictions, markets, onBack }) {
       const entryProbPct = pred.odds_at_prediction || 50;
 
       let returnAmount;
+      let pCurrent = 0;
+
       if (pred.status === 'won') {
-        // Upper bound: R_max = S×(2 − p_entry)
-        // Use stored actual_return if available; fallback to formula
         returnAmount = (pred.actual_return && pred.actual_return > 0)
           ? pred.actual_return
-          : calcRmax(S, entryProbPct);
+          : calcPositionValue(S, entryProbPct, 100);
       } else if (pred.status === 'lost') {
-        // Lower bound: R_min = S×p_entry
-        // Use stored actual_return if available; fallback to formula
         returnAmount = (pred.actual_return && pred.actual_return > 0)
           ? pred.actual_return
-          : calcRmin(S, entryProbPct);
+          : calcPositionValue(S, entryProbPct, 0);
       } else if (isSold) {
-        // Midpoint MTM value at time of sale (stored as actual_return)
-        returnAmount = pred.actual_return || 0;
+        const storedReturn = pred.actual_return || 0;
+        const pEntry = entryProbPct / 100;
+        const maxNewReturn = S * (2 - pEntry);
+
+        if (storedReturn > maxNewReturn) {
+          // Legacy traditional formula detection (reverse-engineer probability and clamp)
+          pCurrent = S > 0 ? (storedReturn * pEntry) / S : 0;
+          pCurrent = Math.min(1.0, Math.max(0, pCurrent));
+          returnAmount = calcPositionValue(S, entryProbPct, pCurrent * 100);
+        } else {
+          // New linear interpolation model
+          const rMin = S * pEntry;
+          const diff = maxNewReturn - rMin;
+          pCurrent = diff > 0 ? (storedReturn - rMin) / diff : 0;
+          pCurrent = Math.min(1.0, Math.max(0, pCurrent));
+          returnAmount = storedReturn;
+        }
       } else {
         returnAmount = 0;
       }
@@ -77,7 +80,8 @@ export default function ActivityHistory({ predictions, markets, onBack }) {
           status: pred.status,
           totalStake: 0,
           weightedOdds: 0,
-          returnAmount: 0
+          returnAmount: 0,
+          weightedPCurrent: 0
         });
       }
 
@@ -85,6 +89,9 @@ export default function ActivityHistory({ predictions, markets, onBack }) {
       g.totalStake += S;
       g.weightedOdds += entryProbPct * S;
       g.returnAmount += returnAmount;
+      if (isSold) {
+        g.weightedPCurrent += pCurrent * 100 * S;
+      }
 
       const predDate = new Date(pred.resolved_at || pred.sold_at || pred.updated_at || pred.created_at || new Date().toISOString());
       if (predDate > new Date(g.date)) {
@@ -100,19 +107,13 @@ export default function ActivityHistory({ predictions, markets, onBack }) {
       // Weighted-average entry probability (¢)
       const entryPrice = g.totalStake > 0 ? g.weightedOdds / g.totalStake : 50;
 
-      // End price (¢) derived from the payout-bounds formula:
-      //   Won  → R_max  → end price = 100¢ (full win)
-      //   Lost → R_min  → end price = p_entry¢  (refund fraction)
-      //   Sold → midpoint MTM → returnAmount / totalStake × 100
       let endPrice = 0;
       if (g.status === 'won') {
         endPrice = 100;
       } else if (g.status === 'lost') {
-        // R_min = S×p_entry  →  per-dollar = p_entry = entryPrice¢
-        endPrice = entryPrice; // already in ¢
+        endPrice = 0;
       } else if (g.status === 'sold') {
-        // Midpoint MTM: returnAmount / stake × 100 gives the per-dollar return in ¢
-        endPrice = g.totalStake > 0 ? (g.returnAmount / g.totalStake) * 100 : 0;
+        endPrice = g.totalStake > 0 ? g.weightedPCurrent / g.totalStake : 0;
       }
 
       return {
@@ -158,6 +159,10 @@ export default function ActivityHistory({ predictions, markets, onBack }) {
   const groupedActivities = Array.from(marketGroupsMap.values())
     .sort((a, b) => new Date(b.latestDate) - new Date(a.latestDate));
 
+  const ITEMS_PER_PAGE = 5;
+  const totalPages = Math.ceil(groupedActivities.length / ITEMS_PER_PAGE);
+  const paginatedGroups = groupedActivities.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
+
   return (
     <div className="max-w-7xl mx-auto p-6 lg:p-8 animate-fadeIn">
       <button
@@ -180,7 +185,10 @@ export default function ActivityHistory({ predictions, markets, onBack }) {
           {['all', 'trades', 'resolutions'].map(filter => (
             <button
               key={filter}
-              onClick={() => setActiveFilter(filter)}
+              onClick={() => {
+                setActiveFilter(filter);
+                setCurrentPage(1);
+              }}
               className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all ${activeFilter === filter
                 ? 'bg-slate-800 text-white shadow-sm'
                 : 'text-slate-400 hover:text-white hover:bg-slate-800/50'
@@ -204,7 +212,7 @@ export default function ActivityHistory({ predictions, markets, onBack }) {
             </div>
           </div>
         ) : (
-          groupedActivities.map(group => (
+          paginatedGroups.map(group => (
             <div key={group.marketId} className="bg-slate-900/60 backdrop-blur-xl border border-slate-800 rounded-2xl shadow-2xl overflow-hidden">
               <div
                 className="px-6 py-4 bg-slate-800/40 border-b border-slate-700 cursor-pointer hover:bg-slate-800/60 transition-colors flex items-center justify-between group/header"
@@ -227,8 +235,7 @@ export default function ActivityHistory({ predictions, markets, onBack }) {
                       <th className="px-6 py-3 font-semibold uppercase tracking-wider text-[11px]">Date</th>
                       <th className="px-6 py-3 font-semibold uppercase tracking-wider text-[11px]">Contract</th>
                       <th className="px-6 py-3 font-semibold uppercase tracking-wider text-[11px] text-right">Cost</th>
-                      <th className="px-6 py-3 font-semibold uppercase tracking-wider text-[11px] text-right"
-                        title="Won → R_max = S×(2−p_entry) | Lost → R_min = S×p_entry | Sold → Midpoint MTM">Return</th>
+                      <th className="px-6 py-3 font-semibold uppercase tracking-wider text-[11px] text-right">Return</th>
                       <th className="px-6 py-3 font-semibold uppercase tracking-wider text-[11px] text-right">P&amp;L</th>
                     </tr>
                   </thead>
@@ -238,21 +245,6 @@ export default function ActivityHistory({ predictions, markets, onBack }) {
                       const isPositive = diff > 0;
                       const isNegative = diff < 0;
 
-                      // Label describing which bound applies
-                      const boundLabel = act.status === 'won'
-                        ? 'R_max'
-                        : act.status === 'lost'
-                          ? 'R_min'
-                          : act.status === 'sold'
-                            ? 'MTM'
-                            : null;
-
-                      const boundColor = act.status === 'won'
-                        ? 'text-green-500'
-                        : act.status === 'lost'
-                          ? 'text-red-500'
-                          : 'text-slate-500';
-
                       return (
                         <tr key={act.id} className="hover:bg-slate-800/40 transition-colors group">
                           <td className="px-6 py-4 whitespace-nowrap">
@@ -261,17 +253,6 @@ export default function ActivityHistory({ predictions, markets, onBack }) {
                           </td>
                           <td className="px-6 py-4">
                             <div className="flex items-center gap-2">
-                              {act.action === 'Resolved' ? (
-                                <span className={`inline-flex px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${
-                                  act.status === 'won'
-                                    ? 'bg-green-500/10 text-green-400 border border-green-500/20'
-                                    : 'bg-red-500/10 text-red-400 border border-red-500/20'
-                                }`}>{act.status === 'won' ? 'Won' : 'Lost'}</span>
-                              ) : act.action === 'Sold' ? (
-                                <span className="inline-flex px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-yellow-500/10 text-yellow-400 border border-yellow-500/20">Sold</span>
-                              ) : act.action !== 'Other' ? (
-                                <span className="inline-flex px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-blue-500/10 text-blue-400 border border-blue-500/20">{act.action}</span>
-                              ) : null}
                               <span className="bg-slate-800/80 px-2.5 py-1 rounded text-slate-300 font-medium border border-slate-700">{act.outcomeTitle}</span>
                             </div>
                           </td>
@@ -281,11 +262,7 @@ export default function ActivityHistory({ predictions, markets, onBack }) {
                           </td>
                           <td className="px-6 py-4 text-right">
                             <div className="text-white font-semibold">{formatCurrency(act.returnAmount || 0)}</div>
-                            {boundLabel && (
-                              <div className={`text-[10px] mt-0.5 font-mono ${boundColor}`}>
-                                {boundLabel} · {act.endPrice.toFixed(1)}¢
-                              </div>
-                            )}
+                            <div className="text-slate-500 text-xs mt-0.5">@ {Math.round(act.endPrice)}¢</div>
                           </td>
                           <td className="px-6 py-4 text-right">
                             <div className={`font-bold ${isPositive ? 'text-green-400' : isNegative ? 'text-red-400' : 'text-slate-400'}`}>
@@ -317,16 +294,32 @@ export default function ActivityHistory({ predictions, markets, onBack }) {
                       );
                     })()}
                   </tfoot>
-                  {/* Formula legend */}
-                  <caption className="caption-bottom px-6 py-2 text-left">
-                    <span className="text-[10px] text-slate-600 font-mono">
-                      Return: Won → R<sub>max</sub>=S×(2−p) · Lost → R<sub>min</sub>=S×p · Sold → Midpoint MTM
-                    </span>
-                  </caption>
                 </table>
               </div>
             </div>
           ))
+        )}
+
+        {totalPages > 1 && (
+          <div className="flex justify-center items-center gap-4 mt-8 pt-4">
+            <button
+              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+              disabled={currentPage === 1}
+              className="px-4 py-2 rounded-lg bg-slate-800 text-slate-400 hover:text-white hover:bg-slate-700 disabled:opacity-50 disabled:hover:bg-slate-800 disabled:hover:text-slate-400 transition-colors font-medium text-sm"
+            >
+              Previous
+            </button>
+            <span className="text-slate-400 text-sm font-medium">
+              Page <span className="text-white">{currentPage}</span> of <span className="text-white">{totalPages}</span>
+            </span>
+            <button
+              onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+              disabled={currentPage === totalPages}
+              className="px-4 py-2 rounded-lg bg-slate-800 text-slate-400 hover:text-white hover:bg-slate-700 disabled:opacity-50 disabled:hover:bg-slate-800 disabled:hover:text-slate-400 transition-colors font-medium text-sm"
+            >
+              Next
+            </button>
+          </div>
         )}
       </div>
     </div>
