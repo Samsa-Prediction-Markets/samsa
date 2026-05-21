@@ -1353,7 +1353,8 @@ app.post('/api/auth/welcome', async (req, res) => {
     res.json({ success: true, messageId: info?.messageId });
   } catch (error) {
     console.error('Welcome email error:', error);
-    res.status(500).json({ error: 'Failed to send welcome email' });
+    // Return 200 instead of 500 so a failed background email doesn't break the frontend flow
+    res.status(200).json({ success: true, warning: 'Welcome process completed, but email failed to send.' });
   }
 });
 
@@ -1377,7 +1378,8 @@ app.post('/api/auth/confirm', async (req, res) => {
     res.json({ success: true, messageId: info?.messageId });
   } catch (error) {
     console.error('Confirm email error:', error);
-    res.status(500).json({ error: 'Failed to send confirm email' });
+    // Return 200 instead of 500 so a failed background email doesn't break the frontend flow
+    res.status(200).json({ success: true, warning: 'Confirm process completed, but email failed to send.' });
   }
 });
 
@@ -2356,5 +2358,7 @@ if (require.main === module) {
   });
 }
 
+// Export the Express app for Vercel serverless (api/index.js)
+module.exports = app;
 // Export the Express app for Vercel serverless (api/index.js)
 module.exports = app;
