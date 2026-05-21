@@ -16,9 +16,9 @@ const cron = require('node-cron');
 const { createClient } = require('@supabase/supabase-js');
 const { buildDigestHtml } = require('../lib/digest-email');
 const { sequelize, Market } = require('../lib/database/models');
-const { Op } = sequelize.constructor;
+const { Op } = require('sequelize');
 
-const ADMIN_EMAIL  = process.env.EMAIL_USER || 'donotreply.dobium@gmail.com';
+const ADMIN_EMAIL = process.env.EMAIL_USER || 'donotreply.dobium@gmail.com';
 const PLATFORM_URL = process.env.PLATFORM_URL || 'https://dobium.com';
 
 // Paper trading starting balance — must match server.js
@@ -93,7 +93,12 @@ async function getUserStats(userId, { Transaction, Prediction, Outcome, User }) 
   // Resolve all aliases for this user (id + email) — mirrors server.js
   let userAliases = [userId];
   try {
-    const user = await User.findOne({ where: { id: userId } });
+    let user = null;
+    if (userId.includes('@')) {
+      user = await User.findOne({ where: { email: userId } });
+    } else {
+      user = await User.findOne({ where: { id: userId } });
+    }
     if (user) {
       userAliases.push(user.id);
       if (user.email && user.email !== `${user.id}@placeholder.com`) {
@@ -103,9 +108,13 @@ async function getUserStats(userId, { Transaction, Prediction, Outcome, User }) 
   } catch { /* user row may not exist yet */ }
   userAliases = [...new Set(userAliases)];
 
+  // If user_id is a UUID column, passing emails will violently crash Postgres.
+  const safeAliases = userAliases.filter(id => !id.includes('@'));
+  if (safeAliases.length === 0) safeAliases.push('00000000-0000-0000-0000-000000000000');
+
   const [txns, allPredictions] = await Promise.all([
-    Transaction.findAll({ where: { user_id: { [Op.in]: userAliases } } }),
-    Prediction.findAll({ where: { user_id: { [Op.in]: userAliases } } }),
+    Transaction.findAll({ where: { user_id: { [Op.in]: safeAliases } } }),
+    Prediction.findAll({ where: { user_id: { [Op.in]: safeAliases } } }),
   ]);
 
   // ── Cash ledger (matches calculateBalanceFromTransactions in server.js) ────
@@ -123,12 +132,12 @@ async function getUserStats(userId, { Transaction, Prediction, Outcome, User }) 
   const realizedPredictions = allPredictions.filter(p => ['won', 'lost', 'sold', 'refunded'].includes(p.status));
 
   // Use sanitised return amounts — same as dashboard's getResolvedReturn()
-  const realizedStake  = realizedPredictions.reduce((s, p) => s + parseFloat(p.stake_amount || 0), 0);
+  const realizedStake = realizedPredictions.reduce((s, p) => s + parseFloat(p.stake_amount || 0), 0);
   const realizedReturn = realizedPredictions.reduce((s, p) => s + getResolvedReturn(p), 0);
-  const realizedPnl    = realizedReturn - realizedStake;
+  const realizedPnl = realizedReturn - realizedStake;
 
   const cashBalance = PAPER_STARTING_BALANCE + totalDeposits - totalWithdrawals + realizedPnl;
-  const rawBalance  = cashBalance - activePredictionStakes;
+  const rawBalance = cashBalance - activePredictionStakes;
   const buyingPower = Math.max(0, rawBalance);
 
   const marketIds = [...new Set(allPredictions.map(p => p.market_id))];
@@ -141,18 +150,24 @@ async function getUserStats(userId, { Transaction, Prediction, Outcome, User }) 
   let activeMtmValue = 0;
   for (const p of activePredictions) {
     try {
-      const market     = markets.find(m => m.id === p.market_id);
-      const outcome    = market?.outcomes?.find(o => o.id === p.outcome_id);
-      const stake      = parseFloat(p.stake_amount || 0);
-      const entryProb  = parseFloat(p.odds_at_prediction || 50);   // correct field name
+      const market = markets.find(m => m.id === p.market_id);
+      const outcome = market?.outcomes?.find(o => o.id === p.outcome_id);
+      const stake = parseFloat(p.stake_amount || 0);
+      const entryProb = parseFloat(p.odds_at_prediction || 50);   // correct field name
       const currentProb = outcome ? parseFloat(outcome.probability || 50) : entryProb;
-      activeMtmValue  += calcMtm(stake, entryProb, currentProb);
+      activeMtmValue += calcMtm(stake, entryProb, currentProb);
     } catch { /* skip malformed position */ }
   }
 
   function buildBackendEquityPoints(preds, markets, startingBalance) {
-    if (!preds || !preds.length) return [];
     const now = Date.now();
+
+    if (!preds || !preds.length) {
+      return [
+        { date: new Date(now - 86400000).toISOString(), value: startingBalance },
+        { date: new Date(now).toISOString(), value: startingBalance }
+      ];
+    }
 
     const getMtm = (p) => {
       const market = markets.find(m => m.id === p.market_id);
@@ -237,13 +252,15 @@ async function getUserStats(userId, { Transaction, Prediction, Outcome, User }) 
 
   // ── Portfolio value — mirrors the dashboard hero number ───────────────────
   const portfolioValue = buyingPower + activeMtmValue;
-  const totalPnl       = portfolioValue - PAPER_STARTING_BALANCE;
+  const totalPnl = portfolioValue - PAPER_STARTING_BALANCE;
 
   // ── Forecasting stats ─────────────────────────────────────────────────────
   const totalPredictions = allPredictions.length;
-  const settledCount     = allPredictions.filter(p => ['won', 'lost'].includes(p.status)).length;
-  const wonCount         = allPredictions.filter(p => p.status === 'won').length;
-  const hasEverTraded    = totalPredictions > 0;
+  const settledCount = allPredictions.filter(p => ['won', 'lost'].includes(p.status)).length;
+  const wonCount = allPredictions.filter(p => p.status === 'won').length;
+  const hasEverTraded = totalPredictions > 0;
+
+  const accuracy = settledCount > 0 ? (wonCount / settledCount) * 100 : 0;
 
   return {
     startingBalance: PAPER_STARTING_BALANCE,
@@ -255,29 +272,81 @@ async function getUserStats(userId, { Transaction, Prediction, Outcome, User }) 
     settledCount,
     hasEverTraded,
     equityPoints,
+    accuracy,
   };
 }
 
 // ── Job registration ─────────────────────────────────────────────────────────
 
 /**
+ * Execute the digest immediately.
  * @param {Object}   models    - { User, Transaction, Prediction, Outcome, Market }
  * @param {Function} sendEmail - sendEmail({ to, subject, text, html })
  */
-function registerDailyDigestJob(models, sendEmail) {
-  const { User, Transaction, Prediction, Outcome } = models;
+async function executeDailyDigest(models, sendEmail) {
+  console.log('[Daily Digest] Job triggered at', new Date().toISOString());
 
+  // Fetch recipients from Supabase Auth (authoritative email list)
+  let recipients = [];
+  try {
+    const supabase = createClient(
+      process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL,
+      process.env.SUPABASE_SERVICE_ROLE_KEY || '',
+      { auth: { autoRefreshToken: false, persistSession: false } }
+    );
+
+    const { data, error } = await supabaseAdmin.auth.admin.listUsers({ page: 1, perPage: 1000 });
+    if (error) {
+      console.error('[Daily Digest] Supabase admin listUsers error:', error);
+      return;
+    }
+    recipients = data.users;
+  } catch (err) {
+    console.error('[Daily Digest] Failed to fetch users:', err);
+    return;
+  }
+
+  let sentCount = 0;
+  for (const u of recipients) {
+    if (!u.email || SKIP_EMAILS.has(u.email)) continue;
+
+    try {
+      const stats = await getUserStats(u.id, models);
+
+      const username = u.user_metadata?.name || u.user_metadata?.full_name || u.user_metadata?.username || u.email.split('@')[0];
+
+      const html = buildDigestHtml({
+        username,
+        ...stats
+      });
+
+      await sendEmail({
+        to: u.email,
+        subject: 'Your Dobium Daily Digest 📊',
+        text: `Your daily digest is here! Portfolio: $${stats.portfolioValue.toFixed(2)} | Buying Power: $${stats.buyingPower.toFixed(2)}`,
+        html
+      });
+
+      sentCount++;
+      await new Promise(r => setTimeout(r, 1000)); // Rate limit 1 per second
+    } catch (err) {
+      console.error(`[Daily Digest] Failed for ${u.email}:`, err.message);
+    }
+  }
+  console.log(`[Daily Digest] Completed. Sent ${sentCount} digests.`);
+}
+
+/**
+ * Registers a node-cron job that fires every day.
+ */
+function registerDailyDigestJob(models, sendEmail) {
   // node-cron schedule: "0 12 * * *" in America/Chicago timezone = 12:00 PM CST/CDT.
-  // IMPORTANT: because we pass timezone:'America/Chicago', node-cron interprets
-  // the hour field in Chicago local time — so 12 = noon Chicago, not UTC.
   const schedule = process.env.DIGEST_CRON || '0 12 * * *';
 
-  cron.schedule(schedule, async () => {
-    console.log('[Daily Digest] Job triggered at', new Date().toISOString());
+  cron.schedule(schedule, () => executeDailyDigest(models, sendEmail), {
+    scheduled: true,
+    timezone: 'America/Chicago'
+  });
+}
 
-    // Fetch recipients from Supabase Auth (authoritative email list)
-    let recipients = [];
-    try {
-      const supabase = createClient(
-        process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL,
-        process.en
+module.exports = { registerDailyDigestJob, getUserStats, executeDailyDigest };

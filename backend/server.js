@@ -20,7 +20,7 @@ const {
   initializeDatabase
 } = require('./lib/database/models');
 const { sendEmail } = require('./lib/email');
-const { registerDailyDigestJob } = require('./jobs/daily-digest');
+const { registerDailyDigestJob, getUserStats } = require('./jobs/daily-digest');
 
 const Notification = sequelize.define('Notification', {
   id: {
@@ -173,23 +173,31 @@ app.get('/config/stripe.js', (req, res) => {
  */
 async function calculateBalanceFromTransactions(userId, transaction = null) {
   let userAliases = [userId];
-  const user = await User.findOne({
-    where: { [Op.or]: [{ id: userId }, { email: userId }] },
-    ...(transaction ? { transaction } : {})
-  });
+  let user = null;
+  try {
+    if (userId.includes('@')) {
+      user = await User.findOne({ where: { email: userId }, ...(transaction ? { transaction } : {}) });
+    } else {
+      user = await User.findOne({ where: { id: userId }, ...(transaction ? { transaction } : {}) });
+    }
+  } catch (err) { }
+
   if (user) {
     userAliases.push(user.id);
     if (user.email && user.email !== `${user.id}@placeholder.com`) userAliases.push(user.email);
   }
   userAliases = [...new Set(userAliases)];
 
+  const safeAliases = userAliases.filter(id => !id.includes('@'));
+  if (safeAliases.length === 0) safeAliases.push('00000000-0000-0000-0000-000000000000');
+
   const transactions = await Transaction.findAll({
-    where: { user_id: { [Op.in]: userAliases } },
+    where: { user_id: { [Op.in]: safeAliases } },
     ...(transaction ? { transaction } : {})
   });
 
   const activePredictions = await Prediction.findAll({
-    where: { user_id: { [Op.in]: userAliases } },
+    where: { user_id: { [Op.in]: safeAliases } },
     ...(transaction ? { transaction } : {})
   });
 
@@ -297,18 +305,26 @@ async function removeTradesCausingNegativeBuyingPower(userId, transaction) {
   const removedPredictionIds = [];
 
   let userAliases = [userId];
-  const user = await User.findOne({
-    where: { [Op.or]: [{ id: userId }, { email: userId }] },
-    transaction
-  });
+  let user = null;
+  try {
+    if (userId.includes('@')) {
+      user = await User.findOne({ where: { email: userId }, transaction });
+    } else {
+      user = await User.findOne({ where: { id: userId }, transaction });
+    }
+  } catch (err) { }
+
   if (user) {
     userAliases.push(user.id);
     if (user.email && user.email !== `${user.id}@placeholder.com`) userAliases.push(user.email);
   }
   userAliases = [...new Set(userAliases)];
 
+  const safeAliases = userAliases.filter(id => !id.includes('@'));
+  if (safeAliases.length === 0) safeAliases.push('00000000-0000-0000-0000-000000000000');
+
   const activePredictions = await Prediction.findAll({
-    where: { user_id: { [Op.in]: userAliases }, status: 'active' },
+    where: { user_id: { [Op.in]: safeAliases }, status: 'active' },
     order: [['created_at', 'DESC']],
     transaction
   });
@@ -1138,19 +1154,27 @@ app.post('/api/positions/sell', async (req, res) => {
       const currentProb = parseFloat(outcome.probability || 50);
 
       let userAliases = [user_id];
-      const user = await User.findOne({
-        where: { [Op.or]: [{ id: user_id }, { email: user_id }] },
-        transaction: t
-      });
+      let user = null;
+      try {
+        if (user_id.includes('@')) {
+          user = await User.findOne({ where: { email: user_id }, transaction: t });
+        } else {
+          user = await User.findOne({ where: { id: user_id }, transaction: t });
+        }
+      } catch (err) { }
+
       if (user) {
         userAliases.push(user.id);
         if (user.email && user.email !== `${user_id}@placeholder.com`) userAliases.push(user.email);
       }
       userAliases = [...new Set(userAliases)];
 
+      const safeAliases = userAliases.filter(id => !id.includes('@'));
+      if (safeAliases.length === 0) safeAliases.push('00000000-0000-0000-0000-000000000000');
+
       // Find all active predictions for this user/market/outcome
       const userPositions = await Prediction.findAll({
-        where: { user_id: { [Op.in]: userAliases }, market_id, outcome_id, status: 'active' },
+        where: { user_id: { [Op.in]: safeAliases }, market_id, outcome_id, status: 'active' },
         order: [['created_at', 'ASC']],
         transaction: t
       });
@@ -1771,16 +1795,26 @@ app.get('/api/admin/users', async (req, res) => {
         auth: { autoRefreshToken: false, persistSession: false }
       });
 
-      const { data: { users }, error } = await supabaseAdmin.auth.admin.listUsers();
+      const { data, error } = await supabaseAdmin.auth.admin.listUsers({ page: 1, perPage: 1000 });
       if (error) {
         console.error('Supabase admin listUsers error:', error);
-      } else {
-        const formattedUsers = users.map(u => ({
+      } else if (data && data.users) {
+        const formattedUsers = data.users.map(u => ({
           id: u.id,
           email: u.email,
           username: u.user_metadata?.name || u.user_metadata?.full_name || u.user_metadata?.username || (u.email ? u.email.split('@')[0] : 'Unknown'),
           created_at: u.created_at
         }));
+
+        // Sync real emails and usernames down to the local database so the Risk Management
+        // scanner and other local relations show actual names instead of UUID junk!
+        await Promise.all(formattedUsers.map(u =>
+          User.upsert({
+            id: u.id,
+            email: u.email,
+            username: u.username
+          }).catch(() => { })
+        ));
 
         formattedUsers.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
         return res.json(formattedUsers);
@@ -1809,60 +1843,26 @@ app.get('/api/admin/preview-digest', async (req, res) => {
 
     let targetUserId = userId || adminEmail;
 
-    let userAliases = [targetUserId];
-    const user = await User.findOne({
-      where: { [Op.or]: [{ id: targetUserId }, { email: targetUserId }] }
-    });
+    let user = null;
+    try {
+      if (targetUserId.includes('@')) {
+        user = await User.findOne({ where: { email: targetUserId } });
+      } else {
+        user = await User.findOne({ where: { id: targetUserId } });
+      }
+    } catch (e) {
+      console.warn('[preview-digest] Failed to find user:', e.message);
+    }
+
     if (user) {
       targetUserId = user.id;
-      userAliases.push(user.id);
-      if (user.email && user.email !== `${user.id}@placeholder.com`) userAliases.push(user.email);
-    }
-    userAliases = [...new Set(userAliases)];
-
-    const balanceInfo = await calculateBalanceFromTransactions(targetUserId);
-
-    const allPredictions = await Prediction.findAll({
-      where: { user_id: { [Op.in]: userAliases } }
-    });
-
-    const activePredictions = allPredictions.filter(p => p.status === 'active');
-
-    let activeMtmValue = 0;
-    for (const p of activePredictions) {
-      try {
-        const outcome = await Outcome.findByPk(p.outcome_id);
-        const stake = parseFloat(p.stake_amount || 0);
-        const entryProb = parseFloat(p.odds_at_prediction || 50);
-        const currentProb = outcome ? parseFloat(outcome.probability || 50) : entryProb;
-
-        const pE = entryProb / 100;
-        const pC = currentProb / 100;
-        const rMin = stake * pE;
-        const rMax = stake * (2 - pE);
-        activeMtmValue += rMin + (rMax - rMin) * pC;
-      } catch { }
     }
 
-    const portfolioValue = balanceInfo.buyingPower + activeMtmValue;
-    const totalPnl = portfolioValue - balanceInfo.paperStartingBalance;
-
-    const totalPredictions = allPredictions.length;
-    const settledCount = allPredictions.filter(p => ['won', 'lost'].includes(p.status)).length;
-    const wonCount = allPredictions.filter(p => p.status === 'won').length;
-    const hasEverTraded = totalPredictions > 0;
+    const stats = await getUserStats(targetUserId, { User, Transaction, Prediction, Outcome });
 
     const html = buildDigestHtml({
       username: user ? (user.username || user.email.split('@')[0]) : 'Demo User',
-      startingBalance: balanceInfo.paperStartingBalance,
-      portfolioValue,
-      buyingPower: balanceInfo.buyingPower,
-      totalPnl,
-      totalPredictions,
-      wonCount,
-      settledCount,
-      hasEverTraded,
-      equityPoints
+      ...stats
     });
 
     res.json({ html });
@@ -2099,7 +2099,7 @@ app.post('/api/admin/send-broadcast', async (req, res) => {
       auth: { autoRefreshToken: false, persistSession: false }
     });
 
-    const { data, error } = await supabaseAdmin.auth.admin.listUsers();
+    const { data, error } = await supabaseAdmin.auth.admin.listUsers({ page: 1, perPage: 1000 });
     if (error) return res.status(500).json({ error: 'Failed to fetch users: ' + error.message });
 
     const SKIP = new Set(['donotreply.dobium@gmail.com', 'peepeeeepooopoo@gmail.com', 'hebdhdbdbsbhbbbhhdhdhsh@gmail.com']);

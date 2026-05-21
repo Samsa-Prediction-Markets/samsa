@@ -49,13 +49,13 @@ function buildDigestHtml({
   hasEverTraded,
   equityPoints,
 }) {
-  const year        = new Date().getFullYear();
-  const today       = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
-  const isProfit    = totalPnl >= 0;
-  const pnlColor    = isProfit ? '#4ade80' : '#f87171';
-  const pnlText     = fmtPnl(totalPnl);
-  const pnlPct      = startingBalance > 0 ? ((totalPnl / startingBalance) * 100).toFixed(2) : '0.00';
-  const pnlSign     = isProfit ? '+' : '';
+  const year = new Date().getFullYear();
+  const today = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+  const isProfit = totalPnl >= 0;
+  const pnlColor = isProfit ? '#4ade80' : '#f87171';
+  const pnlText = fmtPnl(totalPnl);
+  const pnlPct = startingBalance > 0 ? ((totalPnl / startingBalance) * 100).toFixed(2) : '0.00';
+  const pnlSign = isProfit ? '+' : '';
   const accuracyPct = settledCount > 0 ? Math.round((wonCount / settledCount) * 100) : 0;
 
   // ── "Get started" banner (no-trades users) ───────────────────────────────
@@ -86,7 +86,7 @@ function buildDigestHtml({
       }
       return result;
     }
-    
+
     const sampledPoints = downsample(equityPoints, 40);
     const dataValues = sampledPoints.map(p => parseFloat(p.value).toFixed(2));
     const labels = sampledPoints.map(() => "''");
@@ -226,4 +226,4 @@ function buildDigestHtml({
 </html>`;
 }
 
-module.exports 
+module.exports = { buildDigestHtml };
