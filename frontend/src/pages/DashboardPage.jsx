@@ -252,7 +252,16 @@ function calcPositionValue(stake, entryProbPct, currentProbPct) {
   const pCurrent = currentProbPct / 100;
   const rMin = stake * pEntry;
   const rMax = stake * (2 - pEntry);
-  return rMin + (rMax - rMin) * pCurrent;
+
+  if (pEntry === 0) return pCurrent > 0 ? rMax : rMin;
+  if (pEntry === 1) return pCurrent < 1 ? rMin : rMax;
+
+  // Piecewise interpolation ensures the value is exactly `stake` at entry probability
+  if (pCurrent <= pEntry) {
+    return rMin + (stake - rMin) * (pCurrent / pEntry);
+  } else {
+    return stake + (rMax - stake) * ((pCurrent - pEntry) / (1 - pEntry));
+  }
 }
 
 function getResolvedReturn(pred) {
@@ -444,8 +453,8 @@ export default function DashboardPage() {
   // Mark-to-market (MTM) valuation for all active positions:
   //   R_max     = S + S×(1−p_entry)   = S×(2−p_entry)  ← win upper bound
   //   R_min     = S×p_entry                             ← loss lower bound
-  //   R_current = R_min + (R_max − R_min)×p_current     ← midpoint valuation
-  //             = S×(p_entry + 2×p_current×(1−p_entry)) ← simplified
+  //   R_current = Piecewise interpolation from R_min -> Stake -> R_max
+  //               Ensures position value == Stake at entry, preventing instant drops
   const activeMtmValue = predictions.reduce((sum, p) => {
     const market = markets.find(m => m.id === p.market_id);
     const outcome = market?.outcomes?.find(o => o.id === p.outcome_id);
