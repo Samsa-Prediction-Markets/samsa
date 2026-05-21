@@ -334,16 +334,15 @@ export default function DashboardPage() {
     // Guard: if no predictions have timestamps, bail out
     if (!sorted.length) return [];
 
-    // R_current = R_min + (R_max - R_min) × p_current
+    // R = S × (p_entry + 2×p_current×(1 - p_entry))
+    // This correctly implements S(1-p) payout model MTM valuation
     const getMtm = (p) => {
       const market = markets.find(m => m.id === p.market_id);
       const outcome = market?.outcomes?.find(o => o.id === p.outcome_id);
       const pCurrent = (outcome?.probability ?? p.odds_at_prediction ?? 50) / 100;
       const pEntry = (p.odds_at_prediction || 50) / 100;
       const S = p.stake_amount || 0;
-      const R_max = S + S * (1 - pEntry);
-      const R_min = S - S * (1 - pEntry);
-      return R_min + (R_max - R_min) * pCurrent;
+      return S * (pEntry + 2 * pCurrent * (1 - pEntry));
     };
 
     // Anchor at start of the day of the first trade
@@ -640,20 +639,20 @@ export default function DashboardPage() {
                             const outcome = market?.outcomes?.find(o => o.id === outcomeId);
                             const currentProb = outcome?.probability ?? 50;
                             const avgEntry = data.totalStake > 0 ? data.weightedOdds / data.totalStake : 50;
-                            // R_max = S + S(1-p_entry), R_min = S - S(1-p_entry)
-                            // R_current = R_min + (R_max - R_min) * p_current
+                            // R_max = S × (2 - p_entry), R_min = S × p_entry
+                            // R_current = R_min + (R_max - R_min) × p_current
+                            // Simplified: R = S × (p_entry + 2×p_current×(1 - p_entry))
                             const pCurrent = currentProb / 100;
                             const pEntry = avgEntry / 100;
                             const S = data.totalStake;
-                            const R_max = S + S * (1 - pEntry);
-                            const R_min = S - S * (1 - pEntry);
-                            const mtmValue = R_min + (R_max - R_min) * pCurrent;
+                            const mtmValue = S * (pEntry + 2 * pCurrent * (1 - pEntry));
                             const unrealizedPnl = mtmValue - S;
                             const sellKey = `${marketId}__${outcomeId}`;
                             const isSelling = sellingKey === sellKey;
                             const sellAmt = parseFloat(sellAmount) || 0;
+                            // Calculate preview return using proper MTM formula for partial position
                             const previewReturn = isSelling && sellAmt > 0
-                              ? Math.min(sellAmt * (currentProb / avgEntry), sellAmt * 2).toFixed(2)
+                              ? (sellAmt * (pEntry + 2 * pCurrent * (1 - pEntry))).toFixed(2)
                               : null;
                             const previewPnl = previewReturn !== null
                               ? (parseFloat(previewReturn) - sellAmt).toFixed(2)

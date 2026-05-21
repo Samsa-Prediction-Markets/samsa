@@ -480,15 +480,26 @@ export default function MarketDetailPage() {
                                 <div className="flex justify-between">
                                   <span className="text-slate-400">You receive:</span>
                                   <span className="text-white font-semibold">
-                                    ${(parseFloat(sellAmount) * ((o.probability || 50) / (userAvgEntry[o.id] || 50))).toFixed(2)}
+                                    ${(() => {
+                                      const pEntry = (userAvgEntry[o.id] || 50) / 100;
+                                      const pCurrent = (o.probability || 50) / 100;
+                                      const sellAmt = parseFloat(sellAmount);
+                                      return (sellAmt * (pEntry + 2 * pCurrent * (1 - pEntry))).toFixed(2);
+                                    })()}
                                   </span>
                                 </div>
                                 <div className="flex justify-between">
                                   <span className="text-slate-400">Net P&L:</span>
                                   <span className={`font-semibold ${(o.probability || 50) >= (userAvgEntry[o.id] || 50) ? 'text-green-400' : 'text-red-400'
                                     }`}>
-                                    {(o.probability || 50) >= (userAvgEntry[o.id] || 50) ? '+' : ''}
-                                    ${(parseFloat(sellAmount) * ((o.probability || 50) / (userAvgEntry[o.id] || 50)) - parseFloat(sellAmount)).toFixed(2)}
+                                    {(() => {
+                                      const pEntry = (userAvgEntry[o.id] || 50) / 100;
+                                      const pCurrent = (o.probability || 50) / 100;
+                                      const sellAmt = parseFloat(sellAmount);
+                                      const returnAmt = sellAmt * (pEntry + 2 * pCurrent * (1 - pEntry));
+                                      const pnl = returnAmt - sellAmt;
+                                      return `${pnl >= 0 ? '+' : ''}$${pnl.toFixed(2)}`;
+                                    })()}
                                   </span>
                                 </div>
                               </div>

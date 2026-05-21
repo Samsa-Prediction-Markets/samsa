@@ -1038,14 +1038,26 @@ app.post('/api/predictions', async (req, res) => {
 // ============================================================================
 
 /**
- * Calculate the cash value of selling a position.
- * sell_return = stake × (currentProb / entryProb)
- * This mirrors the S(1-p) payout model: if price has risen since entry
- * the seller receives more than they put in, and vice versa.
+ * Calculate the Mark-to-Market (MTM) cash value of selling a position.
+ * Based on S(1-p) payout model:
+ *   R_min = S × p_entry (loss case)
+ *   R_max = S × (2 - p_entry) (win case)
+ *   R_current = R_min + (R_max - R_min) × p_current
+ *   Simplified: R = S × (p_entry + 2×p_current×(1 - p_entry))
+ * 
+ * @param {number} stake - Position size in dollars
+ * @param {number} entryProb - Entry probability (0-100)
+ * @param {number} currentProb - Current probability (0-100)
+ * @returns {number} Cash value user receives
  */
 function calculatePositionValue(stake, entryProb, currentProb) {
-  const ratio = currentProb / Math.max(entryProb, 0.01);
-  return Number((stake * ratio).toFixed(2));
+  const pEntry = Math.max(0.01, Math.min(99, entryProb)) / 100; // 0.01 to 0.99
+  const pCurrent = Math.max(0.01, Math.min(99, currentProb)) / 100; // 0.01 to 0.99
+
+  // R = S × (p_entry + 2×p_current×(1 - p_entry))
+  const returnValue = stake * (pEntry + 2 * pCurrent * (1 - pEntry));
+
+  return Number(Math.max(0, returnValue).toFixed(2));
 }
 
 app.post('/api/positions/sell', async (req, res) => {
@@ -1148,6 +1160,19 @@ app.post('/api/positions/sell', async (req, res) => {
       // Record price history snapshot
       const prices = Object.fromEntries(pricedOutcomes.map(o => [o.id, o.probability]));
       await PriceHistory.create({ market_id, timestamp: new Date(), prices }, { transaction: t });
+
+      // Record sell return as a transaction (credit back to user's cash)
+      if (sellReturn > 0) {
+        await Transaction.create({
+          id: nanoid(12),
+          user_id: user_id,
+          type: 'deposit',
+          amount: sellReturn,
+          payment_method: 'sell_return',
+          status: 'completed',
+          completed_at: new Date()
+        }, { transaction: t });
+      }
 
       const updatedMarket = await fetchMarketWithRelations(market_id, t);
 
