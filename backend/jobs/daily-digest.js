@@ -289,7 +289,7 @@ async function executeDailyDigest(models, sendEmail) {
   // Fetch recipients from Supabase Auth (authoritative email list)
   let recipients = [];
   try {
-    const supabase = createClient(
+    const supabaseAdmin = createClient(
       process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL,
       process.env.SUPABASE_SERVICE_ROLE_KEY || '',
       { auth: { autoRefreshToken: false, persistSession: false } }

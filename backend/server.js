@@ -1325,6 +1325,58 @@ app.post('/api/markets/:id/resolve', async (req, res) => {
 });
 
 // ============================================================================
+// AUTH & EMAILS
+// ============================================================================
+
+app.post('/api/auth/welcome', async (req, res) => {
+  try {
+    const { email, username } = req.body;
+    if (!email) {
+      return res.status(400).json({ error: 'Email is required' });
+    }
+
+    const { buildWelcomeHtml } = require('./lib/welcome-email');
+    const html = buildWelcomeHtml({ username, email });
+
+    const info = await sendEmail({
+      to: email,
+      subject: 'Welcome to Dobium 🎉',
+      text: `Welcome to Dobium, ${username || 'there'}! Your account is confirmed and ready to go.`,
+      html
+    });
+
+    res.json({ success: true, messageId: info?.messageId });
+  } catch (error) {
+    console.error('Welcome email error:', error);
+    res.status(500).json({ error: 'Failed to send welcome email' });
+  }
+});
+
+app.post('/api/auth/confirm', async (req, res) => {
+  try {
+    const { email, name, confirmUrl } = req.body;
+    if (!email || !confirmUrl) {
+      return res.status(400).json({ error: 'Email and confirmUrl are required' });
+    }
+
+    const { buildConfirmHtml } = require('./lib/confirm-email');
+    const html = buildConfirmHtml({ name, confirmUrl });
+
+    const info = await sendEmail({
+      to: email,
+      subject: 'Confirm your Dobium account',
+      text: `Please confirm your Dobium account by visiting this link: ${confirmUrl}`,
+      html
+    });
+
+    res.json({ success: true, messageId: info?.messageId });
+  } catch (error) {
+    console.error('Confirm email error:', error);
+    res.status(500).json({ error: 'Failed to send confirm email' });
+  }
+});
+
+// ============================================================================
 // WALLET / USER ENDPOINTS
 // ============================================================================
 
