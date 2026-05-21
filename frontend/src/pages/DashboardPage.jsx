@@ -250,7 +250,7 @@ function EquityChart({ equityPoints, startingBalance, currentValue }) {
 export default function DashboardPage() {
   const navigate = useNavigate();
   const { session } = useAuth();
-  const { markets } = useMarkets();
+  const { markets, loading: marketsLoading } = useMarkets();
   const { balance: buyingPower, wallet, loading: walletLoading, refetch: refetchWallet } = useWallet();
   const [selectedRange, setSelectedRange] = useState('1D');
   const [predictions, setPredictions] = useState([]);
@@ -260,6 +260,9 @@ export default function DashboardPage() {
   const [sellLoading, setSellLoading] = useState(false);
   const [sellMsg, setSellMsg] = useState('');
   const [showAllActivity, setShowAllActivity] = useState(false);
+  const [initialDataLoaded, setInitialDataLoaded] = useState(false);
+  const [hasLoadedWallet, setHasLoadedWallet] = useState(false);
+  const [hasLoadedMarkets, setHasLoadedMarkets] = useState(false);
 
   const fetchPredictions = useCallback(() => {
     api.getPredictions()
@@ -271,13 +274,27 @@ export default function DashboardPage() {
         const activePredictions = userPredictions.filter(p => p.status === 'active');
         setAllPredictions(userPredictions);
         setPredictions(activePredictions);
+        setInitialDataLoaded(true);
       })
       .catch(() => {
         setPredictions([]);
         setAllPredictions([]);
+        setInitialDataLoaded(true);
       });
     refetchWallet();
   }, [session, refetchWallet]);
+
+  useEffect(() => {
+    if (!walletLoading) {
+      setHasLoadedWallet(true);
+    }
+  }, [walletLoading]);
+
+  useEffect(() => {
+    if (!marketsLoading) {
+      setHasLoadedMarkets(true);
+    }
+  }, [marketsLoading]);
 
   useEffect(() => {
     fetchPredictions();
@@ -285,6 +302,103 @@ export default function DashboardPage() {
     const interval = setInterval(fetchPredictions, 60_000);
     return () => clearInterval(interval);
   }, [fetchPredictions]);
+
+  // Show a skeleton dashboard exoskeleton during the initial data fetch
+  if (!initialDataLoaded || !hasLoadedWallet || !hasLoadedMarkets) {
+    return (
+      <div className="max-w-7xl mx-auto p-6 lg:p-8">
+        <div className="flex flex-col lg:flex-row gap-8">
+          {/* Main Content (Left Side) Skeleton */}
+          <div className="flex-1">
+            <div className="mb-2">
+              <button className="flex items-center gap-2 text-white hover:bg-slate-800/50 px-3 py-2 rounded-lg transition-colors -ml-3">
+                <span className="text-2xl font-semibold">Portfolio</span>
+                <span className="text-slate-400">▾</span>
+              </button>
+            </div>
+
+            {/* Blank Portfolio Value */}
+            <div className="mb-1 flex items-center h-12">
+              <div className="h-12 w-64 bg-slate-800/80 rounded-lg animate-pulse"></div>
+            </div>
+            <div className="flex items-center gap-2 mb-8 h-6">
+              <div className="h-5 w-32 bg-slate-800/80 rounded animate-pulse"></div>
+              <span className="text-slate-400">All Time</span>
+            </div>
+
+            {/* Chart Skeleton */}
+            <div className="mb-6">
+              <div className="h-64 relative bg-slate-800/20 rounded-xl border border-slate-800/50 animate-pulse flex items-center justify-center">
+                <div className="w-8 h-8 border-2 border-slate-600 border-t-transparent rounded-full animate-spin"></div>
+              </div>
+            </div>
+
+            {/* Time Range Selector */}
+            <div className="flex items-center justify-between mb-8 border-b border-slate-800 pb-4 opacity-50">
+              <div className="flex gap-1">
+                {['1D', '1W', '1M', '3M', 'YTD', '1Y', 'ALL'].map(range => (
+                  <button key={range} className="px-4 py-2 text-sm font-medium text-slate-500">
+                    {range}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Paper Trading Balance Skeleton */}
+            <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-4 mb-8">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span style={{ color: 'rgb(212, 175, 55)' }}><svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M21 12a2.25 2.25 0 00-2.25-2.25H15a3 3 0 11-6 0H5.25A2.25 2.25 0 003 12m18 0v6a2.25 2.25 0 01-2.25 2.25H5.25A2.25 2.25 0 013 18v-6m18 0V9M3 12V9m18 0a2.25 2.25 0 00-2.25-2.25H5.25A2.25 2.25 0 003 9m18 0V6a2.25 2.25 0 00-2.25-2.25H5.25A2.25 2.25 0 003 6v3" /></svg></span>
+                  <span className="text-white font-medium">Paper Trading Balance</span>
+                </div>
+                <div className="h-8 w-32 bg-slate-800/80 rounded animate-pulse"></div>
+              </div>
+              <p className="text-xs text-slate-500 mt-2">This buying power is virtual money for practice. No real funds are involved.</p>
+            </div>
+
+            {/* Forecasting Stats Skeleton */}
+            <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-5 mb-8">
+              <div className="flex items-center gap-2 mb-4 opacity-50">
+                <span style={{ color: 'rgb(212, 175, 55)' }}><svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z" /></svg></span>
+                <span className="text-white font-medium">Your Forecasting Stats</span>
+              </div>
+              <div className="grid grid-cols-3 gap-3">
+                {[1, 2, 3].map(i => (
+                  <div key={i} className="bg-slate-800/30 rounded-lg p-3 text-center flex flex-col items-center justify-center">
+                    <div className="h-8 w-16 bg-slate-800 rounded animate-pulse mb-1"></div>
+                    <div className="h-4 w-16 bg-slate-800/50 rounded animate-pulse mt-1"></div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Right Sidebar Skeleton */}
+          <div className="w-full lg:w-80 space-y-4">
+            <div className="bg-slate-900/50 border border-slate-800 rounded-2xl overflow-hidden">
+              <div className="p-5">
+                <div className="flex items-center gap-3 mb-4 opacity-50">
+                  <svg className="w-5 h-5 text-yellow-400" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z" /></svg>
+                  <h3 className="text-white font-semibold">Positions</h3>
+                </div>
+                <div className="space-y-3">
+                  {[1, 2, 3, 4].map(i => (
+                    <div key={i} className="bg-slate-800/30 rounded-lg p-3 animate-pulse">
+                      <div className="h-4 w-3/4 bg-slate-800 rounded mb-3"></div>
+                      <div className="flex justify-between items-end">
+                        <div className="h-3 w-1/3 bg-slate-800 rounded"></div>
+                        <div className="h-6 w-1/4 bg-slate-800 rounded"></div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   // Calculate portfolio metrics
   const startingBalance = wallet.paperStartingBalance || 10000;
@@ -442,11 +556,11 @@ export default function DashboardPage() {
 
           {/* Portfolio Value */}
           <div className="mb-1">
-            <h1 className="text-5xl font-bold text-white">${portfolioValue.toFixed(2)}</h1>
+            <h1 className="text-5xl font-bold text-white">${portfolioValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</h1>
           </div>
           <div className="flex items-center gap-2 mb-8">
             <span className={`font-medium ${todayChange >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-              {todayChange >= 0 ? '+' : ''}${todayChange.toFixed(2)} ({todayChange >= 0 ? '+' : ''}{todayChangePercent.toFixed(2)}%)
+              {todayChange >= 0 ? '+$' : '-$'}{Math.abs(todayChange).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ({todayChange >= 0 ? '+' : ''}{todayChangePercent.toFixed(2)}%)
             </span>
             <span className="text-slate-400">All Time</span>
           </div>
@@ -501,7 +615,7 @@ export default function DashboardPage() {
                 <span className="text-slate-500 cursor-help text-sm" title="Virtual money for practice trading">ⓘ</span>
               </div>
               <span className="text-2xl font-bold text-yellow-400">
-                {walletLoading ? '...' : `$${availableBalance.toFixed(2)}`}
+                {walletLoading ? '...' : `$${availableBalance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
               </span>
             </div>
             <p className="text-xs text-slate-500 mt-2">This buying power is virtual money for practice. No real funds are involved.</p>
@@ -672,7 +786,7 @@ export default function DashboardPage() {
                                   user_id: userId,
                                   sell_amount: sellAmt,
                                 });
-                                setSellMsg(`✅ Sold $${sellAmt.toFixed(2)}`);
+                                setSellMsg(`✅ Sold $${sellAmt.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`);
                                 setTimeout(() => window.location.reload(), 1000);
                               } catch (err) {
                                 setSellMsg(`❌ ${err.message}`);
@@ -691,13 +805,13 @@ export default function DashboardPage() {
                                       <span className={`font-semibold ${mtmValue < data.totalStake ? 'text-red-400' :
                                         mtmValue > data.totalStake ? 'text-green-400' : 'text-slate-300'
                                         }`}>
-                                        ${mtmValue.toFixed(2)}
+                                        ${mtmValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                       </span>
                                       {/* Unrealized P&L delta */}
                                       <span className={`block text-[10px] leading-tight ${unrealizedPnl < 0 ? 'text-red-500' :
                                         unrealizedPnl > 0 ? 'text-green-500' : 'text-slate-500'
                                         }`}>
-                                        {unrealizedPnl >= 0 ? '+' : ''}${unrealizedPnl.toFixed(2)}
+                                        {unrealizedPnl >= 0 ? '+$' : '-$'}{Math.abs(unrealizedPnl).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                       </span>
                                     </div>
                                     <button
@@ -737,7 +851,7 @@ export default function DashboardPage() {
                                           step="0.01"
                                           value={sellAmount}
                                           onChange={e => setSellAmount(e.target.value)}
-                                          placeholder={`Max $${data.totalStake.toFixed(2)}`}
+                                          placeholder={`Max $${data.totalStake.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
                                           className="w-full bg-slate-800 border border-slate-600 rounded pl-5 pr-2 py-1.5 text-white text-xs placeholder:text-slate-600 focus:outline-none focus:border-red-500"
                                         />
                                       </div>
@@ -754,13 +868,13 @@ export default function DashboardPage() {
                                       <div className="bg-slate-800 rounded p-2 space-y-1 text-xs">
                                         <div className="flex justify-between">
                                           <span className="text-slate-500">Receive:</span>
-                                          <span className="text-white font-medium">${previewReturn}</span>
+                                          <span className="text-white font-medium">${parseFloat(previewReturn).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                                         </div>
                                         <div className="flex justify-between">
                                           <span className="text-slate-500">P&L:</span>
                                           <span className={`font-medium ${parseFloat(previewPnl) >= 0 ? 'text-green-400' : 'text-red-400'
                                             }`}>
-                                            {parseFloat(previewPnl) >= 0 ? '+' : ''}${previewPnl}
+                                            {parseFloat(previewPnl) >= 0 ? '+$' : '-$'}{Math.abs(parseFloat(previewPnl)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                           </span>
                                         </div>
                                       </div>
