@@ -266,7 +266,8 @@ export default function DashboardPage() {
       .then(data => {
         const allPreds = Array.isArray(data) ? data : [];
         const userId = session?.user?.id || 'demo_user';
-        const userPredictions = allPreds.filter(p => p.user_id === userId);
+        const userEmail = session?.user?.email;
+        const userPredictions = allPreds.filter(p => p.user_id === userId || (userEmail && p.user_id === userEmail));
         const activePredictions = userPredictions.filter(p => p.status === 'active');
         setAllPredictions(userPredictions);
         setPredictions(activePredictions);

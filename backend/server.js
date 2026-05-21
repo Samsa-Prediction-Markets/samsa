@@ -169,13 +169,24 @@ app.get('/config/stripe.js', (req, res) => {
  * Calculate user balance from transactions
  */
 async function calculateBalanceFromTransactions(userId, transaction = null) {
+  let userAliases = [userId];
+  const user = await User.findOne({
+    where: { [Op.or]: [{ id: userId }, { email: userId }] },
+    ...(transaction ? { transaction } : {})
+  });
+  if (user) {
+    userAliases.push(user.id);
+    if (user.email && user.email !== `${user.id}@placeholder.com`) userAliases.push(user.email);
+  }
+  userAliases = [...new Set(userAliases)];
+
   const transactions = await Transaction.findAll({
-    where: { user_id: userId },
+    where: { user_id: { [Op.in]: userAliases } },
     ...(transaction ? { transaction } : {})
   });
 
   const activePredictions = await Prediction.findAll({
-    where: { user_id: userId },
+    where: { user_id: { [Op.in]: userAliases } },
     ...(transaction ? { transaction } : {})
   });
 
@@ -200,7 +211,15 @@ async function calculateBalanceFromTransactions(userId, transaction = null) {
   const realizedStake = realizedPredictions
     .reduce((sum, p) => sum + parseFloat(p.stake_amount || 0), 0);
   const realizedReturn = realizedPredictions
-    .reduce((sum, p) => sum + parseFloat(p.actual_return || 0), 0);
+    .reduce((sum, p) => {
+      let ret = parseFloat(p.actual_return || 0);
+      // Self-heal historical losses that were incorrectly given 0 return
+      if (p.status === 'lost' && ret === 0) {
+        const pEntry = parseFloat(p.odds_at_prediction || 50) / 100;
+        ret = parseFloat(p.stake_amount || 0) * pEntry;
+      }
+      return sum + ret;
+    }, 0);
   const realizedPnl = realizedReturn - realizedStake;
 
   const cashBalance = PAPER_TRADING_STARTING_BALANCE + totalDeposits - totalWithdrawals + realizedPnl;
@@ -260,8 +279,19 @@ async function removeTradesCausingNegativeBuyingPower(userId, transaction) {
   const affectedMarketIds = new Set();
   const removedPredictionIds = [];
 
+  let userAliases = [userId];
+  const user = await User.findOne({
+    where: { [Op.or]: [{ id: userId }, { email: userId }] },
+    transaction
+  });
+  if (user) {
+    userAliases.push(user.id);
+    if (user.email && user.email !== `${user.id}@placeholder.com`) userAliases.push(user.email);
+  }
+  userAliases = [...new Set(userAliases)];
+
   const activePredictions = await Prediction.findAll({
-    where: { user_id: userId, status: 'active' },
+    where: { user_id: { [Op.in]: userAliases }, status: 'active' },
     order: [['created_at', 'DESC']],
     transaction
   });
@@ -495,7 +525,14 @@ async function resolveMarketInstance(market, requestedOutcomeIds, options = {}) 
 
   for (const prediction of predictions) {
     const won = winningSet.has(prediction.outcome_id);
-    const actualReturn = won ? parseFloat(prediction.potential_return || 0) : 0;
+    const pEntry = parseFloat(prediction.odds_at_prediction || 50) / 100;
+    const stakeAmount = parseFloat(prediction.stake_amount || 0);
+    let actualReturn = 0;
+    if (won) {
+      actualReturn = parseFloat(prediction.potential_return || 0);
+    } else {
+      actualReturn = stakeAmount * pEntry;
+    }
     await prediction.update({
       status: won ? 'won' : 'lost',
       actual_return: actualReturn,
@@ -1081,9 +1118,20 @@ app.post('/api/positions/sell', async (req, res) => {
 
       const currentProb = parseFloat(outcome.probability || 50);
 
+      let userAliases = [user_id];
+      const user = await User.findOne({
+        where: { [Op.or]: [{ id: user_id }, { email: user_id }] },
+        transaction: t
+      });
+      if (user) {
+        userAliases.push(user.id);
+        if (user.email && user.email !== `${user_id}@placeholder.com`) userAliases.push(user.email);
+      }
+      userAliases = [...new Set(userAliases)];
+
       // Find all active predictions for this user/market/outcome
       const userPositions = await Prediction.findAll({
-        where: { user_id, market_id, outcome_id, status: 'active' },
+        where: { user_id: { [Op.in]: userAliases }, market_id, outcome_id, status: 'active' },
         order: [['created_at', 'ASC']],
         transaction: t
       });
